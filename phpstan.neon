@@ -1,0 +1,27 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+    - vendor/thecodingmachine/phpstan-safe-rule/phpstan-safe-rule.neon
+
+parameters:
+    tmpDir: .phpstan/cache
+    parallel:       
+        jobSize: 20
+        maximumNumberOfProcesses: 12 
+        minimumNumberOfJobsPerProcess: 3
+
+    paths:
+        - app/
+
+    # Level 9 is the highest level
+    level: 7
+
+    ignoreErrors:
+        # Ignore missing generic types for Eloquent relationships since TDeclaringModel is not covariant
+
+    treatPhpDocTypesAsCertain: false
+
+    excludePaths:
+
+    universalObjectCratesClasses:
+        - App\Datatypes\Collection

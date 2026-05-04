@@ -1,0 +1,215 @@
+<?php
+
+namespace App\AlphaForge\Backtesting\Service;
+
+use App\AlphaForge\Backtesting\Model\BacktestRun;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Events\BacktestProgress;
+use App\AlphaForge\Jobs\RunBacktestJob;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+/**
+ * Service responsible for orchestrating backtest execution.
+ *
+ * This service provides a single entry point for running backtests,
+ * whether asynchronously via a job or synchronously for CLI/scripts.
+ */
+class BacktestRunService
+{
+    public function __construct(
+        private readonly Backtester $backtester,
+    ) {}
+
+    /**
+     * Queue a backtest for async execution.
+     *
+     * @param  array{
+     *     user_id: int|null,
+     *     strategy: string,
+     *     symbols: array<string>,
+     *     timeframe: string,
+     *     execution_timeframe?: string|null,
+     *     exchange: string,
+     *     initial_capital: float,
+     *     stake_currency?: string,
+     *     strategy_inputs?: array,
+     *     commission_config?: array,
+     *     start_date?: string|null,
+     *     end_date?: string|null
+     * }  $data
+     */
+    public function queue(array $data): BacktestRun
+    {
+        $backtestRun = $this->createBacktestRun($data);
+
+        RunBacktestJob::dispatch($backtestRun);
+
+        return $backtestRun;
+    }
+
+    /**
+     * Run a backtest synchronously (for CLI/scripts).
+     *
+     * @param  array{
+     *     user_id?: int|null,
+     *     strategy: string,
+     *     symbols: array<string>,
+     *     timeframe: string,
+     *     execution_timeframe?: string|null,
+     *     exchange: string,
+     *     initial_capital: float,
+     *     stake_currency?: string,
+     *     strategy_inputs?: array,
+     *     commission_config?: array,
+     *     start_date?: string|null,
+     *     end_date?: string|null
+     * }  $data
+     * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
+     */
+    public function runSync(array $data): array
+    {
+        $backtestRun = $this->createBacktestRun($data);
+
+        return $this->execute($backtestRun);
+    }
+
+    /**
+     * Execute a queued backtest. Called by RunBacktestJob.
+     */
+    public function execute(BacktestRun $backtestRun): array
+    {
+        $backtestRun->markAsRunning();
+        $this->broadcastProgress($backtestRun, 0, 'Starting backtest...');
+
+        try {
+            $timeframe = TimeframeEnum::from($backtestRun->timeframe);
+            $additionalTimeframes = $this->parseAdditionalTimeframes($backtestRun->strategy_inputs ?? []);
+            $startDate = $backtestRun->start_date ? Carbon::parse($backtestRun->start_date) : null;
+            $endDate = $backtestRun->end_date ? Carbon::parse($backtestRun->end_date) : null;
+
+            // Parse execution timeframe if set
+            $executionTimeframe = $backtestRun->execution_timeframe
+                ? TimeframeEnum::from($backtestRun->execution_timeframe)
+                : null;
+
+            $this->broadcastProgress($backtestRun, 10, 'Loading market data...');
+
+            $result = $this->backtester->run(
+                strategyAlias: $backtestRun->strategy_alias,
+                symbols: $backtestRun->symbols,
+                timeframe: $timeframe,
+                exchange: $backtestRun->exchange,
+                initialCapital: (string) $backtestRun->initial_capital,
+                stakeCurrency: $backtestRun->stake_currency,
+                strategyInputs: $backtestRun->strategy_inputs ?? [],
+                commissionConfig: $backtestRun->commission_config ?? [],
+                additionalTimeframes: $additionalTimeframes,
+                startDate: $startDate,
+                endDate: $endDate,
+                executionTimeframe: $executionTimeframe
+            );
+
+            $this->broadcastProgress($backtestRun, 90, 'Calculating statistics...');
+
+            $backtestRun->markAsCompleted(
+                $result['final_capital'],
+                $result['statistics']
+            );
+
+            $this->broadcastProgress($backtestRun, 100, 'Backtest completed successfully');
+
+            Log::info('Backtest completed', [
+                'backtest_id' => $backtestRun->id,
+                'strategy' => $backtestRun->strategy_alias,
+                'final_capital' => $result['final_capital'],
+            ]);
+
+            return $result;
+
+        } catch (Throwable $e) {
+            Log::error('Backtest failed', [
+                'backtest_id' => $backtestRun->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $backtestRun->markAsFailed($e->getMessage());
+            $this->broadcastProgress($backtestRun, 0, 'Backtest failed: ' . $e->getMessage());
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Create a BacktestRun model from input data.
+     *
+     * @param  array{
+     *     user_id?: int|null,
+     *     strategy: string,
+     *     symbols: array<string>,
+     *     timeframe: string,
+     *     execution_timeframe?: string|null,
+     *     exchange: string,
+     *     initial_capital: float,
+     *     stake_currency?: string,
+     *     strategy_inputs?: array,
+     *     commission_config?: array,
+     *     start_date?: string|null,
+     *     end_date?: string|null
+     * }  $data
+     */
+    private function createBacktestRun(array $data): BacktestRun
+    {
+        return BacktestRun::create([
+            'user_id' => $data['user_id'] ?? null,
+            'strategy_alias' => $data['strategy'],
+            'symbols' => $data['symbols'],
+            'timeframe' => $data['timeframe'],
+            'execution_timeframe' => $data['execution_timeframe'] ?? null,
+            'exchange' => $data['exchange'],
+            'initial_capital' => $data['initial_capital'],
+            'stake_currency' => $data['stake_currency'] ?? 'USDT',
+            'strategy_inputs' => $data['strategy_inputs'] ?? [],
+            'commission_config' => $data['commission_config'] ?? [],
+            'start_date' => $data['start_date'] ?? null,
+            'end_date' => $data['end_date'] ?? null,
+            'status' => 'pending',
+        ]);
+    }
+
+    /**
+     * Parse additional timeframes from strategy inputs.
+     *
+     * @param  array  $inputs
+     * @return array<TimeframeEnum>
+     */
+    private function parseAdditionalTimeframes(array $inputs): array
+    {
+        $additionalTimeframes = [];
+
+        if (! empty($inputs['additional_timeframes'] ?? [])) {
+            foreach ($inputs['additional_timeframes'] as $tf) {
+                $additionalTimeframes[] = TimeframeEnum::from($tf);
+            }
+        }
+
+        return $additionalTimeframes;
+    }
+
+    /**
+     * Broadcast progress to the frontend.
+     */
+    private function broadcastProgress(BacktestRun $backtestRun, int $percent, string $message): void
+    {
+        if ($backtestRun->user_id) {
+            event(new BacktestProgress(
+                $backtestRun->id,
+                (string) $backtestRun->user_id,
+                $percent,
+                $message
+            ));
+        }
+    }
+}
