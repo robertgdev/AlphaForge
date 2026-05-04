@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 
 class OptimizationResultCommand extends Command
 {
-    protected $signature = 'stoch:optimizations:result
+    protected $signature = 'alphaforge:optimizations:result
         {backtest_id : The backtest run ID within an optimization}
         {--show-positions : Include positions in output}';
 

@@ -20,7 +20,7 @@ class HeikenAshiCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'stoch:heikenashi
+    protected $signature = 'alphaforge:heikenashi
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}

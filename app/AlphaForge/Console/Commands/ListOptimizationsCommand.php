@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 
 class ListOptimizationsCommand extends Command
 {
-    protected $signature = 'stoch:optimizations:list
+    protected $signature = 'alphaforge:optimizations:list
         {--strategy= : Filter by strategy alias}
         {--status= : Filter by status (pending, running, completed, failed)}
         {--limit=20 : Number of results to show}';

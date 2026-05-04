@@ -13,7 +13,7 @@ use function Laravel\Prompts\warning;
 
 class AggregateDataCommand extends Command
 {
-    protected $signature = 'stoch:data:aggregate
+    protected $signature = 'alphaforge:data:aggregate
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {symbol : The trading pair symbol (e.g., BTC/USDT)}
         {source_timeframe : The source timeframe to aggregate from (e.g., 1m, 5m, 15m)}
@@ -65,7 +65,7 @@ class AggregateDataCommand extends Command
         if (! file_exists($sourcePath)) {
             warning("Source file not found: {$sourcePath}");
             $this->line('Use the import action to download market data:');
-            $this->line("  php artisan stoch:data import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
+            $this->line("  php artisan alphaforge:data import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
 
             return self::FAILURE;
         }

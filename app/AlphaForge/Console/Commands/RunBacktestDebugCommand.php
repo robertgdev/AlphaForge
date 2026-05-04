@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 
 class RunBacktestDebugCommand extends Command
 {
-    protected $signature = 'stoch:backtest:debug
+    protected $signature = 'alphaforge:backtest:debug
         {strategy : The strategy alias}
         {symbol : Trading symbol}
         {--exchange=binance : Exchange identifier}

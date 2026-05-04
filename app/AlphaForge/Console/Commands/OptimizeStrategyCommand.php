@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 
 class OptimizeStrategyCommand extends Command
 {
-    protected $signature = 'stoch:optimize
+    protected $signature = 'alphaforge:optimize
         {strategy : The strategy alias}
         {symbol : Trading symbol}
         {--exchange=binance : Exchange identifier}

@@ -11,7 +11,7 @@ use function Laravel\Prompts\warning;
 
 class RepairDataCommand extends Command
 {
-    protected $signature = 'stoch:data:repair
+    protected $signature = 'alphaforge:data:repair
         {--dry-run : Show what would be fixed without making changes}
         {--exchange-filter= : Filter by exchange (e.g., binance)}
         {--symbol-filter= : Filter by symbol (e.g., BTCUSDT)}';

@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 
 class ShowOptimizationCommand extends Command
 {
-    protected $signature = 'stoch:optimizations:show
+    protected $signature = 'alphaforge:optimizations:show
         {optimization_id : The optimization run ID}
         {--top=10 : Number of top results to display}';
 

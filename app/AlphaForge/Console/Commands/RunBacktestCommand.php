@@ -22,7 +22,7 @@ class RunBacktestCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'stoch:backtest:run
+    protected $signature = 'alphaforge:backtest:run
         {strategy : The strategy alias (e.g., sma_crossover, rsi_strategy)}
         {symbols* : Trading symbols to backtest (e.g., BTCUSDT ETHUSDT)}
         {--exchange=binance : Exchange identifier}
@@ -201,7 +201,7 @@ class RunBacktestCommand extends Command
             $this->components->twoColumnDetail('Status', 'pending');
             $this->components->twoColumnDetail('Mode', 'async (queue)');
             $this->newLine();
-            note('Check status via: php artisan stoch:backtest:list');
+            note('Check status via: php artisan alphaforge:backtest:list');
 
             return self::SUCCESS;
         } catch (\Throwable $e) {

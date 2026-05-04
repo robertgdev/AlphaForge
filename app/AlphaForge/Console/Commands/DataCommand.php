@@ -27,7 +27,7 @@ class DataCommand extends Command
 {
     use HasProgressBar;
 
-    protected $signature = 'stoch:data
+    protected $signature = 'alphaforge:data
         {action : The action to perform (import, export, delete, info, list)}
         {exchange? : The exchange identifier (e.g., binance, kraken). Required for import, delete, info.}
         {market? : The trading pair symbol (e.g., BTC/USDT). Required for delete, info.}
@@ -65,8 +65,8 @@ class DataCommand extends Command
 
         if ($action !== 'list' && ($exchange === null || $market === null || $timeframe === null)) {
             error('The exchange, market, and timeframe arguments are required for this action.');
-            $this->line('Usage: php artisan stoch:data <action> <exchange> <market> <timeframe>');
-            $this->line('Example: php artisan stoch:data import binance BTC/USDT 1h 2024-01-01');
+            $this->line('Usage: php artisan alphaforge:data <action> <exchange> <market> <timeframe>');
+            $this->line('Example: php artisan alphaforge:data import binance BTC/USDT 1h 2024-01-01');
 
             return self::FAILURE;
         }
@@ -255,7 +255,7 @@ class DataCommand extends Command
         if (empty($manifest)) {
             info('No market data files found.');
             $this->line('Use the import action to download market data:');
-            $this->line('  php artisan stoch:data import <exchange> <market> <timeframe> <startdate> [enddate]');
+            $this->line('  php artisan alphaforge:data import <exchange> <market> <timeframe> <startdate> [enddate]');
 
             return self::SUCCESS;
         }
@@ -346,7 +346,7 @@ class DataCommand extends Command
             $this->components->twoColumnDetail('Timeframe', $timeframe);
             $this->newLine();
             info('Use the import action to download market data:');
-            $this->line("  php artisan stoch:data import {$exchange} {$market} {$timeframe} <startdate> [enddate]");
+            $this->line("  php artisan alphaforge:data import {$exchange} {$market} {$timeframe} <startdate> [enddate]");
 
             return self::FAILURE;
         } catch (\Throwable $e) {
