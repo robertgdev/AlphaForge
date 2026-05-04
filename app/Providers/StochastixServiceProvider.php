@@ -50,7 +50,7 @@ class StochastixServiceProvider extends ServiceProvider
     {
         // Merge config
         $this->mergeConfigFrom(
-            __DIR__.'/../../config/stochastix.php',
+            __DIR__ . '/../../config/alphaforge.php',
             'stochastix'
         );
 
@@ -169,7 +169,7 @@ class StochastixServiceProvider extends ServiceProvider
 
         // Publish config
         $this->publishes([
-            __DIR__.'/../../config/stochastix.php' => config_path('stochastix.php'),
+            __DIR__ . '/../../config/alphaforge.php' => config_path('alphaforge.php'),
         ], 'stochastix-config');
 
         // Load routes

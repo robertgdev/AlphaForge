@@ -31,7 +31,7 @@ class RunBacktestJob implements ShouldQueue
     public function __construct(
         public BacktestRun $backtestRun
     ) {
-        $this->onQueue(config('stochastix.queues.backtest', 'backtests'));
+        $this->onQueue(config('alphaforge.queues.backtest', 'backtests'));
     }
 
     /**

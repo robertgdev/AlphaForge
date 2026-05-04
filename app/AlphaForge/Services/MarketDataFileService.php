@@ -32,7 +32,7 @@ readonly class MarketDataFileService
         $timeframe = Str::trim($timeframe);
         $type = Str::trim($type);
         /** @var string $marketDataPath */
-        $marketDataPath = config('stochastix.storage.market_data_path');
+        $marketDataPath = config('alphaforge.storage.market_data_path');
 
         throw_if(! $marketDataPath, new InvalidArgumentException("Invalid marketDataPath [$marketDataPath] received"));
         throw_if(! $exchangeId, new InvalidArgumentException("Invalid exchange [$exchangeId] received"));

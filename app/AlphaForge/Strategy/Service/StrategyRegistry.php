@@ -33,8 +33,8 @@ class StrategyRegistry implements StrategyRegistryInterface
      */
     private function discoverStrategies(): void
     {
-        $strategyPath = config('stochastix.strategies.path', app_path('AlphaForge/Strategy/Concretes'));
-        $baseNamespace = config('stochastix.strategies.namespace', 'App\\AlphaForge\\Strategy\\Concretes');
+        $strategyPath = config('alphaforge.strategies.path', app_path('AlphaForge/Strategy/Concretes'));
+        $baseNamespace = config('alphaforge.strategies.namespace', 'App\\AlphaForge\\Strategy\\Concretes');
 
         if (! File::isDirectory($strategyPath)) {
             return;
