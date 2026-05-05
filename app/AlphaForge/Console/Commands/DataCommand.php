@@ -8,6 +8,7 @@ use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\BinaryStorage;
+use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
 use App\AlphaForge\Data\Service\DataInspectionService;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
@@ -28,17 +29,17 @@ class DataCommand extends Command
     use HasProgressBar;
 
     protected $signature = 'alphaforge:data
-        {action : The action to perform (import, export, delete, info, list)}
-        {exchange? : The exchange identifier (e.g., binance, kraken). Required for import, delete, info.}
-        {market? : The trading pair symbol (e.g., BTC/USDT). Required for delete, info.}
-        {timeframe? : The timeframe (e.g., 1m, 5m, 1h, 1d). Required for delete, info.}
-        {startdate? : The start date for data import (Y-m-d or Y-m-d H:i:s)}
-        {enddate? : The end date for data import (Y-m-d or Y-m-d H:i:s, defaults to now)}
+        {action : The action to perform (import, export, delete, info, list, update)}
+        {exchange? : The exchange identifier (e.g., binance, kraken). Required for import, delete, info, update.}
+        {market? : The trading pair symbol (e.g., BTC/USDT). Required for delete, info, update.}
+        {timeframe? : The timeframe (e.g., 1m, 5m, 1h, 1d). Required for delete, info, update.}
+        {startdate? : The start date for data import (Y-m-d or Y-m-d H:i:s). Not required for update.}
+        {enddate? : The end date for data import/update (Y-m-d or Y-m-d H:i:s, defaults to now)}
         {--force : Force overwrite existing data (for import) or skip confirmation (for delete)}
         {--exchange-filter= : Filter by exchange (for list action)}
         {--symbol-filter= : Filter by symbol (for list action)}';
 
-    protected $description = 'Import, export, delete, or get info about market data from exchanges';
+    protected $description = 'Import, export, delete, update, or get info about market data from exchanges';
 
     protected int $totalDuration = 0;
 
@@ -49,6 +50,7 @@ class DataCommand extends Command
         DataAvailabilityService $availabilityService,
         DateParsingService $dateParsingService,
         FormattingService $formattingService,
+        BinaryStorageInterface $binaryStorage,
         Dispatcher $eventDispatcher
     ): int {
         $action = strtolower($this->argument('action'));
@@ -57,13 +59,13 @@ class DataCommand extends Command
         $timeframe = $this->argument('timeframe');
         $force = $this->option('force');
 
-        if (! in_array($action, ['import', 'export', 'delete', 'info', 'list'], true)) {
-            error("Invalid action '{$action}'. Supported actions: import, export, delete, info, list");
+        if (! in_array($action, ['import', 'export', 'delete', 'info', 'list', 'update'], true)) {
+            error("Invalid action '{$action}'. Supported actions: import, export, delete, info, list, update");
 
             return self::FAILURE;
         }
 
-        if ($action !== 'list' && ($exchange === null || $market === null || $timeframe === null)) {
+        if (! in_array($action, ['list'], true) && ($exchange === null || $market === null || $timeframe === null)) {
             error('The exchange, market, and timeframe arguments are required for this action.');
             $this->line('Usage: php artisan alphaforge:data <action> <exchange> <market> <timeframe>');
             $this->line('Example: php artisan alphaforge:data import binance BTC/USDT 1h 2024-01-01');
@@ -77,6 +79,7 @@ class DataCommand extends Command
             'info' => $this->handleInfo($inspectionService, $formattingService, strtolower($exchange), strtoupper($market), $timeframe),
             'export' => $this->handleExport(),
             'list' => $this->handleList($availabilityService, $formattingService),
+            'update' => $this->handleUpdate($downloader, $fileService, $binaryStorage, $dateParsingService, $eventDispatcher, strtolower($exchange), strtoupper($market), $timeframe),
             default => self::FAILURE,
         };
     }
@@ -121,7 +124,7 @@ class DataCommand extends Command
             return self::FAILURE;
         }
 
-        $this->totalDuration = $endCarbon->timestamp - $startCarbon->timestamp;
+        $this->totalDuration = (int) $endCarbon->timestamp - (int) $startCarbon->timestamp;
 
         info('Starting market data import...');
         $this->newLine();
@@ -158,6 +161,115 @@ class DataCommand extends Command
         } catch (DownloaderException $e) {
             $this->finishProgressBarOnError();
             error("Download failed: {$e->getMessage()}");
+
+            return self::FAILURE;
+        } catch (\Throwable $e) {
+            $this->finishProgressBarOnError();
+            error("Unexpected error: {$e->getMessage()}");
+
+            return self::FAILURE;
+        } finally {
+            $eventDispatcher->forget(DownloadProgress::class);
+        }
+    }
+
+    private function handleUpdate(
+        OhlcvDownloader $downloader,
+        MarketDataFileService $fileService,
+        BinaryStorageInterface $binaryStorage,
+        DateParsingService $dateParsingService,
+        Dispatcher $eventDispatcher,
+        string $exchange,
+        string $market,
+        string $timeframe
+    ): int {
+        $filePath = $fileService->generateFilePath($exchange, $market, $timeframe);
+
+        if (! file_exists($filePath)) {
+            error("No market data file found for {$exchange}/{$market}/{$timeframe}.");
+            $this->line('Use the import action first:');
+            $this->line("  php artisan alphaforge:data import {$exchange} {$market} {$timeframe} <startdate>");
+
+            return self::FAILURE;
+        }
+
+        try {
+            $header = $binaryStorage->readHeader($filePath);
+        } catch (\Throwable $e) {
+            error("Failed to read data file: {$e->getMessage()}");
+
+            return self::FAILURE;
+        }
+
+        if ($header['numRecords'] === 0) {
+            error('Data file exists but contains no records. Use the import action instead.');
+
+            return self::FAILURE;
+        }
+
+        $lastRecord = $binaryStorage->readRecordByIndex($filePath, $header['numRecords'] - 1);
+
+        if ($lastRecord === null) {
+            error('Could not read the last record from the data file.');
+
+            return self::FAILURE;
+        }
+
+        $startCarbon = Carbon::createFromTimestamp($lastRecord['timestamp']);
+
+        $enddate = $this->argument('enddate');
+
+        try {
+            $endCarbon = $enddate ? $dateParsingService->parseDate($enddate) : Carbon::now();
+        } catch (\InvalidArgumentException $e) {
+            error("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
+
+            return self::FAILURE;
+        }
+
+        if ($startCarbon->greaterThanOrEqualTo($endCarbon)) {
+            warning('Local data is already up to date. No update needed.');
+            $this->components->twoColumnDetail('Last Record', $startCarbon->format('Y-m-d H:i:s'));
+
+            return self::SUCCESS;
+        }
+
+        $this->totalDuration = (int) $endCarbon->timestamp - (int) $startCarbon->timestamp;
+
+        info('Updating market data...');
+        $this->newLine();
+        $this->components->twoColumnDetail('Exchange', $exchange);
+        $this->components->twoColumnDetail('Market', $market);
+        $this->components->twoColumnDetail('Timeframe', $timeframe);
+        $this->components->twoColumnDetail('Existing Data Up To', $startCarbon->format('Y-m-d H:i:s'));
+        $this->components->twoColumnDetail('Updating To', $endCarbon->format('Y-m-d H:i:s'));
+        $this->newLine();
+
+        $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) {
+            $this->handleProgressEvent($event);
+        });
+
+        try {
+            $this->startProgressBar('Downloading...');
+
+            $resultPath = $downloader->download(
+                $exchange,
+                $market,
+                $timeframe,
+                $startCarbon,
+                $endCarbon,
+                false
+            );
+
+            $this->finishProgressBar();
+
+            info('Market data updated successfully!');
+            $this->components->twoColumnDetail('File Path', $resultPath);
+
+            return self::SUCCESS;
+        } catch (DownloaderException $e) {
+            $this->finishProgressBarOnError();
+            error("Update failed: {$e->getMessage()}");
 
             return self::FAILURE;
         } catch (\Throwable $e) {

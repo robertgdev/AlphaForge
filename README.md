@@ -129,7 +129,7 @@ AlphaForge provides comprehensive CLI commands for all operations. All commands 
 
 #### `alphaforge:data` - Market Data Operations
 
-Import, export, delete, or inspect market data from exchanges.
+Import, export, delete, update, or inspect market data from exchanges.
 
 ```bash
 php artisan alphaforge:data <action> [arguments] [options]
@@ -137,18 +137,19 @@ php artisan alphaforge:data <action> [arguments] [options]
 
 **Arguments:**
 
-| Argument | Description | Required For |
-|---------|-------------|--------------|
-| `action` | Action to perform: `import`, `export`, `delete`, `info`, `list` | All actions |
-| `exchange` | Exchange identifier (e.g., `binance`, `kraken`) | `import`, `delete`, `info` |
-| `market` | Trading pair symbol (e.g., `BTC/USDT`) | `import`, `delete`, `info` |
-| `timeframe` | Timeframe (e.g., `1m`, `5m`, `1h`, `1d`) | `import`, `delete`, `info` |
-| `startdate` | Start date for import (Y-m-d or Y-m-d H:i:s) | `import` only |
-| `enddate` | End date for import (Y-m-d or Y-m-d H:i:s, defaults to now) | `import` only |
+| Argument | Description                                                                        | Required For |
+|---------|------------------------------------------------------------------------------------|--------------|
+| `action` | Action to perform: `import`, `export`, `update`, `delete`, `info`, `list` | All actions |
+| `exchange` | Exchange identifier (e.g., `binance`, `kraken`)                                    | `import`, `delete`, `info`, `update` |
+| `market` | Trading pair symbol (e.g., `BTC/USDT`)                                             | `import`, `delete`, `info`, `update` |
+| `timeframe` | Timeframe (e.g., `1m`, `5m`, `1h`, `1d`)                                           | `import`, `delete`, `info`, `update` |
+| `startdate` | Start date for import (Y-m-d or Y-m-d H:i:s)                                       | `import` only |
+| `enddate` | End date for import/update (Y-m-d or Y-m-d H:i:s, defaults to now)                 | `import`, `update` |
 
 **Usage by Action:**
 
 - `import`: `alphaforge:data import <exchange> <market> <timeframe> <startdate> [enddate]`
+- `update`: `alphaforge:data update <exchange> <market> <timeframe> [enddate]`
 - `delete`: `alphaforge:data delete <exchange> <market> <timeframe>`
 - `info`: `alphaforge:data info <exchange> <market> <timeframe>`
 - `list`: `alphaforge:data list [options]`
@@ -167,6 +168,12 @@ php artisan alphaforge:data <action> [arguments] [options]
 ```bash
 # Download market data
 php artisan alphaforge:data import binance BTC/USDT 1h 2023-01-01 2024-01-01
+
+# Update existing data to latest
+php artisan alphaforge:data update binance BTC/USDT 1h
+
+# Update existing data up to a specific date
+php artisan alphaforge:data update binance BTC/USDT 1h 2024-06-01
 
 # List all stored data
 php artisan alphaforge:data list
