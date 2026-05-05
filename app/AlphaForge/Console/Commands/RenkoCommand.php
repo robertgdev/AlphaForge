@@ -25,7 +25,8 @@ class RenkoCommand extends Command
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {brick_size : The brick size for Renko conversion (e.g., 0.001, 10, 100)}
-        {--force : Force overwrite existing Renko file}';
+        {--force : Force overwrite existing Renko file}
+        {--update : Incrementally update the Renko file by appending new converted data}';
 
     /**
      * The console command description.
@@ -41,6 +42,13 @@ class RenkoCommand extends Command
         $timeframe = $this->argument('timeframe');
         $brickSize = (float) $this->argument('brick_size');
         $force = $this->option('force');
+        $update = $this->option('update');
+
+        if ($update && $force) {
+            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
+
+            return self::FAILURE;
+        }
 
         // Validate brick size
         if ($brickSize <= 0) {
@@ -65,7 +73,7 @@ class RenkoCommand extends Command
         // Check if Renko file already exists
         $renkoExists = $converter->renkoFileExists($exchange, $market, $timeframe, $brickSize);
 
-        if ($renkoExists && ! $force) {
+        if ($renkoExists && ! $force && ! $update) {
             $renkoPath = $converter->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
             warning('Renko file already exists for this configuration.');
             $this->components->twoColumnDetail('Existing File', $renkoPath);
@@ -83,18 +91,51 @@ class RenkoCommand extends Command
         }
 
         // Display conversion summary
-        info('Starting Renko conversion...');
+        if ($update && ! $renkoExists) {
+            info('Renko file does not exist. Performing full conversion instead.');
+            $update = false;
+        }
+
+        info($update ? 'Starting Renko incremental conversion...' : 'Starting Renko conversion...');
         $this->newLine();
         $this->components->twoColumnDetail('Exchange', $exchange);
         $this->components->twoColumnDetail('Market', $market);
         $this->components->twoColumnDetail('Timeframe', $timeframe);
         $this->components->twoColumnDetail('Brick Size', (string) $brickSize);
         $this->components->twoColumnDetail('OHLC Records', number_format($ohlcvHeader['numRecords']));
-        $this->components->twoColumnDetail('Force Overwrite', $force ? 'Yes' : 'No');
+        $this->components->twoColumnDetail('Mode', $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'));
         $this->newLine();
 
         try {
-            $this->startProgressBar('Converting OHLC to Renko...');
+            $this->startProgressBar($update ? 'Incrementally converting OHLC to Renko...' : 'Converting OHLC to Renko...');
+
+            if ($update) {
+                $newRecordsCount = $converter->convertIncremental(
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    $brickSize,
+                    function (int $current, int $total) {
+                        $this->updateProgress($current, $total);
+                    }
+                );
+
+                $this->finishProgressBar();
+
+                if ($newRecordsCount === -1) {
+                    info('Renko conversion completed successfully (full conversion was performed).');
+                } elseif ($newRecordsCount === 0) {
+                    warning('No new data to convert. Renko file is already up to date.');
+                } else {
+                    info('Renko incremental conversion completed successfully!');
+                    $this->components->twoColumnDetail('New Bricks Appended', number_format($newRecordsCount));
+                }
+
+                $renkoPath = $converter->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
+                $this->components->twoColumnDetail('File Path', $renkoPath);
+
+                return self::SUCCESS;
+            }
 
             $filePath = $converter->convert(
                 $exchange,

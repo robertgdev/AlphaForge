@@ -562,8 +562,9 @@ php artisan alphaforge:renko <exchange> <market> <timeframe> <brick_size> [optio
 | Option | Description |
 |--------|-------------|
 | `--force` | Force overwrite existing Renko file |
+| `--update` | Incrementally update the Renko file by appending new converted data |
 
-**Example:**
+**Examples:**
 
 ```bash
 # Create Renko chart with $100 brick size
@@ -571,6 +572,9 @@ php artisan alphaforge:renko binance BTC/USDT 1h 100
 
 # Force overwrite
 php artisan alphaforge:renko binance ETH/USDT 1h 50 --force
+
+# Incrementally update an existing Renko file with new source data
+php artisan alphaforge:renko binance BTC/USDT 1h 100 --update
 ```
 
 #### `alphaforge:renkoAtr` - Convert to ATR-Based Renko Bricks
@@ -595,6 +599,7 @@ php artisan alphaforge:renkoAtr <exchange> <market> <timeframe> <atr_period> [op
 | Option | Description |
 |--------|-------------|
 | `--force` | Force overwrite existing ATR-Renko file |
+| `--update` | Incrementally update the ATR-Renko file by appending new converted data |
 
 **How it works:**
 
@@ -617,6 +622,9 @@ php artisan alphaforge:renkoAtr binance BTC/USDT 1h 14
 
 # Create ATR-Renko with 20-period ATR, force overwrite
 php artisan alphaforge:renkoAtr binance ETH/USDT 1h 20 --force
+
+# Incrementally update an existing ATR-Renko file with new source data
+php artisan alphaforge:renkoAtr binance BTC/USDT 1h 14 --update
 
 # Use 1m source data for finer granularity
 php artisan alphaforge:renkoAtr binance BTC/USDT 1m 14
@@ -654,6 +662,7 @@ php artisan alphaforge:heikenashi <exchange> <market> <timeframe> [options]
 | Option | Description |
 |--------|-------------|
 | `--force` | Force overwrite existing Heiken-Ashi file |
+| `--update` | Incrementally update the Heiken-Ashi file by appending new converted data |
 
 **Example:**
 
@@ -663,6 +672,9 @@ php artisan alphaforge:heikenashi binance BTC/USDT 1h
 
 # Force overwrite
 php artisan alphaforge:heikenashi binance BTC/USDT 1h --force
+
+# Incrementally update an existing Heiken-Ashi file with new source data
+php artisan alphaforge:heikenashi binance BTC/USDT 1h --update
 ```
 
 ---

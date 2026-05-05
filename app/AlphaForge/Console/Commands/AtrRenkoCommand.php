@@ -26,7 +26,8 @@ class AtrRenkoCommand extends Command
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {atr_period : The ATR period for dynamic brick sizing (e.g., 14)}
-        {--force : Force overwrite existing ATR-Renko file}';
+        {--force : Force overwrite existing ATR-Renko file}
+        {--update : Incrementally update the ATR-Renko file by appending new converted data}';
 
     /**
      * The console command description.
@@ -50,6 +51,13 @@ class AtrRenkoCommand extends Command
         $timeframe = $this->argument('timeframe');
         $atrPeriod = (int) $this->argument('atr_period');
         $force = $this->option('force');
+        $update = $this->option('update');
+
+        if ($update && $force) {
+            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
+
+            return self::FAILURE;
+        }
 
         // Validate ATR period
         if ($atrPeriod < 2) {
@@ -74,7 +82,7 @@ class AtrRenkoCommand extends Command
         // Check if ATR-Renko file already exists
         $atrRenkoExists = $converter->atrRenkoFileExists($exchange, $market, $timeframe, $atrPeriod);
 
-        if ($atrRenkoExists && ! $force) {
+        if ($atrRenkoExists && ! $force && ! $update) {
             $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
             warning('ATR-Renko file already exists for this configuration.');
             $this->components->twoColumnDetail('Existing File', $atrRenkoPath);
@@ -92,18 +100,51 @@ class AtrRenkoCommand extends Command
         }
 
         // Display conversion summary
-        info('Starting ATR-Renko conversion...');
+        if ($update && ! $atrRenkoExists) {
+            info('ATR-Renko file does not exist. Performing full conversion instead.');
+            $update = false;
+        }
+
+        info($update ? 'Starting ATR-Renko incremental conversion...' : 'Starting ATR-Renko conversion...');
         $this->newLine();
         $this->components->twoColumnDetail('Exchange', $exchange);
         $this->components->twoColumnDetail('Market', $market);
         $this->components->twoColumnDetail('Timeframe', $timeframe);
         $this->components->twoColumnDetail('ATR Period', (string) $atrPeriod);
         $this->components->twoColumnDetail('OHLC Records', number_format($ohlcvHeader['numRecords']));
-        $this->components->twoColumnDetail('Force Overwrite', $force ? 'Yes' : 'No');
+        $this->components->twoColumnDetail('Mode', $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'));
         $this->newLine();
 
         try {
-            $this->startProgressBar('Converting OHLC to ATR-Renko...');
+            $this->startProgressBar($update ? 'Incrementally converting OHLC to ATR-Renko...' : 'Converting OHLC to ATR-Renko...');
+
+            if ($update) {
+                $newRecordsCount = $converter->convertIncremental(
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    $atrPeriod,
+                    function (int $current, int $total) {
+                        $this->updateProgress($current, $total);
+                    }
+                );
+
+                $this->finishProgressBar();
+
+                if ($newRecordsCount === -1) {
+                    info('ATR-Renko conversion completed successfully (full conversion was performed).');
+                } elseif ($newRecordsCount === 0) {
+                    warning('No new data to convert. ATR-Renko file is already up to date.');
+                } else {
+                    info('ATR-Renko incremental conversion completed successfully!');
+                    $this->components->twoColumnDetail('New Bricks Appended', number_format($newRecordsCount));
+                }
+
+                $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
+                $this->components->twoColumnDetail('File Path', $atrRenkoPath);
+
+                return self::SUCCESS;
+            }
 
             $filePath = $converter->convert(
                 $exchange,

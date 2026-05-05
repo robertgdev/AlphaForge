@@ -251,15 +251,209 @@ final class RenkoConverter
     }
 
     /**
-     * Get information about an OHLC file.
+     * Incrementally update an existing Renko file with new source data.
+     *
+     * Reads the last Renko brick to derive currentPrice/currentDirection state,
+     * reads source records from that timestamp onward, reconverts the boundary
+     * bar (overwriting the last brick), and appends any new bricks.
      *
      * @param  string  $exchange  The exchange identifier
      * @param  string  $market  The market symbol
      * @param  string  $timeframe  The timeframe
-     * @return array The header information from the OHLC file
-     *
-     * @throws StorageException If the file cannot be read
+     * @param  float  $brickSize  The brick size for Renko conversion
+     * @param  callable|null  $progressCallback  Optional callback for progress updates
+     * @return int Number of new bricks appended (0 = up to date, -1 = fell back to full conversion)
      */
+    public function convertIncremental(
+        string $exchange,
+        string $market,
+        string $timeframe,
+        float $brickSize,
+        ?callable $progressCallback = null
+    ): int {
+        $destPath = $this->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
+
+        if (! file_exists($destPath)) {
+            $this->convert($exchange, $market, $timeframe, $brickSize, $progressCallback);
+
+            return -1;
+        }
+
+        $destHeader = $this->binaryStorage->readHeader($destPath);
+
+        if ($destHeader['numRecords'] === 0) {
+            $this->convert($exchange, $market, $timeframe, $brickSize, $progressCallback);
+
+            return -1;
+        }
+
+        $lastRecord = $this->binaryStorage->readRecordByIndex($destPath, $destHeader['numRecords'] - 1);
+
+        if ($lastRecord === null) {
+            $this->convert($exchange, $market, $timeframe, $brickSize, $progressCallback);
+
+            return -1;
+        }
+
+        $lastTimestamp = $lastRecord['timestamp'];
+        $currentPrice = $lastRecord['close'];
+        $currentDirection = ($lastRecord['close'] > $lastRecord['open']) ? 1 : -1;
+
+        $sourcePath = $this->fileService->generateFilePath($exchange, $market, $timeframe, 'ohlcv');
+
+        $sourceRecords = iterator_to_array(
+            $this->binaryStorage->readRecordsByTimestampRange($sourcePath, $lastTimestamp, PHP_INT_MAX)
+        );
+
+        if (count($sourceRecords) <= 1) {
+            return 0;
+        }
+
+        $totalRecords = count($sourceRecords);
+        $processedCount = 0;
+        $convertedBricks = [];
+        $firstBrickOverwritten = false;
+
+        foreach ($sourceRecords as $record) {
+            $processedCount++;
+
+            if ($progressCallback !== null && $processedCount % 100 === 0) {
+                $progressCallback($processedCount, $totalRecords);
+            }
+
+            if ($currentPrice === null) {
+                $currentPrice = $record['close'];
+
+                continue;
+            }
+
+            $high = $record['high'];
+            $low = $record['low'];
+            $timestamp = $record['timestamp'];
+
+            if ($currentDirection >= 0) {
+                $upBricks = (int) floor(($high - $currentPrice) / $brickSize);
+                $downBricks = (int) floor(($currentPrice - $low) / $brickSize);
+
+                if ($upBricks >= 1) {
+                    for ($i = 0; $i < $upBricks; $i++) {
+                        $openPrice = $currentPrice;
+                        $closePrice = $currentPrice + $brickSize;
+
+                        $brick = [
+                            'timestamp' => $timestamp,
+                            'open' => $openPrice,
+                            'high' => $closePrice,
+                            'low' => $openPrice,
+                            'close' => $closePrice,
+                            'volume' => $record['volume'] / max(1, $upBricks),
+                        ];
+
+                        if (! $firstBrickOverwritten && $timestamp === $lastTimestamp) {
+                            $this->binaryStorage->overwriteLastRecord($destPath, $brick);
+                            $firstBrickOverwritten = true;
+                        } else {
+                            $convertedBricks[] = $brick;
+                        }
+
+                        $currentPrice = $closePrice;
+                    }
+                    $currentDirection = 1;
+                } elseif ($downBricks >= 2) {
+                    for ($i = 0; $i < $downBricks; $i++) {
+                        $openPrice = $currentPrice;
+                        $closePrice = $currentPrice - $brickSize;
+
+                        $brick = [
+                            'timestamp' => $timestamp,
+                            'open' => $openPrice,
+                            'high' => $openPrice,
+                            'low' => $closePrice,
+                            'close' => $closePrice,
+                            'volume' => $record['volume'] / max(1, $downBricks),
+                        ];
+
+                        if (! $firstBrickOverwritten && $timestamp === $lastTimestamp) {
+                            $this->binaryStorage->overwriteLastRecord($destPath, $brick);
+                            $firstBrickOverwritten = true;
+                        } else {
+                            $convertedBricks[] = $brick;
+                        }
+
+                        $currentPrice = $closePrice;
+                    }
+                    $currentDirection = -1;
+                }
+            } else {
+                $downBricks = (int) floor(($currentPrice - $low) / $brickSize);
+                $upBricks = (int) floor(($high - $currentPrice) / $brickSize);
+
+                if ($downBricks >= 1) {
+                    for ($i = 0; $i < $downBricks; $i++) {
+                        $openPrice = $currentPrice;
+                        $closePrice = $currentPrice - $brickSize;
+
+                        $brick = [
+                            'timestamp' => $timestamp,
+                            'open' => $openPrice,
+                            'high' => $openPrice,
+                            'low' => $closePrice,
+                            'close' => $closePrice,
+                            'volume' => $record['volume'] / max(1, $downBricks),
+                        ];
+
+                        if (! $firstBrickOverwritten && $timestamp === $lastTimestamp) {
+                            $this->binaryStorage->overwriteLastRecord($destPath, $brick);
+                            $firstBrickOverwritten = true;
+                        } else {
+                            $convertedBricks[] = $brick;
+                        }
+
+                        $currentPrice = $closePrice;
+                    }
+                    $currentDirection = -1;
+                } elseif ($upBricks >= 2) {
+                    for ($i = 0; $i < $upBricks; $i++) {
+                        $openPrice = $currentPrice;
+                        $closePrice = $currentPrice + $brickSize;
+
+                        $brick = [
+                            'timestamp' => $timestamp,
+                            'open' => $openPrice,
+                            'high' => $closePrice,
+                            'low' => $openPrice,
+                            'close' => $closePrice,
+                            'volume' => $record['volume'] / max(1, $upBricks),
+                        ];
+
+                        if (! $firstBrickOverwritten && $timestamp === $lastTimestamp) {
+                            $this->binaryStorage->overwriteLastRecord($destPath, $brick);
+                            $firstBrickOverwritten = true;
+                        } else {
+                            $convertedBricks[] = $brick;
+                        }
+
+                        $currentPrice = $closePrice;
+                    }
+                    $currentDirection = 1;
+                }
+            }
+        }
+
+        if ($progressCallback !== null) {
+            $progressCallback($totalRecords, $totalRecords);
+        }
+
+        $newRecordsCount = count($convertedBricks);
+
+        if ($newRecordsCount > 0) {
+            $this->binaryStorage->appendRecords($destPath, $convertedBricks);
+            $this->binaryStorage->updateRecordCount($destPath, $destHeader['numRecords'] + $newRecordsCount);
+        }
+
+        return $newRecordsCount;
+    }
+
     public function getOhlcvFileInfo(string $exchange, string $market, string $timeframe): array
     {
         $sourcePath = $this->fileService->generateFilePath($exchange, $market, $timeframe, 'ohlcv');
