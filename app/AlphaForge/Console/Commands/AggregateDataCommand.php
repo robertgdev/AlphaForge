@@ -18,7 +18,8 @@ class AggregateDataCommand extends Command
         {symbol : The trading pair symbol (e.g., BTC/USDT)}
         {source_timeframe : The source timeframe to aggregate from (e.g., 1m, 5m, 15m)}
         {target_timeframe : The target timeframe to aggregate to (e.g., 1h, 4h, 1d)}
-        {--force : Force overwrite if target file already exists}';
+        {--force : Force overwrite if target file already exists}
+        {--update : Incrementally update the target file by appending new aggregated data}';
 
     protected $description = 'Aggregate OHLCV data from a lower timeframe to a higher timeframe';
 
@@ -31,6 +32,7 @@ class AggregateDataCommand extends Command
         $sourceTimeframeValue = $this->argument('source_timeframe');
         $targetTimeframeValue = $this->argument('target_timeframe');
         $force = $this->option('force');
+        $update = $this->option('update');
 
         $sourceTimeframe = TimeframeEnum::tryFrom($sourceTimeframeValue);
         if ($sourceTimeframe === null) {
@@ -70,26 +72,57 @@ class AggregateDataCommand extends Command
             return self::FAILURE;
         }
 
-        if (file_exists($targetPath) && ! $force) {
-            warning("Target file already exists: {$targetPath}");
-            $this->line('Use --force to overwrite.');
+        if ($update && $force) {
+            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
 
             return self::FAILURE;
         }
 
-        $this->displayConfiguration($exchange, $symbol, $sourceTimeframeValue, $targetTimeframeValue, $sourcePath, $targetPath);
+        if (file_exists($targetPath) && ! $force && ! $update) {
+            warning("Target file already exists: {$targetPath}");
+            $this->line('Use --force to overwrite, or --update to append new data.');
+
+            return self::FAILURE;
+        }
+
+        if ($update && ! file_exists($targetPath)) {
+            info('Target file does not exist. Performing full aggregation instead.');
+            $update = false;
+        }
+
+        $this->displayConfiguration($exchange, $symbol, $sourceTimeframeValue, $targetTimeframeValue, $sourcePath, $targetPath, $update);
 
         try {
-            $this->info('Starting aggregation...');
-            $this->newLine();
+            if ($update) {
+                $this->info('Starting incremental aggregation...');
+                $this->newLine();
 
-            $aggregatedCount = $aggregateDataService->aggregateData(
-                $sourcePath,
-                $targetPath,
-                $symbol,
-                $sourceTimeframe,
-                $targetTimeframe
-            );
+                $aggregatedCount = $aggregateDataService->aggregateIncremental(
+                    $sourcePath,
+                    $targetPath,
+                    $symbol,
+                    $sourceTimeframe,
+                    $targetTimeframe
+                );
+
+                if ($aggregatedCount === 0) {
+                    $this->newLine();
+                    warning('No new data to aggregate. Target file is already up to date.');
+
+                    return self::SUCCESS;
+                }
+            } else {
+                $this->info('Starting aggregation...');
+                $this->newLine();
+
+                $aggregatedCount = $aggregateDataService->aggregateData(
+                    $sourcePath,
+                    $targetPath,
+                    $symbol,
+                    $sourceTimeframe,
+                    $targetTimeframe
+                );
+            }
 
             $this->newLine();
             info('Aggregation completed successfully!');
@@ -111,9 +144,10 @@ class AggregateDataCommand extends Command
         string $sourceTimeframe,
         string $targetTimeframe,
         string $sourcePath,
-        string $targetPath
+        string $targetPath,
+        bool $update = false
     ): void {
-        info('Timeframe Aggregation');
+        info($update ? 'Timeframe Aggregation (Incremental Update)' : 'Timeframe Aggregation');
         $this->newLine();
 
         $this->components->twoColumnDetail('Exchange', $exchange);

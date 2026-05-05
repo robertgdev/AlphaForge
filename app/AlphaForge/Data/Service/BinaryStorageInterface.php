@@ -26,6 +26,8 @@ interface BinaryStorageInterface
 
     public function updateRecordCount(string $filePath, int $recordCount): void;
 
+    public function overwriteLastRecord(string $filePath, array $record): void;
+
     /**
      * Streams records from a generator to a file, periodically updating the header's record count.
      *

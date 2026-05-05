@@ -239,6 +239,7 @@ php artisan alphaforge:data:aggregate <exchange> <symbol> <source_timeframe> <ta
 | Option | Description |
 |--------|-------------|
 | `--force` | Overwrite target file if it exists |
+| `--update` | Incrementally update the target file by appending new aggregated data |
 
 **Examples:**
 
@@ -248,6 +249,9 @@ php artisan alphaforge:data:aggregate binance BTC/USDT 1m 1h
 
 # Aggregate 5-minute data to 4-hour
 php artisan alphaforge:data:aggregate binance ETH/USDT 5m 4h --force
+
+# Incrementally update an existing aggregated file with new source data
+php artisan alphaforge:data:aggregate binance BTC/USDT 1m 1h --update
 ```
 
 ---

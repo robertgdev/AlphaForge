@@ -20,7 +20,6 @@ class AggregateDataService
         TimeframeEnum $targetTimeframe
     ): int {
         $targetSeconds = $targetTimeframe->toSeconds();
-        $sourceSeconds = $sourceTimeframe->toSeconds();
 
         $sourceRecords = iterator_to_array($this->binaryStorage->readRecordsSequentially($sourcePath));
 
@@ -30,6 +29,83 @@ class AggregateDataService
 
         $this->binaryStorage->createFile($targetPath, $symbol, $targetTimeframe->value);
 
+        $aggregatedBars = $this->aggregateRecords($sourceRecords, $targetSeconds);
+
+        return $this->binaryStorage->appendRecords($targetPath, $aggregatedBars);
+    }
+
+    public function aggregateIncremental(
+        string $sourcePath,
+        string $targetPath,
+        string $symbol,
+        TimeframeEnum $sourceTimeframe,
+        TimeframeEnum $targetTimeframe
+    ): int {
+        if (! file_exists($targetPath)) {
+            return $this->aggregateData($sourcePath, $targetPath, $symbol, $sourceTimeframe, $targetTimeframe);
+        }
+
+        $targetHeader = $this->binaryStorage->readHeader($targetPath);
+
+        if ($targetHeader['numRecords'] === 0) {
+            return $this->aggregateData($sourcePath, $targetPath, $symbol, $sourceTimeframe, $targetTimeframe);
+        }
+
+        $targetSeconds = $targetTimeframe->toSeconds();
+
+        $lastTargetRecord = $this->binaryStorage->readRecordByIndex(
+            $targetPath,
+            $targetHeader['numRecords'] - 1
+        );
+
+        if ($lastTargetRecord === null) {
+            return $this->aggregateData($sourcePath, $targetPath, $symbol, $sourceTimeframe, $targetTimeframe);
+        }
+
+        $lastTargetTimestamp = $lastTargetRecord['timestamp'];
+
+        $sourceRecords = iterator_to_array(
+            $this->binaryStorage->readRecordsByTimestampRange(
+                $sourcePath,
+                $lastTargetTimestamp,
+                PHP_INT_MAX
+            )
+        );
+
+        if (empty($sourceRecords)) {
+            return 0;
+        }
+
+        $aggregatedBars = $this->aggregateRecords($sourceRecords, $targetSeconds);
+
+        if (empty($aggregatedBars)) {
+            return 0;
+        }
+
+        $firstAggregatedTimestamp = $aggregatedBars[0]['timestamp'];
+
+        if ($firstAggregatedTimestamp === $lastTargetTimestamp) {
+            $this->binaryStorage->overwriteLastRecord($targetPath, array_shift($aggregatedBars));
+        }
+
+        $newRecordsCount = count($aggregatedBars);
+
+        if ($newRecordsCount > 0) {
+            $this->binaryStorage->appendRecords($targetPath, $aggregatedBars);
+            $this->binaryStorage->updateRecordCount($targetPath, $targetHeader['numRecords'] + $newRecordsCount);
+        }
+
+        $updatedBarCount = ($firstAggregatedTimestamp === $lastTargetTimestamp) ? 1 : 0;
+
+        return $updatedBarCount + $newRecordsCount;
+    }
+
+    /**
+     * @param  array<int, array{timestamp: int, open: numeric-string, high: numeric-string, low: numeric-string, close: numeric-string, volume: numeric-string}>  $sourceRecords
+     * @return array<int, array{timestamp: int, open: numeric-string, high: numeric-string, low: numeric-string, close: numeric-string, volume: numeric-string}>
+     */
+    private function aggregateRecords(array $sourceRecords, int $targetSeconds): array
+    {
         $aggregatedBars = [];
         /** @var array{timestamp: int, open: numeric-string, high: numeric-string, low: numeric-string, close: numeric-string, volume: numeric-string}|null $currentBar */
         $currentBar = null;
@@ -69,6 +145,6 @@ class AggregateDataService
             $aggregatedBars[] = $currentBar;
         }
 
-        return $this->binaryStorage->appendRecords($targetPath, $aggregatedBars);
+        return $aggregatedBars;
     }
 }

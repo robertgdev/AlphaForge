@@ -227,6 +227,52 @@ final class BinaryStorage implements BinaryStorageInterface
         }
     }
 
+    public function overwriteLastRecord(string $filePath, array $record): void
+    {
+        $header = $this->readHeader($filePath);
+
+        if ($header['numRecords'] === 0) {
+            throw new StorageException("Cannot overwrite last record: file '{$filePath}' has no records.");
+        }
+
+        $lastIndex = $header['numRecords'] - 1;
+        $offset = $header['headerLength'] + ($lastIndex * $header['recordLength']);
+
+        $handle = @fopen($filePath, 'r+b');
+        if ($handle === false) {
+            throw new StorageException("Could not open file '{$filePath}' for overwriting last record.");
+        }
+
+        if (! flock($handle, LOCK_EX)) {
+            fclose($handle);
+            throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
+        }
+
+        try {
+            if (fseek($handle, $offset) !== 0) {
+                throw new StorageException("Could not seek to last record in '{$filePath}'.");
+            }
+
+            $packedRecord = pack(
+                self::RECORD_PACK_FORMAT,
+                $record['timestamp'],
+                $record['open'],
+                $record['high'],
+                $record['low'],
+                $record['close'],
+                $record['volume']
+            );
+
+            if (fwrite($handle, $packedRecord) !== self::RECORD_LENGTH_V1) {
+                throw new StorageException("Failed to overwrite last record in '{$filePath}'.");
+            }
+            fflush($handle);
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
     public function readHeader(string $filePath): array
     {
         if (! file_exists($filePath)) {
