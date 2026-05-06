@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Stochastix\Data;
+namespace App\Http\Controllers\AlphaForge\Data;
 
 use App\Http\Controllers\Controller;
 use App\AlphaForge\Jobs\DownloadMarketDataJob;

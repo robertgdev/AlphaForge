@@ -98,9 +98,10 @@ it('can convert simple uptrend to renko bricks', function () {
     // Read and verify the Renko file header
     $header = $this->converter->readRenkoHeader($renkoPath);
 
-    expect($header['magic'])->toBe('STCHXRK1')
-        ->and($header['version'])->toBe(1)
+    expect($header['magic'])->toBe('STCHXBF1')
+        ->and($header['version'])->toBe(2)
         ->and($header['brickSize'])->toBe(10.0)
+        ->and($header['dataType'])->toBe(3)
         ->and($header['numRecords'])->toBe(5);
 });
 
@@ -271,10 +272,11 @@ it('can read and write renko header correctly', function () {
 
     $header = $this->converter->readRenkoHeader($renkoPath);
 
-    expect($header['magic'])->toBe('STCHXRK1')
-        ->and($header['version'])->toBe(1)
+    expect($header['magic'])->toBe('STCHXBF1')
+        ->and($header['version'])->toBe(2)
         ->and($header['headerLength'])->toBe(64)
         ->and($header['recordLength'])->toBe(48)
+        ->and($header['dataType'])->toBe(3)
         ->and($header['brickSize'])->toBe(25.5)
         ->and($header['symbol'])->toBe('TEST/USDT');
 });

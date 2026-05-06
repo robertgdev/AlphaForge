@@ -1,32 +1,22 @@
 <?php
 
-use App\Http\Controllers\Stochastix\Data\DataAvailabilityController;
-use App\Http\Controllers\Stochastix\Data\DownloadController;
-use App\Http\Controllers\Stochastix\Data\ExchangesController;
-use App\Http\Controllers\Stochastix\Data\InspectController;
-use App\Http\Controllers\Stochastix\Data\SymbolsController;
-use App\Stochastix\Http\Controllers\Api\BacktestController;
-use App\Stochastix\Http\Controllers\Api\StrategyController;
+use App\Http\Controllers\AlphaForge\Data\DataAvailabilityController;
+use App\Http\Controllers\AlphaForge\Data\DownloadController;
+use App\Http\Controllers\AlphaForge\Data\ExchangesController;
+use App\Http\Controllers\AlphaForge\Data\InspectController;
+use App\Http\Controllers\AlphaForge\Data\SymbolsController;
+use App\AlphaForge\Http\Controllers\Api\BacktestController;
+use App\AlphaForge\Http\Controllers\Api\StrategyController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| AlphaForge API Routes
-|--------------------------------------------------------------------------
-|
-| These are the API routes for the AlphaForge trading backtesting system.
-| All routes are prefixed with 'api/stochastix' by default.
-|
-*/
-
 // Strategy routes
-Route::prefix('stochastix/strategies')->name('stochastix.strategies.')->group(function () {
+Route::prefix('api/stochastix/strategies')->name('stochastix.strategies.')->group(function () {
     Route::get('/', [StrategyController::class, 'index'])->name('index');
     Route::get('/{alias}', [StrategyController::class, 'show'])->name('show');
 });
 
 // Backtest routes
-Route::prefix('stochastix/backtests')->name('stochastix.backtests.')->group(function () {
+Route::prefix('api/stochastix/backtests')->name('stochastix.backtests.')->group(function () {
     Route::get('/', [BacktestController::class, 'index'])->name('index');
     Route::post('/', [BacktestController::class, 'store'])->name('store');
     Route::get('/{id}', [BacktestController::class, 'show'])->name('show');
@@ -35,7 +25,7 @@ Route::prefix('stochastix/backtests')->name('stochastix.backtests.')->group(func
 });
 
 // Data acquisition routes
-Route::prefix('stochastix/data')->name('stochastix.data.')->group(function () {
+Route::prefix('api/stochastix/data')->name('stochastix.data.')->group(function () {
     // Download routes
     Route::post('/download', [DownloadController::class, 'launch'])->name('download.launch');
     Route::delete('/download/{jobId}', [DownloadController::class, 'cancel'])->name('download.cancel');
@@ -49,10 +39,10 @@ Route::prefix('stochastix/data')->name('stochastix.data.')->group(function () {
 });
 
 // Data availability manifest
-Route::get('/stochastix/data-availability', [DataAvailabilityController::class, 'index'])->name('stochastix.data.availability');
+Route::get('/api/stochastix/data-availability', [DataAvailabilityController::class, 'index'])->name('stochastix.data.availability');
 
 // Broadcasting routes for real-time progress
-Route::prefix('stochastix')->name('stochastix.')->group(function () {
+Route::prefix('api/stochastix')->name('stochastix.')->group(function () {
     Route::post('/broadcasting/auth', function () {
         return response()->json(['auth' => true]);
     })->middleware('auth')->name('broadcasting.auth');

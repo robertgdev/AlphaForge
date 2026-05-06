@@ -299,10 +299,11 @@ it('can read and write heiken-ashi header correctly', function () {
 
     $header = $this->converter->readHeikenAshiHeader($heikenAshiPath);
 
-    expect($header['magic'])->toBe('STCHXHA1')
-        ->and($header['version'])->toBe(1)
+    expect($header['magic'])->toBe('STCHXBF1')
+        ->and($header['version'])->toBe(2)
         ->and($header['headerLength'])->toBe(64)
         ->and($header['recordLength'])->toBe(48)
+        ->and($header['dataType'])->toBe(2)
         ->and($header['symbol'])->toBe('TEST/USDT');
 });
 

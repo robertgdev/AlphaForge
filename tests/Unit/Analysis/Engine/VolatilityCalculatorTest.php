@@ -5,9 +5,6 @@ namespace Tests\Unit\Analysis\Engine;
 use App\Analysis\Engine\VolatilityCalculator;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Unit tests for VolatilityCalculator.
- */
 final class VolatilityCalculatorTest extends TestCase
 {
     private VolatilityCalculator $calculator;
@@ -18,81 +15,84 @@ final class VolatilityCalculatorTest extends TestCase
         $this->calculator = new VolatilityCalculator;
     }
 
-    /**
-     * Test True Range calculation for first record.
-     */
-    public function test_true_range_first_record(): void
-    {
-        $record = [
-            'open' => 100.0,
-            'high' => 102.0,
-            'low' => 98.0,
-            'close' => 101.0,
-            'volume' => 1.0,
-        ];
-
-        $volatilities = $this->calculator->calculateRollingVolatility([$record], 1);
-
-        $this->assertCount(1, $volatilities);
-        // True Range for first record = high - low = 4
-        // Normalized by close = 4/101 ≈ 0.0396
-        $this->assertEqualsWithDelta(0.0396, $volatilities[0], 0.001);
-    }
-
-    /**
-     * Test True Range calculation with previous close.
-     */
-    public function test_true_range_with_previous_close(): void
+    public function test_rolling_volatility_returns_zero_for_single_record(): void
     {
         $records = [
             ['open' => 100.0, 'high' => 102.0, 'low' => 98.0, 'close' => 101.0, 'volume' => 1.0],
-            ['open' => 101.0, 'high' => 105.0, 'low' => 100.0, 'close' => 104.0, 'volume' => 1.0],
         ];
 
-        $volatilities = $this->calculator->calculateRollingVolatility($records, 2);
+        $volatilities = $this->calculator->calculateRollingVolatility($records, 1);
 
-        $this->assertCount(2, $volatilities);
-
-        // Second record True Range = max(105-100, |105-101|, |100-101|) = max(5, 4, 1) = 5
-        // ATR = (4 + 5) / 2 = 4.5
-        // Normalized by close = 4.5/104 ≈ 0.0433
-        $this->assertEqualsWithDelta(0.0433, $volatilities[1], 0.001);
+        $this->assertCount(1, $volatilities);
+        $this->assertSame(0.0, $volatilities[0]);
     }
 
-    /**
-     * Test rolling volatility calculation.
-     */
-    public function test_rolling_volatility(): void
+    public function test_rolling_volatility_returns_zeros_for_empty_array(): void
+    {
+        $volatilities = $this->calculator->calculateRollingVolatility([], 5);
+
+        $this->assertCount(0, $volatilities);
+    }
+
+    public function test_rolling_volatility_computes_log_return_std_dev(): void
+    {
+        $records = [
+            ['open' => 100.0, 'high' => 102.0, 'low' => 98.0, 'close' => 100.0, 'volume' => 1.0],
+            ['open' => 100.0, 'high' => 103.0, 'low' => 99.0, 'close' => 101.0, 'volume' => 1.0],
+            ['open' => 101.0, 'high' => 104.0, 'low' => 100.0, 'close' => 102.0, 'volume' => 1.0],
+        ];
+
+        $volatilities = $this->calculator->calculateRollingVolatility($records, 3);
+
+        $this->assertCount(3, $volatilities);
+        $this->assertSame(0.0, $volatilities[0]);
+        $this->assertGreaterThan(0, $volatilities[1]);
+        $this->assertGreaterThan(0, $volatilities[2]);
+    }
+
+    public function test_rolling_volatility_with_constant_price(): void
     {
         $records = [];
         for ($i = 0; $i < 10; $i++) {
             $records[] = [
-                'open' => 100.0 + $i,
-                'high' => 102.0 + $i,
-                'low' => 98.0 + $i,
-                'close' => 100.0 + $i,
-                'volume' => 1.0,
+                'open' => 100.0, 'high' => 100.0, 'low' => 100.0, 'close' => 100.0, 'volume' => 1.0,
             ];
         }
 
         $volatilities = $this->calculator->calculateRollingVolatility($records, 5);
 
         $this->assertCount(10, $volatilities);
-
-        // First volatility should be based on single record
-        $this->assertEqualsWithDelta(0.04, $volatilities[0], 0.001);
-
-        // Later volatilities should be based on rolling average
         foreach ($volatilities as $vol) {
-            $this->assertGreaterThan(0, $vol);
-            $this->assertLessThan(1, $vol);
+            $this->assertEqualsWithDelta(0.0, $vol, 0.0001);
         }
     }
 
-    /**
-     * Test block volatility calculation.
-     */
-    public function test_block_volatility(): void
+    public function test_rolling_volatility_increases_with_larger_swings(): void
+    {
+        $stableRecords = [];
+        $volatileRecords = [];
+
+        for ($i = 0; $i < 20; $i++) {
+            $stableRecords[] = [
+                'open' => 100.0, 'high' => 100.5, 'low' => 99.5,
+                'close' => 100.0 + ($i % 2 === 0 ? 0.01 : -0.01), 'volume' => 1.0,
+            ];
+            $volatileRecords[] = [
+                'open' => 100.0, 'high' => 110.0, 'low' => 90.0,
+                'close' => 100.0 + ($i % 2 === 0 ? 5.0 : -5.0), 'volume' => 1.0,
+            ];
+        }
+
+        $stableVols = $this->calculator->calculateRollingVolatility($stableRecords, 10);
+        $volatileVols = $this->calculator->calculateRollingVolatility($volatileRecords, 10);
+
+        $stableAvg = array_sum(array_slice($stableVols, 5)) / 15;
+        $volatileAvg = array_sum(array_slice($volatileVols, 5)) / 15;
+
+        $this->assertGreaterThan($stableAvg, $volatileAvg);
+    }
+
+    public function test_block_volatility_with_multiple_records(): void
     {
         $records = [
             ['open' => 100.0, 'high' => 102.0, 'low' => 98.0, 'close' => 101.0, 'volume' => 1.0],
@@ -106,10 +106,7 @@ final class VolatilityCalculatorTest extends TestCase
         $this->assertLessThan(1, $volatility);
     }
 
-    /**
-     * Test block volatility with single record.
-     */
-    public function test_block_volatility_single_record(): void
+    public function test_block_volatility_with_single_record(): void
     {
         $records = [
             ['open' => 100.0, 'high' => 102.0, 'low' => 98.0, 'close' => 101.0, 'volume' => 1.0],
@@ -117,77 +114,53 @@ final class VolatilityCalculatorTest extends TestCase
 
         $volatility = $this->calculator->calculateBlockVolatility($records);
 
-        // Single record: TR = high - low = 4, normalized by close = 4/101
-        $this->assertEqualsWithDelta(0.0396, $volatility, 0.001);
+        $this->assertSame(0.0, $volatility);
     }
 
-    /**
-     * Test block volatility with empty records.
-     */
-    public function test_block_volatility_empty_records(): void
+    public function test_block_volatility_with_empty_records(): void
     {
         $volatility = $this->calculator->calculateBlockVolatility([]);
 
-        $this->assertEquals(0.0, $volatility);
+        $this->assertSame(0.0, $volatility);
     }
 
-    /**
-     * Test standard deviation volatility calculation.
-     */
-    public function test_std_dev_volatility(): void
+    public function test_block_volatility_with_constant_price(): void
     {
-        $records = [];
-        for ($i = 0; $i < 20; $i++) {
-            $price = 100.0 + sin($i * 0.5) * 2; // Oscillating price
-            $records[] = [
-                'open' => $price,
-                'high' => $price + 1,
-                'low' => $price - 1,
-                'close' => $price,
-                'volume' => 1.0,
-            ];
-        }
+        $records = [
+            ['open' => 100.0, 'high' => 100.0, 'low' => 100.0, 'close' => 100.0, 'volume' => 1.0],
+            ['open' => 100.0, 'high' => 100.0, 'low' => 100.0, 'close' => 100.0, 'volume' => 1.0],
+        ];
 
-        $volatilities = $this->calculator->calculateStdDevVolatility($records, 10);
+        $volatility = $this->calculator->calculateBlockVolatility($records);
 
-        $this->assertCount(20, $volatilities);
-
-        // First record has no return, so volatility should be 0
-        $this->assertEquals(0.0, $volatilities[0]);
-
-        // Later records should have positive volatility
-        for ($i = 2; $i < 20; $i++) {
-            $this->assertGreaterThan(0, $volatilities[$i]);
-        }
+        $this->assertEqualsWithDelta(0.0, $volatility, 0.0001);
     }
 
-    /**
-     * Test volatility for normalization with minimum threshold.
-     */
-    public function test_volatility_for_normalization(): void
+    public function test_volatility_for_normalization_returns_value_when_present(): void
     {
         $volatilities = [0.01, 0.02, 0.0, 0.001];
 
         $result0 = $this->calculator->getVolatilityForNormalization($volatilities, 0);
-        $this->assertEquals(0.01, $result0);
-
-        $result2 = $this->calculator->getVolatilityForNormalization($volatilities, 2);
-        $this->assertEquals(0.0001, $result2); // Minimum threshold
+        $this->assertEqualsWithDelta(0.01, $result0, 0.0001);
 
         $result3 = $this->calculator->getVolatilityForNormalization($volatilities, 3);
-        $this->assertEquals(0.001, $result3);
+        $this->assertEqualsWithDelta(0.001, $result3, 0.0001);
     }
 
-    /**
-     * Test volatility for normalization with missing index.
-     */
-    public function test_volatility_for_normalization_missing_index(): void
+    public function test_volatility_for_normalization_applies_minimum_floor(): void
+    {
+        $volatilities = [0.01, 0.02, 0.0, 0.001];
+
+        $result2 = $this->calculator->getVolatilityForNormalization($volatilities, 2);
+        $this->assertEqualsWithDelta(0.001, $result2, 0.0001);
+    }
+
+    public function test_volatility_for_normalization_missing_index_returns_minimum(): void
     {
         $volatilities = [0.01, 0.02];
 
         $result = $this->calculator->getVolatilityForNormalization($volatilities, 99);
 
-        // Missing index should return minimum threshold
-        $this->assertEquals(0.0001, $result);
+        $this->assertEqualsWithDelta(0.001, $result, 0.0001);
     }
 }

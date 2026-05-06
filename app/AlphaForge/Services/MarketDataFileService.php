@@ -31,10 +31,7 @@ readonly class MarketDataFileService
         $sanitizedSymbol = Str::of($symbol)->replace('/', '_')->trim();
         $timeframe = Str::trim($timeframe);
         $type = Str::trim($type);
-        /** @var string $marketDataPath */
-        $marketDataPath = config('alphaforge.storage.market_data_path');
 
-        throw_if(! $marketDataPath, new InvalidArgumentException("Invalid marketDataPath [$marketDataPath] received"));
         throw_if(! $exchangeId, new InvalidArgumentException("Invalid exchange [$exchangeId] received"));
         throw_if(! $sanitizedSymbol, new InvalidArgumentException("Invalid symbol [$sanitizedSymbol] received"));
         throw_if(! $timeframe, new InvalidArgumentException("Invalid timeframe [$timeframe] received"));

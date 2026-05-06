@@ -1,22 +1,11 @@
 <?php
 
-use App\Http\Controllers\Stochastix\Data\DownloadController;
-use App\Http\Controllers\Stochastix\Data\ExchangesController;
-use App\Http\Controllers\Stochastix\Data\InspectController;
-use App\Http\Controllers\Stochastix\Data\SymbolsController;
-use App\Stochastix\Http\Controllers\Api\BacktestController;
+use App\Http\Controllers\AlphaForge\Data\DownloadController;
+use App\Http\Controllers\AlphaForge\Data\ExchangesController;
+use App\Http\Controllers\AlphaForge\Data\InspectController;
+use App\Http\Controllers\AlphaForge\Data\SymbolsController;
+use App\AlphaForge\Http\Controllers\Api\BacktestController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group.
-|
-*/
 
 // AlphaForge API routes
 Route::prefix('stochastix')->middleware(['auth:sanctum'])->group(function () {
