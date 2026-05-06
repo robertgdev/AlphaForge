@@ -15,7 +15,7 @@ readonly class SeriesMetricService implements SeriesMetricServiceInterface
      */
     public function calculate(Series $series): array
     {
-        $values = $series->values();
+        $values = $series->getVector();
 
         if ($values->isEmpty()) {
             return $this->getEmptyMetrics();

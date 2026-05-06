@@ -140,7 +140,9 @@ final class PortfolioManager
             );
         } else {
             // Short position
-            $position = $this->openPositions->get($order->symbol);
+            $position = $this->openPositions->hasKey($order->symbol)
+                ? $this->openPositions->get($order->symbol)
+                : null;
 
             if ($position) {
                 // Close existing long position and return execution result

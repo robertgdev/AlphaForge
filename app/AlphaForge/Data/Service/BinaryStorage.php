@@ -164,13 +164,16 @@ final class BinaryStorage implements BinaryStorageInterface
             fclose($handle);
         }
 
-        $this->updateRecordCountWithHandle($filePath, $writtenCount);
+        $this->updateRecordCountAccumulated($filePath, $writtenCount);
 
         return $writtenCount;
     }
 
-    private function updateRecordCountWithHandle(string $filePath, int $recordCount): void
+    private function updateRecordCountAccumulated(string $filePath, int $additionalCount): void
     {
+        $currentHeader = $this->readHeader($filePath);
+        $newCount = $currentHeader['numRecords'] + $additionalCount;
+
         $handle = @fopen($filePath, 'r+b');
         if ($handle === false) {
             throw new StorageException("Could not open file '{$filePath}' for updating record count.");
@@ -186,7 +189,7 @@ final class BinaryStorage implements BinaryStorageInterface
                 throw new StorageException("Could not seek to record count position in '{$filePath}'.");
             }
 
-            $packedCount = pack(self::UINT64_PACK_FORMAT, $recordCount);
+            $packedCount = pack(self::UINT64_PACK_FORMAT, $newCount);
 
             if (fwrite($handle, $packedCount) !== 8) {
                 throw new StorageException("Failed to write record count to '{$filePath}'.");
@@ -692,6 +695,9 @@ final class BinaryStorage implements BinaryStorageInterface
 
     public function streamAndCommitRecords(string $filePath, iterable $records, int $commitInterval = 5000): int
     {
+        $existingHeader = $this->readHeader($filePath);
+        $existingCount = $existingHeader['numRecords'];
+
         $handle = @fopen($filePath, 'r+b');
         if ($handle === false) {
             throw new StorageException("Could not open file '{$filePath}' for streaming write.");
@@ -724,18 +730,18 @@ final class BinaryStorage implements BinaryStorageInterface
                     $writtenCount++;
 
                     if ($writtenCount > 0 && $writtenCount % $commitInterval === 0) {
-                        $this->updateHeaderCountInPlace($handle, $writtenCount);
+                        $this->updateHeaderCountInPlace($handle, $existingCount + $writtenCount);
                     }
                 }
             } catch (\Throwable $e) {
                 if ($writtenCount > 0) {
-                    $this->updateHeaderCountInPlace($handle, $writtenCount);
+                    $this->updateHeaderCountInPlace($handle, $existingCount + $writtenCount);
                 }
                 throw $e;
             }
 
             if ($writtenCount > 0) {
-                $this->updateHeaderCountInPlace($handle, $writtenCount);
+                $this->updateHeaderCountInPlace($handle, $existingCount + $writtenCount);
             }
         } finally {
             flock($handle, LOCK_UN);

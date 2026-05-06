@@ -4,6 +4,7 @@ namespace App\AlphaForge\Common\Model;
 
 use App\AlphaForge\Backtesting\Model\BacktestCursor;
 use App\AlphaForge\Common\Enum\OhlcvEnum;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Ds\Vector;
 
 class OhlcvSeries
@@ -24,9 +25,15 @@ class OhlcvSeries
 
     private BacktestCursor $cursor;
 
-    public function __construct(array $marketData, BacktestCursor $cursor)
+    private ?string $symbol;
+
+    private ?TimeframeEnum $timeframe;
+
+    public function __construct(array $marketData, BacktestCursor $cursor, ?string $symbol = null, ?TimeframeEnum $timeframe = null)
     {
         $this->cursor = $cursor;
+        $this->symbol = $symbol;
+        $this->timeframe = $timeframe;
         $this->open = new Series($marketData[OhlcvEnum::Open->value] ?? [], $cursor);
         $this->high = new Series($marketData[OhlcvEnum::High->value] ?? [], $cursor);
         $this->low = new Series($marketData[OhlcvEnum::Low->value] ?? [], $cursor);
@@ -100,6 +107,16 @@ class OhlcvSeries
     public function getHlc3(): Series
     {
         return $this->hlc3;
+    }
+
+    public function getSymbol(): ?string
+    {
+        return $this->symbol;
+    }
+
+    public function getTimeframe(): ?TimeframeEnum
+    {
+        return $this->timeframe;
     }
 
     public function slice(int $start, int $length): self
