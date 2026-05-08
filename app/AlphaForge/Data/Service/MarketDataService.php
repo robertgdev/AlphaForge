@@ -35,7 +35,7 @@ readonly class MarketDataService
      */
     public function getFuturesSymbols(string $exchangeId): array
     {
-        $cacheKey = 'stochastix.symbols.futures.'.preg_replace('/[^a-zA-Z0-9_.]/', '_', $exchangeId);
+        $cacheKey = 'alphaforge.symbols.futures.'.preg_replace('/[^a-zA-Z0-9_.]/', '_', $exchangeId);
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($exchangeId) {
             try {
@@ -71,7 +71,7 @@ readonly class MarketDataService
      */
     public function getAllSymbols(string $exchangeId): array
     {
-        $cacheKey = 'stochastix.symbols.all.'.preg_replace('/[^a-zA-Z0-9_.]/', '_', $exchangeId);
+        $cacheKey = 'alphaforge.symbols.all.'.preg_replace('/[^a-zA-Z0-9_.]/', '_', $exchangeId);
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($exchangeId) {
             try {

@@ -110,7 +110,7 @@ describe('DownloadController', function () {
                 'jobId' => $jobId,
             ]);
 
-        $cacheKey = "stochastix.download.cancel.{$jobId}";
+        $cacheKey = "alphaforge.download.cancel.{$jobId}";
         expect(Cache::has($cacheKey))->toBeTrue();
     });
 });

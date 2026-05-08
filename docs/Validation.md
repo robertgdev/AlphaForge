@@ -453,7 +453,7 @@ The following are explicitly out of scope:
 
 **"No data found for exchange/market"**
 - Verify the exchange and market identifiers match downloaded data
-- Run `php artisan stochastix:data availability` to check available data
+- Run `php artisan alphaforge:data availability` to check available data
 
 **"Calibration error too high"**
 - Consider increasing `--min-samples` to exclude noisy buckets

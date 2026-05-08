@@ -115,10 +115,9 @@ final class AtrRenkoConverter
      *
      * Algorithm:
      *   1. Read all OHLC records into memory and re-index to 0-based
-     *   2. Compute ATR series using trader_atr() (Wilders smoothing)
-     *   3. Re-index ATR output to 0-based (trader_atr skips warmup keys)
-     *   4. Pad the warmup gap: prepend the first valid ATR for the initial records
-     *   5. Iterate records with corresponding ATR-derived brick size,
+     *   2. Compute ATR series using ta_atr() (Wilders smoothing)
+     *   3. Replace NULL warmup entries in ta_atr output with the first valid ATR value
+     *   4. Iterate records with corresponding ATR-derived brick size,
      *      applying the same high-low Renko logic as the fixed-brick converter
      *
      * @param  string  $sourcePath  The path to the OHLC file
@@ -127,7 +126,7 @@ final class AtrRenkoConverter
      * @param  callable|null  $progressCallback  Optional progress callback
      * @return Generator Yields Renko brick records
      *
-     * @throws StorageException If the file cannot be read or trader extension is unavailable
+     * @throws StorageException If the file cannot be read or ta_lib extension is unavailable
      */
     private function convertOhlcvToAtrRenko(
         string $sourcePath,
@@ -135,8 +134,8 @@ final class AtrRenkoConverter
         int $totalRecords,
         ?callable $progressCallback = null
     ): Generator {
-        if (! function_exists('trader_atr')) {
-            throw new StorageException('The PHP Trader extension is required for ATR-based Renko conversion. Install ext-trader (PECL).');
+        if (! function_exists('ta_atr')) {
+            throw new StorageException('The PHP ta_lib extension is required for ATR-based Renko conversion. Install ext-ta_lib.');
         }
 
         // Pass 1: Load all OHLC records and compute ATR
@@ -148,36 +147,34 @@ final class AtrRenkoConverter
         $lows = array_column($records, 'low');
         $closes = array_column($records, 'close');
 
-        $atrRaw = trader_atr($highs, $lows, $closes, $atrPeriod);
-
-        if ($atrRaw === false) {
-            throw new StorageException('trader_atr() failed. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        try {
+            $atrRaw = ta_atr($highs, $lows, $closes, $atrPeriod);
+        } catch (\Throwable $e) {
+            throw new StorageException('ta_atr() failed: ' . $e->getMessage());
         }
 
-        // trader_atr() returns an array whose keys start at (atrPeriod),
-        // e.g. for period=14 the keys are 14, 15, 16, ... with no entries for 0..13.
-        // Re-index to 0-based, then pad the warmup gap at the front.
-        $atrValues = array_values($atrRaw);
-        $atrCount = count($atrValues);
+        if (empty($atrRaw)) {
+            throw new StorageException('ta_atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        }
 
-        // The re-indexed ATR array has (recordCount - atrPeriod) entries (TA-Lib convention
-        // for Wilders-smoothed indicators: output = input - period).
-        // Prepend the first valid ATR for the warmup records (indices 0 through atrPeriod - 1).
-        $firstValidAtr = $atrValues[0] ?? null;
+        // ta_atr() returns a full-size array (same count as input) with NULL for warmup entries.
+        // Find the first valid (non-NULL) ATR value, then fill NULLs with it.
+        $fullAtr = $atrRaw;
+        $firstValidAtr = null;
 
-        if ($firstValidAtr === null || $firstValidAtr <= 0 || is_nan($firstValidAtr)) {
+        foreach ($fullAtr as $val) {
+            if ($val !== null && $val > 0 && ! is_nan($val)) {
+                $firstValidAtr = $val;
+                break;
+            }
+        }
+
+        if ($firstValidAtr === null) {
             throw new StorageException('Could not compute a valid ATR value from the OHLC data.');
         }
 
-        // Build a full-length array: warmup records get the first valid ATR,
-        // then the computed values follow.
-        $warmupCount = $recordCount - $atrCount;
-        $fullAtr = array_fill(0, $warmupCount, $firstValidAtr);
-        $fullAtr = array_merge($fullAtr, $atrValues);
-
-        // Replace any NaN or non-positive values in the computed portion
-        for ($i = $warmupCount; $i < count($fullAtr); $i++) {
-            if (is_nan($fullAtr[$i]) || $fullAtr[$i] <= 0) {
+        foreach ($fullAtr as $i => $val) {
+            if ($val === null || is_nan($val) || $val <= 0) {
                 $fullAtr[$i] = $firstValidAtr;
             }
         }
@@ -349,8 +346,8 @@ final class AtrRenkoConverter
 
         $sourcePath = $this->fileService->generateFilePath($exchange, $market, $timeframe, 'ohlcv');
 
-        if (! function_exists('trader_atr')) {
-            throw new StorageException('The PHP Trader extension is required for ATR-based Renko conversion. Install ext-trader (PECL).');
+        if (! function_exists('ta_atr')) {
+            throw new StorageException('The PHP ta_lib extension is required for ATR-based Renko conversion. Install ext-ta_lib.');
         }
 
         $allSourceRecords = array_values(iterator_to_array($this->binaryStorage->readRecordsSequentially($sourcePath)));
@@ -359,26 +356,32 @@ final class AtrRenkoConverter
         $lows = array_column($allSourceRecords, 'low');
         $closes = array_column($allSourceRecords, 'close');
 
-        $atrRaw = trader_atr($highs, $lows, $closes, $atrPeriod);
-
-        if ($atrRaw === false) {
-            throw new StorageException('trader_atr() failed. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        try {
+            $atrRaw = ta_atr($highs, $lows, $closes, $atrPeriod);
+        } catch (\Throwable $e) {
+            throw new StorageException('ta_atr() failed: ' . $e->getMessage());
         }
 
-        $atrValues = array_values($atrRaw);
-        $atrCount = count($atrValues);
-        $firstValidAtr = $atrValues[0] ?? null;
+        if (empty($atrRaw)) {
+            throw new StorageException('ta_atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        }
 
-        if ($firstValidAtr === null || $firstValidAtr <= 0 || is_nan($firstValidAtr)) {
+        $fullAtr = $atrRaw;
+        $firstValidAtr = null;
+
+        foreach ($fullAtr as $val) {
+            if ($val !== null && $val > 0 && ! is_nan($val)) {
+                $firstValidAtr = $val;
+                break;
+            }
+        }
+
+        if ($firstValidAtr === null) {
             throw new StorageException('Could not compute a valid ATR value from the OHLC data.');
         }
 
-        $warmupCount = count($allSourceRecords) - $atrCount;
-        $fullAtr = array_fill(0, $warmupCount, $firstValidAtr);
-        $fullAtr = array_merge($fullAtr, $atrValues);
-
-        for ($i = $warmupCount; $i < count($fullAtr); $i++) {
-            if (is_nan($fullAtr[$i]) || $fullAtr[$i] <= 0) {
+        foreach ($fullAtr as $i => $val) {
+            if ($val === null || is_nan($val) || $val <= 0) {
                 $fullAtr[$i] = $firstValidAtr;
             }
         }

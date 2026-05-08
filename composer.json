@@ -8,22 +8,16 @@
         "framework"
     ],
     "license": "MIT",
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/robertgdev/trader"
-        }
-    ],
+    "repositories": [],
     "require": {
         "php": "^8.3",
         "ext-bcmath": "*",
         "ext-ds": "*",
         "ext-gmp": "*",
-        "ext-trader": "*",
+        "ext-ta_lib": "*",
         "ccxt/ccxt": "^4.0",
         "illuminate/broadcasting": "*",
         "inertiajs/inertia-laravel": "^2.0",
-        "laratrade/trader": "dev-master",
         "laravel/fortify": "^1.30",
         "laravel/framework": "^13.0",
         "laravel/reverb": "^1.0",

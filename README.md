@@ -1,10 +1,10 @@
-# LaraStochastix - Laravel Trading Backtesting System
+# AlphaForge - Laravel Trading Backtesting System
 
 A comprehensive trading backtesting system ported from Symfony to Laravel 12. This system provides high-performance backtesting capabilities for algorithmic trading strategies with support for multi-timeframe analysis, comprehensive statistics, real-time progress broadcasting, and market data acquisition from 100+ cryptocurrency exchanges.
 
 ## Overview
 
-LaraStochastix is a Laravel port of the Stochastix trading backtesting system. It maintains all the core functionality of the original Symfony application while leveraging Laravel's ecosystem for queue management, broadcasting, and database operations while adding significant new capabilities.
+AlphaForge is a Laravel port of the stochastix trading backtesting system. It maintains all the core functionality of the original Symfony application while leveraging Laravel's ecosystem for queue management, broadcasting, and database operations while adding significant new capabilities.
 
 ## Features
 
@@ -820,7 +820,7 @@ return [
     'storage' => [
         'market_data_path' => storage_path('app/market'),
         'backtest_results_path' => storage_path('app/backtests'),
-        'cache_path' => storage_path('app/cache/stochastix'),
+        'cache_path' => storage_path('app/cache/alphaforge'),
     ],
     
     'queues' => [
@@ -905,34 +905,34 @@ php artisan migrate
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/stochastix/strategies` | List all available strategies |
-| GET | `/api/stochastix/strategies/{alias}` | Get strategy details |
+| GET | `/api/alphaforge/strategies` | List all available strategies |
+| GET | `/api/alphaforge/strategies/{alias}` | Get strategy details |
 
 ### Backtests
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/stochastix/backtests` | List backtest runs |
-| POST | `/api/stochastix/backtests` | Queue a new backtest |
-| GET | `/api/stochastix/backtests/{id}` | Get backtest details |
-| DELETE | `/api/stochastix/backtests/{id}` | Cancel pending backtest |
-| GET | `/api/stochastix/backtests/{id}/statistics` | Get backtest statistics |
+| GET | `/api/alphaforge/backtests` | List backtest runs |
+| POST | `/api/alphaforge/backtests` | Queue a new backtest |
+| GET | `/api/alphaforge/backtests/{id}` | Get backtest details |
+| DELETE | `/api/alphaforge/backtests/{id}` | Cancel pending backtest |
+| GET | `/api/alphaforge/backtests/{id}/statistics` | Get backtest statistics |
 
 ### Data Acquisition
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/stochastix/data/exchanges` | List all supported exchanges |
-| GET | `/api/stochastix/data/symbols/{exchangeId}` | Get futures symbols for an exchange |
-| POST | `/api/stochastix/data/download` | Queue a market data download |
-| DELETE | `/api/stochastix/data/download/{jobId}` | Cancel a running download |
-| GET | `/api/stochastix/data/inspect/{exchange}/{symbol}/{timeframe}` | Inspect stored data |
-| GET | `/api/stochastix/data-availability` | Get manifest of all stored data |
+| GET | `/api/alphaforge/data/exchanges` | List all supported exchanges |
+| GET | `/api/alphaforge/data/symbols/{exchangeId}` | Get futures symbols for an exchange |
+| POST | `/api/alphaforge/data/download` | Queue a market data download |
+| DELETE | `/api/alphaforge/data/download/{jobId}` | Cancel a running download |
+| GET | `/api/alphaforge/data/inspect/{exchange}/{symbol}/{timeframe}` | Inspect stored data |
+| GET | `/api/alphaforge/data-availability` | Get manifest of all stored data |
 
 ### Example: Running a Backtest
 
 ```bash
-curl -X POST http://localhost:8000/api/stochastix/backtests \
+curl -X POST http://localhost:8000/api/alphaforge/backtests \
   -H "Authorization: Bearer {token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -958,7 +958,7 @@ curl -X POST http://localhost:8000/api/stochastix/backtests \
 ### Example: Running a Dual-Timeframe Backtest
 
 ```bash
-curl -X POST http://localhost:8000/api/stochastix/backtests \
+curl -X POST http://localhost:8000/api/alphaforge/backtests \
   -H "Authorization: Bearer {token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -993,10 +993,10 @@ interface StrategyInterface
 Use the `AsStrategy` attribute to define metadata:
 
 ```php
-use App\Stochastix\Strategy\Attribute\AsStrategy;
-use App\Stochastix\Strategy\Attribute\Input;
-use App\Stochastix\Strategy\StrategyInterface;
-use App\Stochastix\Common\Enum\TimeframeEnum;
+use App\alphaforge\Strategy\Attribute\AsStrategy;
+use App\alphaforge\Strategy\Attribute\Input;
+use App\alphaforge\Strategy\StrategyInterface;
+use App\alphaforge\Common\Enum\TimeframeEnum;
 
 #[AsStrategy(
     alias: 'sma_crossover',
@@ -1251,7 +1251,7 @@ php artisan test
 
 ## Service Provider
 
-The `StochastixServiceProvider` handles:
+The `alphaforgeServiceProvider` handles:
 
 1. **Configuration Merging**: Loads default configuration
 2. **Service Binding**: Binds interfaces to implementations
@@ -1266,4 +1266,4 @@ MIT License
 
 ## Credits
 
-Ported from Symfony Stochastix to Laravel 12 by the development team.
+Ported from Symfony alphaforge to Laravel 12 by the development team.

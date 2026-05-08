@@ -55,7 +55,7 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
         $durationMs = Exchange::parse_timeframe($timeframe) * 1000;
         $totalDuration = max(1, $endTimestamp - $since);
         $isFirstFetch = true;
-        $cancellationCacheKey = 'stochastix.download.cancel.'.$jobId;
+        $cancellationCacheKey = 'alphaforge.download.cancel.'.$jobId;
 
         while ($since <= $endTimestamp) {
             if ($jobId) {

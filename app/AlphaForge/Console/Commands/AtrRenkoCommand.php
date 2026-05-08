@@ -39,9 +39,9 @@ class AtrRenkoCommand extends Command
     public function handle(AtrRenkoConverter $converter): int
     {
         // Validate trader extension availability upfront
-        if (! function_exists('trader_atr')) {
-            error('The PHP Trader extension is required for ATR-based Renko conversion.');
-            $this->line('  Install it via: pecl install trader');
+        if (! function_exists('ta_atr')) {
+            error('The PHP ta_lib extension is required for ATR-based Renko conversion.');
+            $this->line('  Install it via: pecl install ta_lib');
 
             return self::FAILURE;
         }

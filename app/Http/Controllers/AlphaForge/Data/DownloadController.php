@@ -63,7 +63,7 @@ class DownloadController extends Controller
     public function cancel(string $jobId): JsonResponse
     {
         // Set a cancellation flag in cache that the job checks periodically
-        $cacheKey = "stochastix.download.cancel.{$jobId}";
+        $cacheKey = "alphaforge.download.cancel.{$jobId}";
         cache()->put($cacheKey, true, now()->addHour());
 
         return response()->json([
