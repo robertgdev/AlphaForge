@@ -21,7 +21,7 @@ final class OpenCrossProbabilityEngineTest extends TestCase
     {
         parent::setUp();
 
-        $this->marketDataPath = sys_get_temp_dir().'/stochastix_ocpe_test_'.uniqid();
+        $this->marketDataPath = sys_get_temp_dir().'/alphaforge_ocpe_test_'.uniqid();
         mkdir($this->marketDataPath, 0775, true);
 
         $this->binaryStorage = new BinaryStorage;

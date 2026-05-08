@@ -17,7 +17,7 @@ describe('BacktestController', function () {
             BacktestRun::factory()->for($this->user)->count(3)->create();
 
             $response = $this->actingAs($this->user)
-                ->getJson('/api/stochastix/backtests');
+                ->getJson('/api/alphaforge/backtests');
 
             $response->assertOk()
                 ->assertJsonStructure([
@@ -35,7 +35,7 @@ describe('BacktestController', function () {
             BacktestRun::factory()->for($this->user)->count(1)->create();
 
             $response = $this->actingAs($this->user)
-                ->getJson('/api/stochastix/backtests');
+                ->getJson('/api/alphaforge/backtests');
 
             $response->assertOk();
             expect($response->json('data'))->toHaveCount(1);
@@ -57,7 +57,7 @@ describe('BacktestController', function () {
             ];
 
             $response = $this->actingAs($this->user)
-                ->postJson('/api/stochastix/backtests', $data);
+                ->postJson('/api/alphaforge/backtests', $data);
 
             $response->assertAccepted()
                 ->assertJson([
@@ -73,7 +73,7 @@ describe('BacktestController', function () {
 
         it('validates required fields', function () {
             $response = $this->actingAs($this->user)
-                ->postJson('/api/stochastix/backtests', []);
+                ->postJson('/api/alphaforge/backtests', []);
 
             $response->assertUnprocessable()
                 ->assertJsonValidationErrors([
@@ -96,7 +96,7 @@ describe('BacktestController', function () {
             ];
 
             $response = $this->actingAs($this->user)
-                ->postJson('/api/stochastix/backtests', $data);
+                ->postJson('/api/alphaforge/backtests', $data);
 
             $response->assertUnprocessable()
                 ->assertJsonValidationErrors(['timeframe']);
@@ -108,7 +108,7 @@ describe('BacktestController', function () {
             $backtest = BacktestRun::factory()->for($this->user)->create();
 
             $response = $this->actingAs($this->user)
-                ->getJson("/api/stochastix/backtests/{$backtest->id}");
+                ->getJson("/api/alphaforge/backtests/{$backtest->id}");
 
             $response->assertOk()
                 ->assertJson([
@@ -118,7 +118,7 @@ describe('BacktestController', function () {
 
         it('returns 404 for non-existent backtest', function () {
             $response = $this->actingAs($this->user)
-                ->getJson('/api/stochastix/backtests/non-existent-id');
+                ->getJson('/api/alphaforge/backtests/non-existent-id');
 
             $response->assertNotFound();
         });
@@ -129,7 +129,7 @@ describe('BacktestController', function () {
             $backtest = BacktestRun::factory()->for($this->user)->create();
 
             $response = $this->actingAs($this->user)
-                ->deleteJson("/api/stochastix/backtests/{$backtest->id}");
+                ->deleteJson("/api/alphaforge/backtests/{$backtest->id}");
 
             $response->assertOk()
                 ->assertJson([
@@ -144,7 +144,7 @@ describe('BacktestController', function () {
             $backtest = BacktestRun::factory()->for($this->user)->running()->create();
 
             $response = $this->actingAs($this->user)
-                ->deleteJson("/api/stochastix/backtests/{$backtest->id}");
+                ->deleteJson("/api/alphaforge/backtests/{$backtest->id}");
 
             $response->assertBadRequest();
         });
@@ -155,7 +155,7 @@ describe('BacktestController', function () {
             $backtest = BacktestRun::factory()->for($this->user)->completed()->create();
 
             $response = $this->actingAs($this->user)
-                ->getJson("/api/stochastix/backtests/{$backtest->id}/statistics");
+                ->getJson("/api/alphaforge/backtests/{$backtest->id}/statistics");
 
             $response->assertOk()
                 ->assertJsonStructure([
@@ -167,7 +167,7 @@ describe('BacktestController', function () {
             $backtest = BacktestRun::factory()->for($this->user)->create();
 
             $response = $this->actingAs($this->user)
-                ->getJson("/api/stochastix/backtests/{$backtest->id}/statistics");
+                ->getJson("/api/alphaforge/backtests/{$backtest->id}/statistics");
 
             $response->assertBadRequest();
         });

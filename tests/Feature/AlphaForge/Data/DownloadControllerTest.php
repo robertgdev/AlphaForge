@@ -17,7 +17,7 @@ describe('DownloadController', function () {
 
     it('can queue a download job', function () {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/stochastix/data/download', [
+            ->postJson('/api/alphaforge/data/download', [
                 'exchangeId' => 'binance',
                 'symbol' => 'BTC/USDT',
                 'timeframe' => '1h',
@@ -45,7 +45,7 @@ describe('DownloadController', function () {
 
     it('validates required fields', function () {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/stochastix/data/download', []);
+            ->postJson('/api/alphaforge/data/download', []);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['exchangeId', 'symbol', 'timeframe', 'startDate']);
@@ -53,7 +53,7 @@ describe('DownloadController', function () {
 
     it('validates date format', function () {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/stochastix/data/download', [
+            ->postJson('/api/alphaforge/data/download', [
                 'exchangeId' => 'binance',
                 'symbol' => 'BTC/USDT',
                 'timeframe' => '1h',
@@ -66,7 +66,7 @@ describe('DownloadController', function () {
 
     it('validates end date is after start date', function () {
         $response = $this->actingAs($this->user)
-            ->postJson('/api/stochastix/data/download', [
+            ->postJson('/api/alphaforge/data/download', [
                 'exchangeId' => 'binance',
                 'symbol' => 'BTC/USDT',
                 'timeframe' => '1h',
@@ -82,7 +82,7 @@ describe('DownloadController', function () {
         Carbon::setTestNow('2024-06-15 12:00:00');
 
         $response = $this->actingAs($this->user)
-            ->postJson('/api/stochastix/data/download', [
+            ->postJson('/api/alphaforge/data/download', [
                 'exchangeId' => 'binance',
                 'symbol' => 'BTC/USDT',
                 'timeframe' => '1h',
@@ -102,7 +102,7 @@ describe('DownloadController', function () {
         $jobId = 'download_test123';
 
         $response = $this->actingAs($this->user)
-            ->deleteJson("/api/stochastix/data/download/{$jobId}");
+            ->deleteJson("/api/alphaforge/data/download/{$jobId}");
 
         $response->assertStatus(202)
             ->assertJson([

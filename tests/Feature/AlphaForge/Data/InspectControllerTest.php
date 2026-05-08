@@ -12,7 +12,7 @@ describe('InspectController', function () {
 
     it('returns 404 when data file not found', function () {
         $response = $this->actingAs($this->user)
-            ->getJson('/api/stochastix/data/inspect/binance/BTC-USDT/1h');
+            ->getJson('/api/alphaforge/data/inspect/binance/BTC-USDT/1h');
 
         $response->assertStatus(404)
             ->assertJsonStructure(['error']);
@@ -22,7 +22,7 @@ describe('InspectController', function () {
         // This test verifies the URL format with dash instead of slash
         // works correctly for symbol parsing
         $response = $this->actingAs($this->user)
-            ->getJson('/api/stochastix/data/inspect/binance/ETH-USDT/1h');
+            ->getJson('/api/alphaforge/data/inspect/binance/ETH-USDT/1h');
 
         // Should return 404 since no actual data file exists
         $response->assertStatus(404);

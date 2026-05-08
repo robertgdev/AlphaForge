@@ -8,7 +8,7 @@ use App\AlphaForge\Services\MarketDataFileService;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
-    $this->tempDir = sys_get_temp_dir().'/stochastix_renko_test_'.uniqid();
+    $this->tempDir = sys_get_temp_dir().'/alphaforge_renko_test_'.uniqid();
     mkdir($this->tempDir, 0775, true);
 
     $this->binaryStorage = new BinaryStorage;

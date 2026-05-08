@@ -10,13 +10,13 @@ use App\AlphaForge\Services\MarketDataFileService;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
-    $this->tempDir = sys_get_temp_dir() . '/stochastix_deps_test_' . uniqid();
+    $this->tempDir = sys_get_temp_dir() . '/alphaforge_deps_test_' . uniqid();
     mkdir($this->tempDir, 0775, true);
 
     $this->binaryStorage = new BinaryStorage;
     $this->fileService = new MarketDataFileService($this->tempDir);
 
-    config(['stochastix.storage.market_data_path' => $this->tempDir]);
+    config(['alphaforge.storage.market_data_path' => $this->tempDir]);
 
     $this->app->instance(MarketDataFileService::class, $this->fileService);
     $this->app->instance(BinaryStorageInterface::class, $this->binaryStorage);

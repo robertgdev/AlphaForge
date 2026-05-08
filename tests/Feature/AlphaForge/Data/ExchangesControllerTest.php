@@ -12,7 +12,7 @@ describe('ExchangesController', function () {
 
     it('returns list of supported exchanges', function () {
         $response = $this->actingAs($this->user)
-            ->getJson('/api/stochastix/data/exchanges');
+            ->getJson('/api/alphaforge/data/exchanges');
 
         $response->assertStatus(200)
             ->assertJsonStructure(['*' => []]);
