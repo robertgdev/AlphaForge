@@ -41,7 +41,7 @@ use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Support\ServiceProvider;
 
-class StochastixServiceProvider extends ServiceProvider
+class AlphaForgeServiceProvider extends ServiceProvider
 {
     /**
      * Register services.
@@ -51,7 +51,7 @@ class StochastixServiceProvider extends ServiceProvider
         // Merge config
         $this->mergeConfigFrom(
             __DIR__ . '/../../config/alphaforge.php',
-            'stochastix'
+            'alphaforge'
         );
 
         // Bind interfaces to implementations
@@ -71,7 +71,7 @@ class StochastixServiceProvider extends ServiceProvider
         // Bind MarketDataFileService with configuration
         $this->app->singleton(MarketDataFileService::class, function ($app) {
             return new MarketDataFileService(
-                config('stochastix.storage.market_data_path', storage_path('app/marketdata'))
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
             );
         });
 
@@ -88,14 +88,14 @@ class StochastixServiceProvider extends ServiceProvider
         $this->app->bind(DataInspectionService::class, function ($app) {
             return new DataInspectionService(
                 $app->make(BinaryStorageInterface::class),
-                config('stochastix.storage.market_data_path', storage_path('app/market'))
+                config('alphaforge.storage.market_data_path', storage_path('app/market'))
             );
         });
 
         // Bind DataAvailabilityService with configuration
         $this->app->bind(DataAvailabilityService::class, function ($app) {
             return new DataAvailabilityService(
-                config('stochastix.storage.market_data_path', storage_path('app/market')),
+                config('alphaforge.storage.market_data_path', storage_path('app/market')),
                 $app->make(BinaryStorageInterface::class)
             );
         });
@@ -108,7 +108,7 @@ class StochastixServiceProvider extends ServiceProvider
                 $app->make(StatisticsServiceInterface::class),
                 $app->make(SeriesMetricServiceInterface::class),
                 $app->make(MultiTimeframeDataServiceInterface::class),
-                config('stochastix.storage.market_data_path', storage_path('app/market'))
+                config('alphaforge.storage.market_data_path', storage_path('app/market'))
             );
         });
 
@@ -123,7 +123,7 @@ class StochastixServiceProvider extends ServiceProvider
             return new RenkoConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('stochastix.storage.market_data_path', storage_path('app/marketdata'))
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
             );
         });
 
@@ -132,7 +132,7 @@ class StochastixServiceProvider extends ServiceProvider
             return new AtrRenkoConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('stochastix.storage.market_data_path', storage_path('app/marketdata'))
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
             );
         });
 
@@ -141,7 +141,7 @@ class StochastixServiceProvider extends ServiceProvider
             return new HeikenAshiConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('stochastix.storage.market_data_path', storage_path('app/marketdata'))
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
             );
         });
 
@@ -150,7 +150,7 @@ class StochastixServiceProvider extends ServiceProvider
             return new OpenCrossProbabilityEngine(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('stochastix.storage.market_data_path', storage_path('app/marketdata'))
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
             );
         });
 
@@ -164,16 +164,16 @@ class StochastixServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Set bcscale from config
-        $scale = config('stochastix.defaults.bc_scale', 12);
+        $scale = config('alphaforge.defaults.bc_scale', 12);
         bcscale($scale);
 
         // Publish config
         $this->publishes([
             __DIR__ . '/../../config/alphaforge.php' => config_path('alphaforge.php'),
-        ], 'stochastix-config');
+        ], 'alphaforge-config');
 
         // Load routes
-        $this->loadRoutesFrom(__DIR__.'/../../routes/stochastix.php');
+        $this->loadRoutesFrom(__DIR__.'/../../routes/alphaforge.php');
 
         // Load migrations
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
@@ -200,9 +200,9 @@ class StochastixServiceProvider extends ServiceProvider
     private function ensureStorageDirectoriesExist(): void
     {
         $directories = [
-            config('stochastix.storage.market_data_path', storage_path('app/market')),
-            config('stochastix.storage.backtest_results_path', storage_path('app/backtests')),
-            config('stochastix.storage.cache_path', storage_path('app/cache/stochastix')),
+            config('alphaforge.storage.market_data_path', storage_path('app/market')),
+            config('alphaforge.storage.backtest_results_path', storage_path('app/backtests')),
+            config('alphaforge.storage.cache_path', storage_path('app/cache/alphaforge')),
         ];
 
         foreach ($directories as $directory) {

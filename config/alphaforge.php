@@ -13,7 +13,7 @@ return [
     'storage' => [
         'market_data_path' => env('ALPHAFORGE_MARKET_DATA_PATH', storage_path('app/marketdata')),
         'backtest_results_path' => env('ALPHAFORGE_BACKTEST_RESULTS_PATH', storage_path('app/backtests')),
-        'cache_path' => env('ALPHAFORGE_CACHE_PATH', storage_path('app/cache/stochastix')),
+        'cache_path' => env('ALPHAFORGE_CACHE_PATH', storage_path('app/cache/alphaforge')),
     ],
 
     'backtesting' => [
@@ -43,6 +43,6 @@ return [
 
     'broadcasting' => [
         'enabled' => env('ALPHAFORGE_BROADCASTING_ENABLED', true),
-        'channel_prefix' => env('ALPHAFORGE_CHANNEL_PREFIX', 'stochastix'),
+        'channel_prefix' => env('ALPHAFORGE_CHANNEL_PREFIX', 'alphaforge'),
     ],
 ];

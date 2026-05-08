@@ -8,7 +8,7 @@ use App\AlphaForge\Http\Controllers\Api\BacktestController;
 use Illuminate\Support\Facades\Route;
 
 // AlphaForge API routes
-Route::prefix('stochastix')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('alphaforge')->middleware(['auth:sanctum'])->group(function () {
 
     // Backtest routes
     Route::prefix('backtests')->group(function () {

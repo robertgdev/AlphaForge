@@ -2,10 +2,10 @@
 
 use App\Providers\AppServiceProvider;
 use App\Providers\FortifyServiceProvider;
-use App\Providers\StochastixServiceProvider;
+use App\Providers\AlphaForgeServiceProvider;
 
 return [
     AppServiceProvider::class,
     FortifyServiceProvider::class,
-    StochastixServiceProvider::class,
+    AlphaForgeServiceProvider::class,
 ];
