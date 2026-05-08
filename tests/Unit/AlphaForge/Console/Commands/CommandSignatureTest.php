@@ -43,7 +43,8 @@ describe('Console Command Signatures', function () {
                 ->and($defaultProps['signature'])->toContain('{exchange?')
                 ->and($defaultProps['signature'])->toContain('{market?')
                 ->and($defaultProps['signature'])->toContain('{timeframe?')
-                ->and($defaultProps['signature'])->toContain('--force');
+                ->and($defaultProps['signature'])->toContain('--force')
+                ->and($defaultProps['signature'])->toContain('--with-dependencies');
         });
 
         it('has description', function () {
