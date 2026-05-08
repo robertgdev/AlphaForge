@@ -10,7 +10,7 @@ class Exchange extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_exchanges';
+    protected $table = 'alphaforge_exchanges';
 
     /**
      * The attributes that are mass assignable.

@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stochastix_markets', function (Blueprint $table) {
+        Schema::create('alphaforge_markets', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('exchange_id')->constrained('stochastix_exchanges')->cascadeOnDelete();
+            $table->foreignId('exchange_id')->constrained('alphaforge_exchanges')->cascadeOnDelete();
             $table->string('symbol'); // e.g., 'BTC/USDT'
             $table->string('base_currency', 20); // e.g., 'BTC'
             $table->string('quote_currency', 20); // e.g., 'USDT'
@@ -31,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stochastix_markets');
+        Schema::dropIfExists('alphaforge_markets');
     }
 };

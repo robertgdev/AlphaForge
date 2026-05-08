@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stochastix_exchanges', function (Blueprint $table) {
+        Schema::create('alphaforge_exchanges', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique();
             $table->string('url')->nullable();
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stochastix_exchanges');
+        Schema::dropIfExists('alphaforge_exchanges');
     }
 };

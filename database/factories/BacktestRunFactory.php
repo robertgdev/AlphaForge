@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Stochastix\Backtesting\Model\BacktestRun;
-use App\Stochastix\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Backtesting\Model\BacktestRun;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class BacktestRunFactory extends Factory
@@ -16,7 +16,7 @@ class BacktestRunFactory extends Factory
             'user_id' => null,
             'strategy_alias' => $this->faker->randomElement(['sma_crossover', 'rsi_reversal', 'macd_trend']),
             'symbols' => ['BTCUSDT'],
-            'timeframe' => TimeframeEnum::HOUR_1->value,
+            'timeframe' => TimeframeEnum::H1->value,
             'execution_timeframe' => null,
             'exchange' => 'binance',
             'initial_capital' => '10000.00000000',

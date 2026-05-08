@@ -10,7 +10,7 @@ class Ohlcv extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_ohlcv';
+    protected $table = 'alphaforge_ohlcv';
 
     /**
      * Indicates if the model should be timestamped.

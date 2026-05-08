@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stochastix_timeframes', function (Blueprint $table) {
+        Schema::create('alphaforge_timeframes', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique(); // e.g., '1m', '5m', '1h', '1d'
             $table->unsignedInteger('minutes'); // Duration in minutes
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stochastix_timeframes');
+        Schema::dropIfExists('alphaforge_timeframes');
     }
 };

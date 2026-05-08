@@ -10,7 +10,7 @@ class Renko extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_renko';
+    protected $table = 'alphaforge_renko';
 
     /**
      * Indicates if the model should be timestamped.

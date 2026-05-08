@@ -10,7 +10,7 @@ class RenkoType extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_renko_types';
+    protected $table = 'alphaforge_renko_types';
 
     /**
      * The attributes that are mass assignable.

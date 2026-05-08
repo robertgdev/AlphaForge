@@ -10,7 +10,7 @@ class Timeframe extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_timeframes';
+    protected $table = 'alphaforge_timeframes';
 
     /**
      * The attributes that are mass assignable.

@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stochastix_renko_types', function (Blueprint $table) {
+        Schema::create('alphaforge_renko_types', function (Blueprint $table) {
             $table->id();
             $table->string('method'); // e.g., 'atr', 'fixed', 'percentage'
             $table->decimal('brick_size', 24, 12);
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stochastix_renko_types');
+        Schema::dropIfExists('alphaforge_renko_types');
     }
 };

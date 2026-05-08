@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stochastix_ohlcv', function (Blueprint $table) {
+        Schema::create('alphaforge_ohlcv', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('market_id')->constrained('stochastix_markets')->cascadeOnDelete();
-            $table->foreignId('timeframe_id')->constrained('stochastix_timeframes')->cascadeOnDelete();
+            $table->foreignId('market_id')->constrained('alphaforge_markets')->cascadeOnDelete();
+            $table->foreignId('timeframe_id')->constrained('alphaforge_timeframes')->cascadeOnDelete();
             $table->unsignedBigInteger('timestamp'); // Unix timestamp
             $table->decimal('open', 24, 12);
             $table->decimal('high', 24, 12);
@@ -36,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stochastix_ohlcv');
+        Schema::dropIfExists('alphaforge_ohlcv');
     }
 };

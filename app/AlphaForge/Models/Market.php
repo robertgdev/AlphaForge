@@ -11,7 +11,7 @@ class Market extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'stochastix_markets';
+    protected $table = 'alphaforge_markets';
 
     /**
      * The attributes that are mass assignable.
