@@ -13,6 +13,63 @@ readonly class DataAvailabilityService
     ) {}
 
     /**
+     * Find all derived (non-OHLCV) data files that depend on a specific OHLCV source.
+     *
+     * @param  string  $exchange  The exchange identifier (lowercase)
+     * @param  string  $market  The market symbol (uppercase, with /)
+     * @param  string  $timeframe  The timeframe
+     * @return array<int, array{filePath: string, type: string, dataType: int, brickSize: float}>
+     */
+    public function findDependencies(string $exchange, string $market, string $timeframe): array
+    {
+        $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
+        $directory = rtrim($this->marketDataPath, '/') . '/' . strtolower($exchange) . '/' . $sanitizedSymbol . '/' . $timeframe;
+
+        if (! is_dir($directory)) {
+            return [];
+        }
+
+        $dependencies = [];
+
+        $files = File::files($directory);
+
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'stchx') {
+                continue;
+            }
+
+            $basename = $file->getBasename('.stchx');
+
+            if ($basename === 'ohlcv') {
+                continue;
+            }
+
+            try {
+                $filePath = $file->getPathname();
+                $header = $this->binaryStorage->readHeader($filePath);
+
+                if ($header['numRecords'] === 0) {
+                    continue;
+                }
+
+                $dependencies[] = [
+                    'filePath' => $filePath,
+                    'type' => $basename,
+                    'dataType' => $header['dataType'],
+                    'brickSize' => $header['brickSize'],
+                ];
+            } catch (\Throwable $e) {
+                Log::error('Failed to read dependency file: {file}', [
+                    'file' => $file->getPathname(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $dependencies;
+    }
+
+    /**
      * Get a manifest of all available market data.
      *
      * @return array<int, array{symbol: string, exchange: string, timeframes: array}>

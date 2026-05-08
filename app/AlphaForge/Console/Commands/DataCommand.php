@@ -5,6 +5,9 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Common\Service\DateParsingService;
 use App\AlphaForge\Common\Service\FormattingService;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Conversion\AtrRenkoConverter;
+use App\AlphaForge\Conversion\HeikenAshiConverter;
+use App\AlphaForge\Conversion\RenkoConverter;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\BinaryStorage;
@@ -36,6 +39,7 @@ class DataCommand extends Command
         {startdate? : The start date for data import (Y-m-d or Y-m-d H:i:s). Not required for update.}
         {enddate? : The end date for data import/update (Y-m-d or Y-m-d H:i:s, defaults to now)}
         {--force : Force overwrite existing data (for import) or skip confirmation (for delete)}
+        {--with-dependencies : When updating, also update all derived data files (Renko, Heiken-Ashi, etc.)}
         {--exchange-filter= : Filter by exchange (for list action)}
         {--symbol-filter= : Filter by symbol (for list action)}';
 
@@ -58,6 +62,7 @@ class DataCommand extends Command
         $market = $this->argument('market');
         $timeframe = $this->argument('timeframe');
         $force = $this->option('force');
+        $withDependencies = $this->option('with-dependencies');
 
         if (! in_array($action, ['import', 'export', 'delete', 'info', 'list', 'update'], true)) {
             error("Invalid action '{$action}'. Supported actions: import, export, delete, info, list, update");
@@ -79,7 +84,7 @@ class DataCommand extends Command
             'info' => $this->handleInfo($inspectionService, $formattingService, strtolower($exchange), strtoupper($market), $timeframe),
             'export' => $this->handleExport(),
             'list' => $this->handleList($availabilityService, $formattingService),
-            'update' => $this->handleUpdate($downloader, $fileService, $binaryStorage, $dateParsingService, $eventDispatcher, strtolower($exchange), strtoupper($market), $timeframe),
+            'update' => $this->handleUpdate($downloader, $fileService, $binaryStorage, $availabilityService, $dateParsingService, $eventDispatcher, strtolower($exchange), strtoupper($market), $timeframe, $withDependencies),
             default => self::FAILURE,
         };
     }
@@ -177,11 +182,13 @@ class DataCommand extends Command
         OhlcvDownloader $downloader,
         MarketDataFileService $fileService,
         BinaryStorageInterface $binaryStorage,
+        DataAvailabilityService $availabilityService,
         DateParsingService $dateParsingService,
         Dispatcher $eventDispatcher,
         string $exchange,
         string $market,
-        string $timeframe
+        string $timeframe,
+        bool $withDependencies
     ): int {
         $filePath = $fileService->generateFilePath($exchange, $market, $timeframe);
 
@@ -231,6 +238,10 @@ class DataCommand extends Command
             warning('Local data is already up to date. No update needed.');
             $this->components->twoColumnDetail('Last Record', $startCarbon->format('Y-m-d H:i:s'));
 
+            if ($withDependencies) {
+                return $this->updateDependencies($availabilityService, $exchange, $market, $timeframe);
+            }
+
             return self::SUCCESS;
         }
 
@@ -266,6 +277,10 @@ class DataCommand extends Command
             info('Market data updated successfully!');
             $this->components->twoColumnDetail('File Path', $resultPath);
 
+            if ($withDependencies) {
+                return $this->updateDependencies($availabilityService, $exchange, $market, $timeframe);
+            }
+
             return self::SUCCESS;
         } catch (DownloaderException $e) {
             $this->finishProgressBarOnError();
@@ -280,6 +295,174 @@ class DataCommand extends Command
         } finally {
             $eventDispatcher->forget(DownloadProgress::class);
         }
+    }
+
+    private function updateDependencies(
+        DataAvailabilityService $availabilityService,
+        string $exchange,
+        string $market,
+        string $timeframe
+    ): int {
+        $dependencies = $availabilityService->findDependencies($exchange, $market, $timeframe);
+
+        if (empty($dependencies)) {
+            $this->newLine();
+            info('No dependent data files found. Nothing to update.');
+
+            return self::SUCCESS;
+        }
+
+        $this->newLine();
+        info('Updating dependent data files...');
+        $this->newLine();
+
+        $results = [];
+        $hasFailure = false;
+
+        foreach ($dependencies as $dependency) {
+            $dataType = $dependency['dataType'];
+            $brickSize = $dependency['brickSize'];
+            $typeLabel = $this->formatDependencyLabel($dataType, $brickSize);
+
+            $this->line("  <fg=cyan>Updating: {$typeLabel}</>");
+
+            try {
+                $converter = $this->resolveConverter($dataType);
+                $newRecordsCount = $this->performIncrementalUpdate(
+                    $converter,
+                    $dataType,
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    $brickSize,
+                    $typeLabel
+                );
+
+                if ($newRecordsCount === -1) {
+                    $results[] = ['label' => $typeLabel, 'status' => 'full', 'count' => 0];
+                    $this->line("    <fg=green>Completed (full conversion performed)</>");
+                } elseif ($newRecordsCount === 0) {
+                    $results[] = ['label' => $typeLabel, 'status' => 'uptodate', 'count' => 0];
+                    $this->line("    <fg=yellow>Already up to date</>");
+                } else {
+                    $results[] = ['label' => $typeLabel, 'status' => 'updated', 'count' => $newRecordsCount];
+                    $this->line("    <fg=green>+ " . number_format($newRecordsCount) . ' new records</>');
+                }
+            } catch (\Throwable $e) {
+                $results[] = ['label' => $typeLabel, 'status' => 'failed', 'count' => 0];
+                $this->line("    <fg=red>Failed: {$e->getMessage()}</>");
+                $hasFailure = true;
+            }
+        }
+
+        $this->newLine();
+        $this->components->twoColumnDetail('<fg=yellow>Dependency Update Summary</>', '');
+
+        $updated = 0;
+        $upToDate = 0;
+        $fullConversions = 0;
+        $failed = 0;
+
+        foreach ($results as $result) {
+            $statusLabel = match ($result['status']) {
+                'updated' => '<fg=green>Updated</>',
+                'full' => '<fg=cyan>Full Conversion</>',
+                'uptodate' => '<fg=yellow>Up to Date</>',
+                'failed' => '<fg=red>Failed</>',
+            };
+
+            match ($result['status']) {
+                'updated' => $updated++,
+                'full' => $fullConversions++,
+                'uptodate' => $upToDate++,
+                'failed' => $failed++,
+            };
+
+            $this->components->twoColumnDetail("  {$result['label']}", $statusLabel);
+        }
+
+        $this->newLine();
+        $totalCount = count($results);
+        $this->components->twoColumnDetail('Total Dependencies', (string) $totalCount);
+        $this->components->twoColumnDetail('Updated', (string) $updated);
+        $this->components->twoColumnDetail('Up to Date', (string) $upToDate);
+        $this->components->twoColumnDetail('Full Conversions', (string) $fullConversions);
+
+        if ($failed > 0) {
+            $this->components->twoColumnDetail('Failed', (string) $failed);
+        }
+
+        return $hasFailure ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function resolveConverter(int $dataType): RenkoConverter|AtrRenkoConverter|HeikenAshiConverter
+    {
+        return match ($dataType) {
+            BinaryStorage::DATA_TYPE_RENKO => $this->laravel->make(RenkoConverter::class),
+            BinaryStorage::DATA_TYPE_ATR_RENKO => $this->laravel->make(AtrRenkoConverter::class),
+            BinaryStorage::DATA_TYPE_HEIKEN_ASHI => $this->laravel->make(HeikenAshiConverter::class),
+            default => throw new \InvalidArgumentException("Unsupported data type: {$dataType}"),
+        };
+    }
+
+    private function performIncrementalUpdate(
+        RenkoConverter|AtrRenkoConverter|HeikenAshiConverter $converter,
+        int $dataType,
+        string $exchange,
+        string $market,
+        string $timeframe,
+        float $brickSize,
+        string $typeLabel
+    ): int {
+        $progressCallback = function (int $current, int $total) {
+            $this->updateProgress($current, $total);
+        };
+
+        $this->startProgressBar("Converting {$typeLabel}...");
+
+        try {
+            $result = match ($dataType) {
+                BinaryStorage::DATA_TYPE_RENKO => $converter->convertIncremental(
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    $brickSize,
+                    $progressCallback
+                ),
+                BinaryStorage::DATA_TYPE_ATR_RENKO => $converter->convertIncremental(
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    (int) $brickSize,
+                    $progressCallback
+                ),
+                BinaryStorage::DATA_TYPE_HEIKEN_ASHI => $converter->convertIncremental(
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    $progressCallback
+                ),
+                default => throw new \InvalidArgumentException("Unsupported data type: {$dataType}"),
+            };
+
+            $this->finishProgressBar();
+
+            return $result;
+        } catch (\Throwable $e) {
+            $this->finishProgressBarOnError();
+
+            throw $e;
+        }
+    }
+
+    private function formatDependencyLabel(int $dataType, float $brickSize): string
+    {
+        return match ($dataType) {
+            BinaryStorage::DATA_TYPE_RENKO => "Renko (brick: {$brickSize})",
+            BinaryStorage::DATA_TYPE_ATR_RENKO => "ATR-Renko (period: " . (int) $brickSize . ')',
+            BinaryStorage::DATA_TYPE_HEIKEN_ASHI => 'Heiken-Ashi',
+            default => "Unknown (type: {$dataType})",
+        };
     }
 
     private function handleDelete(

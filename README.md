@@ -149,7 +149,7 @@ php artisan alphaforge:data <action> [arguments] [options]
 **Usage by Action:**
 
 - `import`: `alphaforge:data import <exchange> <market> <timeframe> <startdate> [enddate]`
-- `update`: `alphaforge:data update <exchange> <market> <timeframe> [enddate]`
+- `update`: `alphaforge:data update <exchange> <market> <timeframe> [enddate] [--with-dependencies]`
 - `delete`: `alphaforge:data delete <exchange> <market> <timeframe>`
 - `info`: `alphaforge:data info <exchange> <market> <timeframe>`
 - `list`: `alphaforge:data list [options]`
@@ -160,6 +160,7 @@ php artisan alphaforge:data <action> [arguments] [options]
 | Option | Description |
 |--------|-------------|
 | `--force` | Force overwrite existing data (for import) or skip confirmation (for delete) |
+| `--with-dependencies` | When updating, also update all derived data files (Renko, Heiken-Ashi, etc.) |
 | `--exchange-filter=` | Filter by exchange for list action |
 | `--symbol-filter=` | Filter by symbol for list action |
 
@@ -187,6 +188,17 @@ php artisan alphaforge:data info binance BTC/USDT 1h
 # Delete market data
 php artisan alphaforge:data delete binance BTC/USDT 1h --force
 ```
+
+**Cascading Updates with `--with-dependencies`:**
+
+When OHLCV data is updated, any derived data files (Renko, ATR-Renko, Heiken-Ashi) that were generated from it become stale. The `--with-dependencies` flag automatically detects and incrementally updates all derived files after the OHLCV update completes.
+
+```bash
+# Update OHLCV data and cascade the update to all derived files
+php artisan alphaforge:data update binance BTC/USDT 1h --with-dependencies
+```
+
+Each dependent file gets its own progress bar during the incremental conversion. After all dependencies are processed, a summary table shows the result for each (Updated / Up to Date / Full Conversion / Failed).
 
 #### `alphaforge:data:repair` - Repair Corrupted Data Files
 
