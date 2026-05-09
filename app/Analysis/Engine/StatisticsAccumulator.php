@@ -10,7 +10,7 @@ namespace App\Analysis\Engine;
 final class StatisticsAccumulator
 {
     /**
-     * @var array<string, array{total: int, crosses: int}> Statistics storage
+     * @var array<string, array{bucket: float, minutes_remaining: int, total: int, crosses: int}> Statistics storage
      */
     private array $stats = [];
 
@@ -66,14 +66,14 @@ final class StatisticsAccumulator
     /**
      * Get the heatmap data as a 2D matrix.
      *
-     * @return array [distance_bucket][minutes_remaining] => ['total' => int, 'crosses' => int]
+     * @return array<string, array<int, array{total: int, crosses: int}>> [distance_bucket_string][minutes_remaining] => ['total' => int, 'crosses' => int]
      */
     public function getHeatmapData(): array
     {
         $matrix = [];
 
         foreach ($this->stats as $data) {
-            $bucket = $data['bucket'];
+            $bucket = $this->bucketToString($data['bucket']);
             $minutes = $data['minutes_remaining'];
 
             if (! isset($matrix[$bucket])) {
@@ -179,6 +179,11 @@ final class StatisticsAccumulator
     private function makeKey(float $distanceBucket, int $minutesRemaining): string
     {
         return sprintf('%.6f_%d', $distanceBucket, $minutesRemaining);
+    }
+
+    private function bucketToString(float $bucket): string
+    {
+        return (string) $bucket;
     }
 
     /**

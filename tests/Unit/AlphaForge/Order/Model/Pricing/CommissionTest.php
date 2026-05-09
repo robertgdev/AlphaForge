@@ -27,8 +27,8 @@ describe('Commission Models', function () {
 
             $result = $commission->calculate('10', '50000');
 
-            $expectedTradeValue = bcmul('10', '50000');
-            $expected = bcmul($expectedTradeValue, '0.001');
+            $expectedTradeValue = bcmul('10', '50000', 12);
+            $expected = bcmul($expectedTradeValue, '0.001', 12);
 
             expect($result)->toBe($expected);
         });
@@ -36,20 +36,20 @@ describe('Commission Models', function () {
         it('returns zero for zero quantity', function () {
             $commission = new PercentageCommission('0.001');
 
-            expect($commission->calculate('0', '50000'))->toBe('0');
+            expect($commission->calculate('0', '50000'))->toBe('0.000000000000');
         });
 
         it('returns zero for zero price', function () {
             $commission = new PercentageCommission('0.001');
 
-            expect($commission->calculate('10', '0'))->toBe('0');
+            expect($commission->calculate('10', '0'))->toBe('0.000000000000');
         });
 
         it('applies 0.1% rate correctly', function () {
             $commission = new PercentageCommission('0.001');
 
             $result = $commission->calculate('2', '50000');
-            $expected = bcmul(bcmul('2', '50000'), '0.001');
+            $expected = bcmul(bcmul('2', '50000', 12), '0.001', 12);
 
             expect($result)->toBe($expected);
         });
@@ -61,13 +61,13 @@ describe('Commission Models', function () {
 
             $result = $commission->calculate('10', '50000');
 
-            expect($result)->toBe(bcmul('10', '0.50'));
+            expect($result)->toBe(bcmul('10', '0.50', 12));
         });
 
         it('returns zero for zero quantity', function () {
             $commission = new FixedPerUnitCommission('0.50');
 
-            expect($commission->calculate('0', '50000'))->toBe('0');
+            expect($commission->calculate('0', '50000'))->toBe('0.000000000000');
         });
 
         it('ignores price parameter', function () {
@@ -77,7 +77,7 @@ describe('Commission Models', function () {
             $result2 = $commission->calculate('5', '99999');
 
             expect($result1)->toBe($result2)
-                ->and($result1)->toBe(bcmul('5', '1.00'));
+                ->and($result1)->toBe(bcmul('5', '1.00', 12));
         });
     });
 });

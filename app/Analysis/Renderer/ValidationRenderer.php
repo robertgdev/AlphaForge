@@ -325,11 +325,12 @@ final class ValidationRenderer
 
         $lines[] = '';
 
-        // Overall status
-        $overallStatus = $result->isPassed() ? 'PASSED' : 'FAILED';
-        $color = $result->isPassed() ? "\e[32m" : "\e[31m";
-        $lines[] = sprintf('Overall Status: %s%s%s', $color, $overallStatus, $reset);
-        $lines[] = '';
+// Overall status
+         $overallStatus = $result->isPassed() ? 'PASSED' : 'FAILED';
+         $color = $result->isPassed() ? "\e[32m" : "\e[31m";
+         $reset = "\e[0m";
+         $lines[] = sprintf('Overall Status: %s%s%s', $color, $overallStatus, $reset);
+         $lines[] = '';
 
         // Key metrics
         $lines[] = str_repeat('─', $width);

@@ -5,7 +5,7 @@ namespace App\AlphaForge\Backtesting\Service;
 class BacktestResultFormatter
 {
     /**
-     * @param  array{final_capital: numeric, initial_capital: numeric, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
+     * @param  array{final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
      * @return array{final_capital: string, initial_capital: string, execution_timeframe: string|null, pnl: array{absolute: string, percent: string, color: string}}
      */
     public function formatCapitalSummary(array $result): array

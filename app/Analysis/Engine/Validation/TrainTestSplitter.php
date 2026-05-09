@@ -22,7 +22,7 @@ final class TrainTestSplitter
     /**
      * Split records chronologically and build surfaces.
      *
-     * @param  array  $records  All OHLCV records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  All OHLCV records
      * @param  ValidationConfig  $config  Validation configuration
      * @param  callable|null  $progressCallback  Optional progress callback
      *
@@ -79,10 +79,11 @@ final class TrainTestSplitter
     /**
      * Split records into train and test sets chronologically.
      *
-     * @param  array  $records  All records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  All records
      * @param  ValidationConfig  $config  Configuration
      *
      * @throws AnalysisException If split validation fails
+     * @return array{train: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>, test: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>}
      */
     public function splitRecords(array $records, ValidationConfig $config): array
     {
@@ -117,8 +118,8 @@ final class TrainTestSplitter
     /**
      * Validate that the split maintains chronological integrity.
      *
-     * @param  array  $trainRecords  Training records
-     * @param  array  $testRecords  Test records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $trainRecords  Training records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $testRecords  Test records
      * @param  ValidationConfig  $config  Configuration
      *
      * @throws AnalysisException If integrity check fails
@@ -158,7 +159,7 @@ final class TrainTestSplitter
     /**
      * Assert that records are in chronological order (no shuffling).
      *
-     * @param  array  $records  Records to check
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  Records to check
      * @param  string  $setName  Name of the set for error messages
      *
      * @throws AnalysisException If shuffling is detected
@@ -182,8 +183,9 @@ final class TrainTestSplitter
      * Evaluate the trained surface on test data.
      *
      * @param  OpenCrossProbabilityResult  $surface  Trained probability surface
-     * @param  array  $testRecords  Test records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low?: float, future_max_high?: float}>  $testRecords  Test records
      * @param  ValidationConfig  $config  Configuration
+     * @return array{mean_predicted: float, mean_realized: float, calibration_error: float}
      */
     private function evaluateOnTest(
         OpenCrossProbabilityResult $surface,
@@ -219,7 +221,7 @@ final class TrainTestSplitter
      * Build a lookup map from the probability surface.
      *
      * @param  OpenCrossProbabilityResult  $surface  Probability surface
-     * @return array Map of [bucket_key][minutes_remaining] => probability
+     * @return array<string, array<int, float>> Map of [bucket_key][minutes_remaining] => probability
      */
     private function buildSurfaceMap(OpenCrossProbabilityResult $surface): array
     {
@@ -242,8 +244,9 @@ final class TrainTestSplitter
     /**
      * Partition test records into blocks.
      *
-     * @param  array  $records  Test records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  Test records
      * @param  int  $blockMinutes  Block duration in minutes
+     * @return array<int, array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low?: float, future_max_high?: float}>, block_open: float, block_length: int}>
      */
     private function partitionIntoBlocks(array $records, int $blockMinutes): array
     {
@@ -281,7 +284,8 @@ final class TrainTestSplitter
     /**
      * Finalize a block by computing future ranges.
      *
-     * @param  array  $records  Block records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  Block records
+     * @return array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int}
      */
     private function finalizeBlock(array $records): array
     {
@@ -291,6 +295,7 @@ final class TrainTestSplitter
         $futureMinLow = PHP_FLOAT_MAX;
         $futureMaxHigh = PHP_FLOAT_MIN;
 
+        $finalizedRecords = [];
         for ($i = $count - 1; $i >= 0; $i--) {
             $tempMinLow = $futureMinLow;
             $tempMaxHigh = $futureMaxHigh;
@@ -302,16 +307,31 @@ final class TrainTestSplitter
             $futureMaxHigh = max($futureMaxHigh, $currentHigh);
 
             if ($i < $count - 1) {
-                $records[$i]['future_min_low'] = $tempMinLow;
-                $records[$i]['future_max_high'] = $tempMaxHigh;
+                $finalizedRecords[$i] = [
+                    'timestamp' => $records[$i]['timestamp'],
+                    'open' => $records[$i]['open'],
+                    'high' => $records[$i]['high'],
+                    'low' => $records[$i]['low'],
+                    'close' => $records[$i]['close'],
+                    'future_min_low' => $tempMinLow,
+                    'future_max_high' => $tempMaxHigh,
+                ];
             } else {
-                $records[$i]['future_min_low'] = $currentLow;
-                $records[$i]['future_max_high'] = $currentHigh;
+                $finalizedRecords[$i] = [
+                    'timestamp' => $records[$i]['timestamp'],
+                    'open' => $records[$i]['open'],
+                    'high' => $records[$i]['high'],
+                    'low' => $records[$i]['low'],
+                    'close' => $records[$i]['close'],
+                    'future_min_low' => $currentLow,
+                    'future_max_high' => $currentHigh,
+                ];
             }
         }
+        $finalizedRecords = array_values($finalizedRecords);
 
         return [
-            'records' => $records,
+            'records' => $finalizedRecords,
             'block_open' => (float) $records[0]['open'],
             'block_length' => $count,
         ];
@@ -320,11 +340,11 @@ final class TrainTestSplitter
     /**
      * Evaluate a single block against the surface.
      *
-     * @param  array  $blockData  Block data
-     * @param  array  $surfaceMap  Surface lookup map
+     * @param  array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int}  $blockData  Block data
+     * @param  array<string, array<int, float>>  $surfaceMap  Surface lookup map
      * @param  ValidationConfig  $config  Configuration
-     * @param  array  $predictions  Predictions array (output)
-     * @param  array  $outcomes  Outcomes array (output)
+     * @param  array<int, float>  $predictions  Predictions array (output)
+     * @param  array<int, int>  $outcomes  Outcomes array (output)
      */
     private function evaluateBlock(
         array $blockData,

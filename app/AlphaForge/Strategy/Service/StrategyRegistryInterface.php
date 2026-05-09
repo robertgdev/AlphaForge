@@ -31,7 +31,7 @@ interface StrategyRegistryInterface
     /**
      * Get all strategy definitions.
      *
-     * @return array<StrategyDefinitionDto>
+     * @return list<StrategyDefinitionDto>
      */
     public function getStrategyDefinitions(): array;
 

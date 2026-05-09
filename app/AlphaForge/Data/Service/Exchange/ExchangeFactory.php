@@ -27,7 +27,10 @@ final class ExchangeFactory
         }
 
         $class = "\\ccxt\\{$exchangeId}";
-        $this->instances[$exchangeId] = new $class;
+
+        /** @var Exchange */
+        $instance = new $class;
+        $this->instances[$exchangeId] = $instance;
 
         return $this->instances[$exchangeId];
     }

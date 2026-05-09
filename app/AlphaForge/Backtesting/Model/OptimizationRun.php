@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Backtesting\Model;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -79,8 +80,6 @@ class OptimizationRun extends Model
 
     /**
      * Get the user that owns this optimization run.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
      */
     public function user(): BelongsTo
     {
@@ -89,8 +88,6 @@ class OptimizationRun extends Model
 
     /**
      * Get the backtest runs for this optimization.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Backtesting\Model\BacktestRun>
      */
     public function backtestRuns(): HasMany
     {
@@ -125,6 +122,10 @@ class OptimizationRun extends Model
         ]);
     }
 
+    /**
+     * @param array<string, mixed> $bestParameters
+     * @param array<string, mixed> $bestStatistics
+     */
     public function markAsCompleted(array $bestParameters, array $bestStatistics): void
     {
         $this->update([

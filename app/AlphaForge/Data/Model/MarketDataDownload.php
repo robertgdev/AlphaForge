@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $status
  * @property int $records_expected
  * @property int $records_downloaded
- * @property array|null $error_log
+ * @property array<string, mixed>|null $error_log
  * @property \DateTimeInterface $created_at
  * @property \DateTimeInterface|null $completed_at
  * @property string|null $file_path

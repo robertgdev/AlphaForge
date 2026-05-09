@@ -137,7 +137,7 @@ class ParameterOptimizerService
             ));
 
             foreach ($results as $rank => $result) {
-                $result->rank = $rank + 1;
+                $results[$rank] = $result->withRank($rank + 1);
             }
 
             $optimizationRun->markAsCompleted($bestParams, $bestStats);
@@ -298,7 +298,7 @@ class ParameterOptimizerService
                 $metric
             ))
             ->values()
-            ->each(fn ($r, $i) => $r->rank = $i + 1);
+            ->map(fn ($r, $i) => $r->withRank($i + 1));
     }
 
     /**

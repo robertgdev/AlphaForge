@@ -15,7 +15,7 @@ final class StrategySimulator
      * Simulate a trading strategy based on probability estimates.
      *
      * @param  OpenCrossProbabilityResult  $surface  Probability surface (trained on in-sample data)
-     * @param  array  $testRecords  Test records (out-of-sample)
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $testRecords  Test records (out-of-sample)
      * @param  ValidationConfig  $config  Configuration
      */
     public function simulate(
@@ -58,11 +58,12 @@ final class StrategySimulator
         );
     }
 
-    /**
-     * Build a surface lookup map.
-     *
-     * @param  OpenCrossProbabilityResult  $surface  Probability surface
-     */
+/**
+      * Build a surface lookup map.
+      *
+      * @param  OpenCrossProbabilityResult  $surface  Probability surface
+      * @return array<string, array<int, array{probability: float, confidence: string}>>
+      */
     private function buildSurfaceMap(OpenCrossProbabilityResult $surface): array
     {
         $map = [];
@@ -87,8 +88,9 @@ final class StrategySimulator
     /**
      * Partition records into blocks.
      *
-     * @param  array  $records  Records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  Records
      * @param  int  $blockMinutes  Block duration
+     * @return array<int, array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int, block_timestamp: int}>
      */
     private function partitionIntoBlocks(array $records, int $blockMinutes): array
     {
@@ -126,7 +128,8 @@ final class StrategySimulator
     /**
      * Finalize a block.
      *
-     * @param  array  $records  Block records
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  Block records
+     * @return array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int, block_timestamp: int}
      */
     private function finalizeBlock(array $records): array
     {
@@ -135,6 +138,7 @@ final class StrategySimulator
         $futureMinLow = PHP_FLOAT_MAX;
         $futureMaxHigh = PHP_FLOAT_MIN;
 
+        $finalizedRecords = [];
         for ($i = $count - 1; $i >= 0; $i--) {
             $tempMinLow = $futureMinLow;
             $tempMaxHigh = $futureMaxHigh;
@@ -146,30 +150,45 @@ final class StrategySimulator
             $futureMaxHigh = max($futureMaxHigh, $currentHigh);
 
             if ($i < $count - 1) {
-                $records[$i]['future_min_low'] = $tempMinLow;
-                $records[$i]['future_max_high'] = $tempMaxHigh;
+                $finalizedRecords[$i] = [
+                    'timestamp' => $records[$i]['timestamp'],
+                    'open' => $records[$i]['open'],
+                    'high' => $records[$i]['high'],
+                    'low' => $records[$i]['low'],
+                    'close' => $records[$i]['close'],
+                    'future_min_low' => $tempMinLow,
+                    'future_max_high' => $tempMaxHigh,
+                ];
             } else {
-                $records[$i]['future_min_low'] = $currentLow;
-                $records[$i]['future_max_high'] = $currentHigh;
+                $finalizedRecords[$i] = [
+                    'timestamp' => $records[$i]['timestamp'],
+                    'open' => $records[$i]['open'],
+                    'high' => $records[$i]['high'],
+                    'low' => $records[$i]['low'],
+                    'close' => $records[$i]['close'],
+                    'future_min_low' => $currentLow,
+                    'future_max_high' => $currentHigh,
+                ];
             }
         }
+        $finalizedRecords = array_values($finalizedRecords);
 
         return [
-            'records' => $records,
+            'records' => $finalizedRecords,
             'block_open' => (float) $records[0]['open'],
             'block_length' => $count,
             'block_timestamp' => $records[0]['timestamp'],
         ];
     }
 
-    /**
-     * Simulate trades for a single block.
-     *
-     * @param  array  $blockData  Block data
-     * @param  array  $surfaceMap  Surface lookup map
-     * @param  ValidationConfig  $config  Configuration
-     * @return array Trades
-     */
+/**
+      * Simulate trades for a single block.
+      *
+      * @param  array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int, block_timestamp: int}  $blockData  Block data
+      * @param  array<string, array<int, array{probability: float, confidence: string|float}>>  $surfaceMap  Surface lookup map
+      * @param  ValidationConfig  $config  Configuration
+      * @return array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}> Trades
+      */
     private function simulateBlock(
         array $blockData,
         array $surfaceMap,
@@ -275,7 +294,7 @@ final class StrategySimulator
      * @param  float  $entryDistance  Entry distance
      * @param  float|null  $probability  Current probability
      * @param  ValidationConfig  $config  Configuration
-     * @param  array  $record  Current record
+     * @param  array{timestamp: int, open: float, high: float, low: float, close: float}  $record  Current record
      * @param  float  $blockOpen  Block open price
      */
     private function shouldExitPosition(
@@ -347,7 +366,8 @@ final class StrategySimulator
     /**
      * Calculate performance metrics.
      *
-     * @param  array  $trades  All trades
+     * @param  array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}>  $trades  All trades
+     * @return array{total_trades: int, winning_trades: int, losing_trades: int, win_rate: float, expected_value: float, sharpe_ratio: float, max_drawdown: float, performance_stability: float}
      */
     private function calculatePerformanceMetrics(array $trades): array
     {
@@ -431,7 +451,8 @@ final class StrategySimulator
     /**
      * Calculate results by period.
      *
-     * @param  array  $trades  All trades
+     * @param  array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}>  $trades  All trades
+     * @return array<string, array{trades: int, wins: int, total_pnl: float, win_rate: float, avg_pnl: float}>
      */
     private function calculatePeriodResults(array $trades): array
     {
@@ -457,9 +478,9 @@ final class StrategySimulator
         }
 
         // Calculate per-period metrics
-        foreach ($periodResults as $month => &$data) {
-            $data['win_rate'] = $data['trades'] > 0 ? $data['wins'] / $data['trades'] : 0.0;
-            $data['avg_pnl'] = $data['trades'] > 0 ? $data['total_pnl'] / $data['trades'] : 0.0;
+        foreach ($periodResults as $month => $data) {
+            $periodResults[$month]['win_rate'] = $data['trades'] > 0 ? $data['wins'] / $data['trades'] : 0.0;
+            $periodResults[$month]['avg_pnl'] = $data['trades'] > 0 ? $data['total_pnl'] / $data['trades'] : 0.0;
         }
 
         return $periodResults;

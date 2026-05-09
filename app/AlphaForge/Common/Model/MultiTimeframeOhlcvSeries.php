@@ -9,11 +9,16 @@ class MultiTimeframeOhlcvSeries
 {
     private OhlcvSeries $primary;
 
+    /** @var Map<int|string, OhlcvSeries> */
     private Map $secondary;
 
-    public function __construct(array $primaryData, Map $secondaryData, BacktestCursor $cursor)
+    /**
+     * @param  OhlcvSeries|array<string, mixed>  $primaryData
+     * @param  Map<int|string, OhlcvSeries>  $secondaryData
+     */
+    public function __construct(OhlcvSeries|array $primaryData, Map $secondaryData, BacktestCursor $cursor)
     {
-        $this->primary = new OhlcvSeries($primaryData, $cursor);
+        $this->primary = $primaryData instanceof OhlcvSeries ? $primaryData : new OhlcvSeries($primaryData, $cursor);
         $this->secondary = $secondaryData;
     }
 

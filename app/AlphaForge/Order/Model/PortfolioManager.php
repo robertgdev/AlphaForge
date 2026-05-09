@@ -149,18 +149,28 @@ final class PortfolioManager
                 // Close existing long position and return execution result
                 $closedPosition = $this->closePosition($position->id, $executionPrice, $executionTime, $commissionConfig);
                 if ($closedPosition) {
-                    return new ExecutionResult(
-                        orderId: $order->id,
-                        symbol: $order->symbol,
-                        direction: $order->direction,
-                        quantity: $closedPosition->quantity,
-                        price: $executionPrice,
-                        commission: $closedPosition->commission,
-                        timestamp: $executionTime,
-                        position: $closedPosition,
-                    );
+return new ExecutionResult(
+                orderId: $order->id,
+                symbol: $order->symbol,
+                direction: $order->direction,
+                quantity: $closedPosition->quantity,
+                price: $executionPrice,
+                commission: $closedPosition->commission,
+                timestamp: $executionTime,
+                position: $closedPosition,
+            );
                 }
-                return null;
+
+                return new ExecutionResult(
+                    orderId: $order->id,
+                    symbol: $order->symbol,
+                    direction: $order->direction,
+                    quantity: $quantity,
+                    price: $executionPrice,
+                    commission: $commission,
+                    timestamp: $executionTime,
+                    position: null,
+                );
             }
 
             // Create new short position (simplified - would need margin calculation)

@@ -9,7 +9,7 @@ use function Safe\json_encode;
 /**
  * Complete result of the Open-Cross Probability analysis.
  */
-final class OpenCrossProbabilityResult
+class OpenCrossProbabilityResult
 {
     /**
      * @param  array<ProbabilitySurfacePoint>  $probabilitySurface  The probability surface points

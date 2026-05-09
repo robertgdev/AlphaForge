@@ -4,20 +4,6 @@ namespace App\AlphaForge\Data\Service;
 
 use App\AlphaForge\Data\Exception\StorageException;
 
-use function Safe\copy;
-use function Safe\fclose;
-use function Safe\fflush;
-use function Safe\filesize;
-use function Safe\flock;
-use function Safe\fopen;
-use function Safe\fread;
-use function Safe\ftell;
-use function Safe\fwrite;
-use function Safe\mkdir;
-use function Safe\rename;
-use function Safe\unlink;
-use function Safe\unpack;
-
 final class BinaryStorage implements BinaryStorageInterface
 {
     private const MAGIC_NUMBER = 'STCHXBF1';
@@ -38,26 +24,8 @@ final class BinaryStorage implements BinaryStorageInterface
 
     public const DATA_TYPE_ATR_RENKO = 4;
 
-    /**
-     * Offset within the header where the numRecords field is located.
-     * magic(8) + version(2) + headerLength(2) + recordLength(2) + tsFormat(1) + dataType(1) = 16
-     */
     private const NUM_RECORDS_OFFSET = 16;
 
-    /**
-     * Pack format for the unified V2 header (64 bytes total):
-     *   a8  magic        8 bytes
-     *   n   version      2 bytes
-     *   n   headerLength 2 bytes
-     *   n   recordLength 2 bytes
-     *   C   tsFormat     1 byte
-     *   C   dataType     1 byte    (1=OHLCV, 2=HeikenAshi, 3=Renko, 4=ATR-Renko)
-     *   J   numRecords   8 bytes
-     *   a16 symbol       16 bytes
-     *   a4  timeframe    4 bytes
-     *   E   brickSize    8 bytes   (0.0 for non-Renko types; ATR period for ATR-Renko)
-     *   x12 reserved     12 bytes
-     */
     private const HEADER_PACK_FORMAT = 'a8n3C2Ja16a4Ex12';
 
     private const HEADER_UNPACK_FORMAT = 'a8magic/nversion/nheaderLength/nrecordLength/CtsFormat/CdataType/JnumRecords/a16symbol/a4timeframe/EbrickSize/x12reserved';
@@ -87,14 +55,14 @@ final class BinaryStorage implements BinaryStorageInterface
         }
 
         if (file_exists($destinationPath)) {
-            if (! unlink($destinationPath)) {
+            if (! \unlink($destinationPath)) {
                 throw new StorageException("Could not remove existing destination '{$destinationPath}' before renaming.");
             }
         }
 
-        if (! rename($sourcePath, $destinationPath)) {
-            if (copy($sourcePath, $destinationPath)) {
-                unlink($sourcePath);
+        if (! \rename($sourcePath, $destinationPath)) {
+            if (\copy($sourcePath, $destinationPath)) {
+                \unlink($sourcePath);
             } else {
                 throw new StorageException("Failed to atomically rename '{$sourcePath}' to '{$destinationPath}'.");
             }
@@ -110,7 +78,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for writing.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
+        if (! \flock($handle, LOCK_EX)) {
             fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
@@ -136,26 +104,29 @@ final class BinaryStorage implements BinaryStorageInterface
             }
             fflush($handle);
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            \flock($handle, LOCK_UN);
+            \fclose($handle);
         }
     }
 
     public function appendRecords(string $filePath, iterable $records): int
     {
-        $handle = @fopen($filePath, 'ab');
+        $handle = @\fopen($filePath, 'ab');
         if ($handle === false) {
             throw new StorageException("Could not open file '{$filePath}' for appending.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
-            fclose($handle);
+        if (! \flock($handle, LOCK_EX)) {
+            \fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
 
         $writtenCount = 0;
         try {
             foreach ($records as $record) {
+                if (! is_array($record)) {
+                    throw new StorageException("Invalid record format: expected array.");
+                }
                 $packedRecord = pack(
                     self::RECORD_PACK_FORMAT,
                     $record['timestamp'],
@@ -166,16 +137,16 @@ final class BinaryStorage implements BinaryStorageInterface
                     $record['volume']
                 );
 
-                if (fwrite($handle, $packedRecord) !== self::RECORD_LENGTH_V1) {
+                if (\fwrite($handle, $packedRecord) !== self::RECORD_LENGTH_V1) {
                     throw new StorageException("Failed to write complete record to '{$filePath}'.");
                 }
 
                 $writtenCount++;
             }
         } finally {
-            fflush($handle);
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            \fflush($handle);
+            \flock($handle, LOCK_UN);
+            \fclose($handle);
         }
 
         $this->updateRecordCountAccumulated($filePath, $writtenCount);
@@ -193,7 +164,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for updating record count.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
+        if (! \flock($handle, LOCK_EX)) {
             fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
@@ -210,7 +181,7 @@ final class BinaryStorage implements BinaryStorageInterface
             }
             fflush($handle);
         } finally {
-            flock($handle, LOCK_UN);
+            \flock($handle, LOCK_UN);
             fclose($handle);
         }
     }
@@ -222,7 +193,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for updating record count.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
+        if (! \flock($handle, LOCK_EX)) {
             fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
@@ -239,7 +210,7 @@ final class BinaryStorage implements BinaryStorageInterface
             }
             fflush($handle);
         } finally {
-            flock($handle, LOCK_UN);
+            \flock($handle, LOCK_UN);
             fclose($handle);
         }
     }
@@ -260,7 +231,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for overwriting last record.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
+        if (! \flock($handle, LOCK_EX)) {
             fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
@@ -285,7 +256,7 @@ final class BinaryStorage implements BinaryStorageInterface
             }
             fflush($handle);
         } finally {
-            flock($handle, LOCK_UN);
+            \flock($handle, LOCK_UN);
             fclose($handle);
         }
     }
@@ -311,7 +282,7 @@ final class BinaryStorage implements BinaryStorageInterface
             }
 
             $header = unpack(self::HEADER_UNPACK_FORMAT, $headerBytes);
-            if ($header === false) {
+            if ($header === false || $header === null) {
                 throw new StorageException("Could not unpack header from '{$filePath}'.");
             }
 
@@ -364,8 +335,11 @@ final class BinaryStorage implements BinaryStorageInterface
             }
 
             $record = unpack(self::RECORD_UNPACK_FORMAT, $recordBytes);
+            if ($record === false || $record === null) {
+                throw new StorageException("Could not unpack record at index {$index} from '{$filePath}'.");
+            }
 
-            return $record === false ? null : $record;
+            return $record;
         } finally {
             fclose($handle);
         }
@@ -395,8 +369,8 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for sequential reading.");
         }
 
-        if (! flock($handle, LOCK_SH)) {
-            fclose($handle);
+        if (! \flock($handle, LOCK_SH)) {
+            \fclose($handle);
             throw new StorageException("Could not acquire shared lock on '{$filePath}'.");
         }
 
@@ -417,15 +391,15 @@ final class BinaryStorage implements BinaryStorageInterface
                 }
 
                 $record = unpack(self::RECORD_UNPACK_FORMAT, $recordBytes);
-                if ($record === false) {
+                if ($record === false || $record === null) {
                     throw new StorageException("Failed to unpack record at index {$i} in '{$filePath}'.");
                 }
 
                 yield $record;
             }
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            \flock($handle, LOCK_UN);
+            \fclose($handle);
         }
     }
 
@@ -458,7 +432,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for sequential reading.");
         }
 
-        if (! flock($handle, LOCK_SH)) {
+        if (! \flock($handle, LOCK_SH)) {
             fclose($handle);
             throw new StorageException("Could not acquire shared lock on '{$filePath}'.");
         }
@@ -487,7 +461,7 @@ final class BinaryStorage implements BinaryStorageInterface
                 yield $record;
             }
         } finally {
-            flock($handle, LOCK_UN);
+            \flock($handle, LOCK_UN);
             fclose($handle);
         }
     }
@@ -526,7 +500,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open output file '{$outputPath}' for merging.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
+        if (! \flock($handle, LOCK_EX)) {
             fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on output file '{$outputPath}'.");
         }
@@ -595,7 +569,7 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException('Error during merge process: '.$e->getMessage(), 0, $e);
         } finally {
             if ($handleWrapper) {
-                flock($handleWrapper, LOCK_UN);
+                \flock($handleWrapper, LOCK_UN);
                 fclose($handleWrapper);
             }
         }
@@ -670,7 +644,7 @@ final class BinaryStorage implements BinaryStorageInterface
         }
 
         while ($low <= $high) {
-            $mid = $low + (($high - $low) >> 1);
+            $mid = (int) ($low + (($high - $low) >> 1));
 
             $offset = $headerLength + ($mid * $recordLength);
             if (fseek($handle, $offset) !== 0) {
@@ -702,7 +676,7 @@ final class BinaryStorage implements BinaryStorageInterface
 
     private function ensureDirectoryExists(string $directory): void
     {
-        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+        if (! is_dir($directory) && ! \mkdir($directory, 0775, true) && ! is_dir($directory)) {
             throw new StorageException(sprintf('Directory "%s" was not created', $directory));
         }
     }
@@ -717,8 +691,8 @@ final class BinaryStorage implements BinaryStorageInterface
             throw new StorageException("Could not open file '{$filePath}' for streaming write.");
         }
 
-        if (! flock($handle, LOCK_EX)) {
-            fclose($handle);
+        if (! \flock($handle, LOCK_EX)) {
+            \fclose($handle);
             throw new StorageException("Could not acquire exclusive lock on '{$filePath}'.");
         }
 
@@ -728,6 +702,9 @@ final class BinaryStorage implements BinaryStorageInterface
 
             try {
                 foreach ($records as $record) {
+                    if (! is_array($record)) {
+                        throw new StorageException("Invalid record format: expected array.");
+                    }
                     $packedRecord = pack(
                         self::RECORD_PACK_FORMAT,
                         $record['timestamp'],
@@ -738,12 +715,12 @@ final class BinaryStorage implements BinaryStorageInterface
                         $record['volume']
                     );
 
-                    if (fwrite($handle, $packedRecord) !== self::RECORD_LENGTH_V1) {
+                    if (\fwrite($handle, $packedRecord) !== self::RECORD_LENGTH_V1) {
                         throw new StorageException("Failed to write complete record to '{$filePath}'.");
                     }
                     $writtenCount++;
 
-                    if ($writtenCount > 0 && $writtenCount % $commitInterval === 0) {
+                    if ($writtenCount >= $commitInterval) {
                         $this->updateHeaderCountInPlace($handle, $existingCount + $writtenCount);
                     }
                 }
@@ -758,8 +735,8 @@ final class BinaryStorage implements BinaryStorageInterface
                 $this->updateHeaderCountInPlace($handle, $existingCount + $writtenCount);
             }
         } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
+            \flock($handle, LOCK_UN);
+            \fclose($handle);
         }
 
         return $writtenCount;

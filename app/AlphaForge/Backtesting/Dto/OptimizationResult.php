@@ -21,6 +21,16 @@ readonly class OptimizationResult
         return (string) $value;
     }
 
+    public function withRank(int $rank): self
+    {
+        return new self(
+            parameters: $this->parameters,
+            statistics: $this->statistics,
+            rank: $rank,
+            backtestRunId: $this->backtestRunId,
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */

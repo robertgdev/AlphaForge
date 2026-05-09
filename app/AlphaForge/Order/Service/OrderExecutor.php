@@ -7,6 +7,7 @@ use App\AlphaForge\Order\Dto\ExecutionResult;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\Pricing\CommissionInterface;
+use Carbon\Carbon;
 
 final class OrderExecutor implements OrderExecutorInterface
 {
@@ -32,7 +33,7 @@ return new ExecutionResult(
             quantity: (string) $signal->quantity,
             price: $fillPrice,
             commission: $commission,
-            timestamp: $executionTime,
+            timestamp: Carbon::instance($executionTime),
             clientOrderId: $signal->clientOrderId,
             stopLossPrice: $signal->stopLossPrice,
             takeProfitPrice: $signal->takeProfitPrice,

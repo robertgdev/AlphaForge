@@ -27,12 +27,16 @@ class Backtester
 
     private PortfolioManager $portfolioManager;
 
+    /** @var Vector<mixed> Positions in the backtest */
     private Vector $positions;
 
+    /** @var Map<string, int> Map position ID to index */
     private Map $openPositionIndex;
 
+    /** @var Map<string, OhlcvSeries> Map symbol to OHLCV series */
     private Map $ohlcvData;
 
+    /** @var Map<string, OhlcvSeries>|null */
     private ?Map $executionOhlcvData = null;
 
     private ?TimeframeEnum $executionTimeframe = null;
@@ -224,7 +228,7 @@ class Backtester
 
         // Handle multi-timeframe data
         if (! empty($additionalTimeframes)) {
-            $baseOhlcv = $this->ohlcvData->first();
+            $baseOhlcv = $this->ohlcvData->first()->value;
             $aggregated = $this->multiTimeframeDataService->aggregate($baseOhlcv, $additionalTimeframes);
             $this->multiTimeframeData = new MultiTimeframeOhlcvSeries(
                 $baseOhlcv,

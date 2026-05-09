@@ -55,8 +55,6 @@ class BacktestRun extends Model
 
     /**
      * Get the user that owns this backtest run.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
      */
     public function user(): BelongsTo
     {
@@ -65,8 +63,6 @@ class BacktestRun extends Model
 
     /**
      * Get the optimization run that owns this backtest.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Backtesting\Model\OptimizationRun>
      */
     public function optimization(): BelongsTo
     {

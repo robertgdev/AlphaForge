@@ -249,6 +249,8 @@ class RunBacktestCommand extends Command
 
     /**
      * Display the backtest results.
+     *
+     * @param  array{final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
      */
     private function displayResults(array $result, BacktestResultFormatter $formatter): void
     {
@@ -282,7 +284,7 @@ class RunBacktestCommand extends Command
         }
 
         if (isset($result['positions']) && is_array($result['positions']) && count($result['positions']) > 0) {
-            $closedPositions = array_filter($result['positions'], fn ($p) => $p->exitTime !== null);
+            $closedPositions = array_filter($result['positions'], fn ($p) => (is_object($p) && isset($p->exitTime) && $p->exitTime !== null) || (is_array($p) && isset($p['exitTime']) && $p['exitTime'] !== null));
 
             if (! empty($closedPositions)) {
                 $this->line('<fg=yellow>Positions (Closed):</>');

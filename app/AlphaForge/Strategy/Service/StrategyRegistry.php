@@ -246,7 +246,7 @@ class StrategyRegistry implements StrategyRegistryInterface
     /**
      * Get all strategy definitions.
      *
-     * @return list<array{name: string, description: string|null, inputs: list<array{name: string, description: string|null, type: string, default: mixed, min: float|int|null, max: float|int|null, choices: list<string>|null, minChoices: int|null, maxChoices: int|null}>, timeframes: list<string>}>
+     * @return list<StrategyDefinitionDto>
      */
     public function getStrategyDefinitions(): array
     {

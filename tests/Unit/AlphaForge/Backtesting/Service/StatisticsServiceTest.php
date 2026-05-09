@@ -36,6 +36,7 @@ describe('StatisticsService', function () {
                 quantity: '0.02',
                 entryPrice: '50000',
                 entryTime: Carbon::parse('2024-01-01'),
+                realizedPnl: '0',
             ));
 
             $result = $this->service->calculate($positions, '10000', '10000');

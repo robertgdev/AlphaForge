@@ -4,6 +4,7 @@ namespace App\AlphaForge\Strategy\Concretes;
 
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Common\Model\Series;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;

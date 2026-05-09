@@ -18,15 +18,15 @@ final class RollingStabilityTester
         private readonly OpenCrossProbabilityEngine $engine
     ) {}
 
-    /**
-     * Test rolling stability of probability surfaces.
-     *
-     * @param  array  $records  All OHLCV records
-     * @param  ValidationConfig  $config  Configuration
-     * @param  callable|null  $progressCallback  Optional progress callback
-     *
-     * @throws AnalysisException If testing fails
-     */
+/**
+      * Test rolling stability of probability surfaces.
+      *
+      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  All OHLCV records
+      * @param  ValidationConfig  $config  Configuration
+      * @param  callable|null  $progressCallback  Optional progress callback
+      *
+      * @throws AnalysisException If testing fails
+      */
     public function test(
         array $records,
         ValidationConfig $config,
@@ -104,14 +104,14 @@ final class RollingStabilityTester
         );
     }
 
-    /**
-     * Generate rolling time windows.
-     *
-     * @param  array  $records  All records
-     * @param  ValidationConfig  $config  Configuration
-     * @return array Array of window definitions
-     */
-    private function generateWindows(array $records, ValidationConfig $config): array
+/**
+      * Generate rolling time windows.
+      *
+      * @param  array<int, array{timestamp: int}>  $records  All records
+      * @param  ValidationConfig  $config  Configuration
+      * @return array<int, array{start_timestamp: int, end_timestamp: int, start_date: string, end_date: string}> Array of window definitions
+      */
+     private function generateWindows(array $records, ValidationConfig $config): array
     {
         if (empty($records)) {
             return [];
@@ -145,17 +145,17 @@ final class RollingStabilityTester
         return $windows;
     }
 
-    /**
-     * Compare two probability surfaces.
-     *
-     * @param  OpenCrossProbabilityResult  $surface1  First surface
-     * @param  OpenCrossProbabilityResult  $surface2  Second surface
-     * @return array Comparison metrics
-     */
-    public function compareSurfaces(
-        OpenCrossProbabilityResult $surface1,
-        OpenCrossProbabilityResult $surface2
-    ): array {
+/**
+      * Compare two probability surfaces.
+      *
+      * @param  OpenCrossProbabilityResult  $surface1  First surface
+      * @param  OpenCrossProbabilityResult  $surface2  Second surface
+      * @return array{mean_difference: float, max_difference: float, correlation: float} Comparison metrics
+      */
+     public function compareSurfaces(
+         OpenCrossProbabilityResult $surface1,
+         OpenCrossProbabilityResult $surface2
+     ): array {
         // Build maps for comparison
         $map1 = $this->buildProbabilityMap($surface1);
         $map2 = $this->buildProbabilityMap($surface2);
@@ -196,13 +196,13 @@ final class RollingStabilityTester
         ];
     }
 
-    /**
-     * Build a flat probability map from a surface.
-     *
-     * @param  OpenCrossProbabilityResult  $surface  Probability surface
-     * @return array Map of bucket_minutes => probability
-     */
-    private function buildProbabilityMap(OpenCrossProbabilityResult $surface): array
+/**
+      * Build a flat probability map from a surface.
+      *
+      * @param  OpenCrossProbabilityResult  $surface  Probability surface
+      * @return array<string, float> Map of bucket_minutes => probability
+      */
+     private function buildProbabilityMap(OpenCrossProbabilityResult $surface): array
     {
         $map = [];
 
@@ -214,14 +214,14 @@ final class RollingStabilityTester
         return $map;
     }
 
-    /**
-     * Calculate Pearson correlation coefficient.
-     *
-     * @param  array  $values1  First set of values
-     * @param  array  $values2  Second set of values
-     * @return float Correlation coefficient
-     */
-    private function calculateCorrelation(array $values1, array $values2): float
+/**
+      * Calculate Pearson correlation coefficient.
+      *
+      * @param  array<int, float>  $values1  First set of values
+      * @param  array<int, float>  $values2  Second set of values
+      * @return float Correlation coefficient
+      */
+     private function calculateCorrelation(array $values1, array $values2): float
     {
         $n = count($values1);
 
@@ -250,12 +250,12 @@ final class RollingStabilityTester
         return $denominator > 0 ? $numerator / $denominator : 0.0;
     }
 
-    /**
-     * Calculate maximum drift across all windows.
-     *
-     * @param  array  $stabilityWindows  Stability windows
-     */
-    private function calculateMaxDrift(array $stabilityWindows): float
+/**
+      * Calculate maximum drift across all windows.
+      *
+      * @param  array<int, StabilityWindow>  $stabilityWindows  Stability windows
+      */
+     private function calculateMaxDrift(array $stabilityWindows): float
     {
         if (empty($stabilityWindows)) {
             return 0.0;

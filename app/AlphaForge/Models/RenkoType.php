@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property string $method
  * @property string $brick_size
- * @property array|null $params
+ * @property array<string, mixed>|null $params
  * @property \DateTimeInterface $created_at
  * @property \DateTimeInterface $updated_at
  */

@@ -184,8 +184,8 @@ class BacktestRunService
     /**
      * Parse additional timeframes from strategy inputs.
      *
-     * @param  array  $inputs
-     * @return array<TimeframeEnum>
+     * @param  array<string, mixed>  $inputs
+     * @return array<int, TimeframeEnum>
      */
     private function parseAdditionalTimeframes(array $inputs): array
     {

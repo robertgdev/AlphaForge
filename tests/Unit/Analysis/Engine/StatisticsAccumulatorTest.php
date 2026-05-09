@@ -107,12 +107,12 @@ final class StatisticsAccumulatorTest extends TestCase
 
         $heatmap = $accumulator->getHeatmapData();
 
-        $this->assertArrayHasKey(0.01, $heatmap);
-        $this->assertArrayHasKey(0.02, $heatmap);
-        $this->assertArrayHasKey(10, $heatmap[0.01]);
-        $this->assertArrayHasKey(5, $heatmap[0.01]);
-        $this->assertEquals(1, $heatmap[0.01][10]['total']);
-        $this->assertEquals(1, $heatmap[0.01][10]['crosses']);
+        $this->assertArrayHasKey('0.01', $heatmap);
+        $this->assertArrayHasKey('0.02', $heatmap);
+        $this->assertArrayHasKey(10, $heatmap['0.01']);
+        $this->assertArrayHasKey(5, $heatmap['0.01']);
+        $this->assertEquals(1, $heatmap['0.01'][10]['total']);
+        $this->assertEquals(1, $heatmap['0.01'][10]['crosses']);
     }
 
     /**
