@@ -47,10 +47,12 @@ class RunBacktestRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator($validator): void
+    public function withValidator(\Illuminate\Contracts\Validation\Validator $validator): void
     {
         $validator->after(function ($validator) {
+            /** @var string $timeframeValue */
             $timeframeValue = $this->input('timeframe');
+            /** @var string $executionTimeframeValue */
             $executionTimeframeValue = $this->input('execution_timeframe');
 
             if ($timeframeValue && $executionTimeframeValue) {

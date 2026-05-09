@@ -11,20 +11,29 @@ use Illuminate\Support\Facades\File;
 
 class StrategyRegistry implements StrategyRegistryInterface
 {
-    /** @var array<string, StrategyDefinitionDto> */
-    private array $definitions = [];
+/** @var array<string, StrategyDefinitionDto> */
+    private array $definitions;
 
     /** @var array<string, AsStrategy> */
-    private array $metadata = [];
+    private array $metadata;
 
     /** @var array<string, class-string<StrategyInterface>> */
-    private array $classMap = [];
+    private array $classMap;
 
     /** @var array<string, StrategyInterface> */
-    private array $instances = [];
+    private array $instances;
 
     public function __construct()
     {
+        /** @var array<string, StrategyDefinitionDto> $definitions */
+        $this->definitions = [];
+        /** @var array<string, AsStrategy> $metadata */
+        $this->metadata = [];
+        /** @var array<string, class-string<StrategyInterface>> $classMap */
+        $this->classMap = [];
+        /** @var array<string, StrategyInterface> $instances */
+        $this->instances = [];
+
         $this->discoverStrategies();
     }
 
@@ -93,6 +102,7 @@ class StrategyRegistry implements StrategyRegistryInterface
      */
     private function extractInputs(\ReflectionClass $reflectionClass): array
     {
+        /** @var list<array{name: string, description: string|null, type: string, default: mixed, min: float|int|null, max: float|int|null, choices: list<string>|null, minChoices: int|null, maxChoices: int|null}> $inputs */
         $inputs = [];
 
         foreach ($reflectionClass->getProperties(\ReflectionProperty::IS_PUBLIC | \ReflectionProperty::IS_PROTECTED | \ReflectionProperty::IS_PRIVATE) as $property) {
@@ -206,6 +216,8 @@ class StrategyRegistry implements StrategyRegistryInterface
 
     /**
      * Get strategy definition by alias.
+     *
+     * @return array{name: string, description: string|null, inputs: list<array{name: string, description: string|null, type: string, default: mixed, min: float|int|null, max: float|int|null, choices: list<string>|null, minChoices: int|null, maxChoices: int|null}>, timeframes: list<string>}
      */
     public function getDefinition(string $alias): array
     {
@@ -233,6 +245,8 @@ class StrategyRegistry implements StrategyRegistryInterface
 
     /**
      * Get all strategy definitions.
+     *
+     * @return list<array{name: string, description: string|null, inputs: list<array{name: string, description: string|null, type: string, default: mixed, min: float|int|null, max: float|int|null, choices: list<string>|null, minChoices: int|null, maxChoices: int|null}>, timeframes: list<string>}>
      */
     public function getStrategyDefinitions(): array
     {

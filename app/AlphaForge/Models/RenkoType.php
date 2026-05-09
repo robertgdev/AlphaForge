@@ -5,6 +5,14 @@ namespace App\AlphaForge\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $method
+ * @property string $brick_size
+ * @property array|null $params
+ * @property \DateTimeInterface $created_at
+ * @property \DateTimeInterface $updated_at
+ */
 class RenkoType extends Model
 {
     /**
@@ -37,6 +45,8 @@ class RenkoType extends Model
 
     /**
      * Get the renko records for this renko type.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Renko>
      */
     public function renkoRecords(): HasMany
     {
@@ -45,8 +55,11 @@ class RenkoType extends Model
 
     /**
      * Scope a query to filter by method.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeByMethod($query, string $method)
+    public function scopeByMethod($query, string $method): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('method', $method);
     }

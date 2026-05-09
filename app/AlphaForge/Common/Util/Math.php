@@ -70,7 +70,6 @@ final class Math
             $deviation = bcsub($value, $mean, $internalScale);
             $sumOfSquares = bcadd($sumOfSquares, bcpow($deviation, '2', $internalScale), $internalScale);
         }
-
         $denominator = $sample ? (string) ($count - 1) : (string) $count;
 
         if (bccomp($denominator, '0', 0) === 0) {

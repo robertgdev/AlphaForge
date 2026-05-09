@@ -4,6 +4,8 @@ namespace App\Analysis\Renderer;
 
 use App\Analysis\Dto\OpenCrossProbabilityResult;
 
+use function Safe\json_encode;
+
 /**
  * Renders probability surface results as ASCII art for terminal output.
  */

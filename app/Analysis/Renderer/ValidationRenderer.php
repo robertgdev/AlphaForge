@@ -4,6 +4,8 @@ namespace App\Analysis\Renderer;
 
 use App\Analysis\Dto\Validation\ValidationResult;
 
+use function Safe\json_encode;
+
 /**
  * Renders validation results in multiple formats.
  */

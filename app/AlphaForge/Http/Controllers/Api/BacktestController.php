@@ -21,7 +21,7 @@ class BacktestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = BacktestRun::query()
-            ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
+            ->when($request->user(), fn ($q, $user) => $q->where('user_id', $user->id))
             ->orderBy('created_at', 'desc');
 
         $backtests = $query->paginate($request->input('per_page', 15));
@@ -35,7 +35,7 @@ class BacktestController extends Controller
     public function show(string $id, Request $request): JsonResponse
     {
         $backtest = BacktestRun::query()
-            ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
+            ->when($request->user(), fn ($q, $user) => $q->where('user_id', $user->id))
             ->findOrFail($id);
 
         return response()->json($backtest);
@@ -73,7 +73,7 @@ class BacktestController extends Controller
     public function destroy(string $id, Request $request): JsonResponse
     {
         $backtest = BacktestRun::query()
-            ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
+            ->when($request->user(), fn ($q, $user) => $q->where('user_id', $user->id))
             ->findOrFail($id);
 
         if (! $backtest->isPending()) {
@@ -95,7 +95,7 @@ class BacktestController extends Controller
     public function statistics(string $id, Request $request): JsonResponse
     {
         $backtest = BacktestRun::query()
-            ->when($request->user(), fn ($q) => $q->where('user_id', $request->user()->id))
+            ->when($request->user(), fn ($q, $user) => $q->where('user_id', $user->id))
             ->findOrFail($id);
 
         if (! $backtest->isCompleted()) {

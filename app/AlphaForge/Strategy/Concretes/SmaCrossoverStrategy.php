@@ -76,6 +76,8 @@ class SmaCrossoverStrategy implements StrategyInterface
 
     /**
      * Configure the strategy with inputs.
+     *
+     * @param  array<string, mixed>  $inputs
      */
     public function configure(array $inputs): void
     {
@@ -98,6 +100,9 @@ class SmaCrossoverStrategy implements StrategyInterface
 
     /**
      * Called on each bar to generate trading signals.
+     *
+     * @param  array{symbol: string, ohlcv: \App\AlphaForge\Common\Model\OhlcvSeries, cursor: \App\AlphaForge\Backtesting\Model\BacktestCursor, portfolio: \App\AlphaForge\Order\Model\PortfolioManager}  $data
+     * @return array<int, \App\AlphaForge\Order\Dto\OrderSignal>
      */
     public function onBar(array $data): array
     {
@@ -126,7 +131,8 @@ class SmaCrossoverStrategy implements StrategyInterface
         }
 
         // Get current price
-        $currentPrice = $closes->getVector()->get($currentIndex);
+        $closesVector = $closes->getVector();
+        $currentPrice = (string) $closesVector->get($currentIndex);
 
         // Check if we have an open position
         $openPosition = $portfolio->getOpenPosition($symbol);
@@ -159,7 +165,7 @@ class SmaCrossoverStrategy implements StrategyInterface
                 symbol: $symbol,
                 direction: DirectionEnum::SHORT,
                 orderType: OrderTypeEnum::Market,
-                quantity: $openPosition->quantity
+                quantity: (string) $openPosition->quantity
             );
         }
 
@@ -170,22 +176,28 @@ class SmaCrossoverStrategy implements StrategyInterface
 
     /**
      * Calculate SMAs for the current bar.
+     *
+     * @param  \App\AlphaForge\Common\Model\Series  $closes
      */
-    private function calculateSmas($closes, int $currentIndex): void
+    private function calculateSmas(Series $closes, int $currentIndex): void
     {
         $closesVec = $closes->getVector();
-        
+
         // Calculate fast SMA
         $fastSum = '0';
         for ($i = $currentIndex - $this->fastPeriod + 1; $i <= $currentIndex; $i++) {
-            $fastSum = bcadd($fastSum, $closesVec->get($i), 12);
+            /** @var string|int|float $val */
+            $val = $closesVec->get($i);
+            $fastSum = bcadd($fastSum, (string) $val, 12);
         }
         $this->fastSma[$currentIndex] = bcdiv($fastSum, (string) $this->fastPeriod, 12);
 
         // Calculate slow SMA
         $slowSum = '0';
         for ($i = $currentIndex - $this->slowPeriod + 1; $i <= $currentIndex; $i++) {
-            $slowSum = bcadd($slowSum, $closesVec->get($i), 12);
+            /** @var string|int|float $val */
+            $val = $closesVec->get($i);
+            $slowSum = bcadd($slowSum, (string) $val, 12);
         }
         $this->slowSma[$currentIndex] = bcdiv($slowSum, (string) $this->slowPeriod, 12);
     }
@@ -201,9 +213,13 @@ class SmaCrossoverStrategy implements StrategyInterface
             return null;
         }
 
+        /** @var string $prevFast */
         $prevFast = $this->fastSma[$prevIndex];
+        /** @var string $prevSlow */
         $prevSlow = $this->slowSma[$prevIndex];
+        /** @var string $currFast */
         $currFast = $this->fastSma[$currentIndex];
+        /** @var string $currSlow */
         $currSlow = $this->slowSma[$currentIndex];
 
         // Bullish crossover: fast crosses above slow

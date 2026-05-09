@@ -120,6 +120,7 @@ final class PortfolioManager
                 quantity: $quantity,
                 entryPrice: $executionPrice,
                 entryTime: $executionTime,
+                realizedPnl: '0',
                 stopLoss: $order->stopLoss,
                 takeProfit: $order->takeProfit,
                 costBasis: $order->stakeAmount,
@@ -173,6 +174,7 @@ final class PortfolioManager
                 quantity: $quantity,
                 entryPrice: $executionPrice,
                 entryTime: $executionTime,
+                realizedPnl: '0',
                 stopLoss: $order->stopLoss,
                 takeProfit: $order->takeProfit,
                 costBasis: $order->stakeAmount,
@@ -289,8 +291,8 @@ final class PortfolioManager
         }
 
         $type = $config['type'] ?? 'percentage';
-        $rate = $config['rate'] ?? '0';
-        $minimum = $config['minimum'] ?? '0';
+        $rate = (string) ($config['rate'] ?? '0');
+        $minimum = (string) ($config['minimum'] ?? '0');
 
         if ($type === 'percentage') {
             $commission = bcmul($tradeValue, bcdiv($rate, '100', 12), 12);
@@ -317,12 +319,15 @@ final class PortfolioManager
 
     /**
      * Get total equity (cash + open positions value).
+     *
+     * @param  array<string, string>  $currentPrices
      */
     public function getTotalEquity(array $currentPrices = []): string
     {
         $equity = $this->cashBalance;
 
         foreach ($this->openPositions as $symbol => $position) {
+            /** @var string $price */
             $price = $currentPrices[$symbol] ?? $position->entryPrice;
             $positionValue = bcmul($position->quantity, $price, 12);
             $equity = bcadd($equity, $positionValue, 12);

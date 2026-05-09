@@ -21,6 +21,7 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
 
     public function supportsExchange(string $exchangeId): bool
     {
+        /** @psalm-suppress PossiblyInvalidArgument */
         return in_array($exchangeId, Exchange::$exchanges, true);
     }
 
@@ -33,27 +34,34 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
         ?string $jobId = null
     ): \Generator {
         $exchange = $this->exchangeFactory->create($exchangeId);
+        /** @psalm-suppress PossiblyInvalidMethodCall */
         $exchange->loadMarkets();
 
+        /** @psalm-suppress PossiblyInvalidOperand, MixedArgument */
         if (! $exchange->has['fetchOHLCV']) {
             throw new ExchangeException(sprintf('Exchange "%s" does not support fetching OHLCV data.', $exchangeId));
         }
 
+        /** @psalm-suppress MixedAssignment, MixedArgument */
         $timeframes = $exchange->timeframes ?? [];
-        if (! array_key_exists($timeframe, $timeframes)) {
+        if (! is_array($timeframes) || ! array_key_exists($timeframe, $timeframes)) {
             throw new ExchangeException(sprintf(
-                'Exchange "%s" does not support the "%s" timeframe. Supported: %s',
+                'Exchange "%s" does not support the "%s" timeframe.',
                 $exchangeId,
-                $timeframe,
-                implode(', ', array_keys($timeframes))
+                $timeframe
             ));
         }
 
+        /** @psalm-suppress MixedAssignment, MixedArgument, MixedArgumentTypeCoercion */
         $since = $startTime->timestamp * 1000;
+        /** @psalm-suppress MixedAssignment */
         $endTimestamp = $endTime->timestamp * 1000;
-        $limit = $exchange->limits['OHLCV']['limit'] ?? 1000;
-        $durationMs = Exchange::parse_timeframe($timeframe) * 1000;
-        $totalDuration = max(1, $endTimestamp - $since);
+        /** @psalm-suppress MixedAssignment, MixedArgument */
+        $limit = (int) ($exchange->limits['OHLCV']['limit'] ?? 1000);
+        /** @psalm-suppress MixedAssignment, MixedArgument */
+        $durationMs = (int) Exchange::parse_timeframe($timeframe) * 1000;
+        /** @psalm-suppress MixedArgument */
+        $totalDuration = max(1, (int) $endTimestamp - (int) $since);
         $isFirstFetch = true;
         $cancellationCacheKey = 'alphaforge.download.cancel.'.$jobId;
 
@@ -66,6 +74,7 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
             }
 
             try {
+                /** @var list<list<int|float>>|null $ohlcvs */
                 $ohlcvs = $exchange->fetch_ohlcv($symbol, $timeframe, $since, $limit);
             } catch (\Throwable $e) {
                 throw new ExchangeException(sprintf(
@@ -84,7 +93,7 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
                         $startTime->format('Y-m-d H:i:s')
                     ));
                 }
-                Log::info("No more OHLCV data returned for {$symbol} starting from ".($since / 1000));
+                Log::info("No more OHLCV data returned for {$symbol} starting from ".((int) ($since / 1000)));
                 break;
             }
 
@@ -94,12 +103,15 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
             $batchRecordCount = 0;
 
             foreach ($ohlcvs as $ohlcv) {
+                /** @psalm-suppress MixedAssignment, MixedObjectFetch, MixedOffsetAccess */
                 [$timestamp, $open, $high, $low, $close, $volume] = $ohlcv;
 
-                if ($timestamp > $endTimestamp) {
+                /** @psalm-suppress MixedArgument */
+                if ((int) $timestamp > $endTimestamp) {
                     break 2;
                 }
-                if ($timestamp < $since) {
+                /** @psalm-suppress MixedArgument, MixedArgumentTypeCoercion */
+                if ((int) $timestamp < (int) $since) {
                     continue;
                 }
 
@@ -112,7 +124,8 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
                     'volume' => (float) $volume,
                 ];
 
-                $lastTimestamp = $timestamp;
+                /** @psalm-suppress MixedArgument */
+                $lastTimestamp = (int) $timestamp;
                 $batchRecordCount++;
             }
 
@@ -124,7 +137,7 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
                     (int) ($lastTimestamp / 1000),
                     $batchRecordCount,
                     $totalDuration,
-                    max(0, $lastTimestamp - $startTime->timestamp * 1000)
+                    max(0, (int) $lastTimestamp - (int) $startTime->timestamp * 1000)
                 ));
             }
 
@@ -145,11 +158,13 @@ readonly class CcxtAdapter implements ExchangeAdapterInterface
     ): ?Carbon {
         $exchange = $this->exchangeFactory->create($exchangeId);
 
+        /** @psalm-suppress PossiblyInvalidOperand, MixedArgument */
         if (! $exchange->has['fetchOHLCV']) {
             return null;
         }
 
         try {
+            /** @var list<list<int|float>>|null $ohlcvs */
             $ohlcvs = $exchange->fetch_ohlcv($symbol, $timeframe, null, 1);
 
             if (! empty($ohlcvs) && isset($ohlcvs[0][0])) {

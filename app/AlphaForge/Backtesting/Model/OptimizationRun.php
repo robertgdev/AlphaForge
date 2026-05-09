@@ -8,10 +8,36 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property string $id
+ * @property int|null $user_id
+ * @property string $strategy_alias
+ * @property array $symbols
+ * @property string $timeframe
+ * @property string $exchange
+ * @property string $initial_capital
+ * @property string|null $stake_currency
+ * @property array|null $commission_config
+ * @property string|null $start_date
+ * @property string|null $end_date
+ * @property array|null $parameter_ranges
+ * @property string $optimization_metric
+ * @property int|null $total_combinations
+ * @property int|null $completed_combinations
+ * @property string $status
+ * @property array|null $best_parameters
+ * @property array|null $best_statistics
+ * @property string|null $error_message
+ * @property \DateTimeInterface|null $started_at
+ * @property \DateTimeInterface|null $completed_at
+ */
 class OptimizationRun extends Model
 {
     use HasFactory, HasUuids;
 
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'user_id',
         'strategy_alias',
@@ -35,6 +61,9 @@ class OptimizationRun extends Model
         'completed_at',
     ];
 
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
         'symbols' => 'array',
         'commission_config' => 'array',
@@ -48,11 +77,21 @@ class OptimizationRun extends Model
         'completed_at' => 'datetime',
     ];
 
+    /**
+     * Get the user that owns this optimization run.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Get the backtest runs for this optimization.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Backtesting\Model\BacktestRun>
+     */
     public function backtestRuns(): HasMany
     {
         return $this->hasMany(BacktestRun::class);

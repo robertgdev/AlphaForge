@@ -15,9 +15,6 @@ readonly class DataAvailabilityService
     /**
      * Find all derived (non-OHLCV) data files that depend on a specific OHLCV source.
      *
-     * @param  string  $exchange  The exchange identifier (lowercase)
-     * @param  string  $market  The market symbol (uppercase, with /)
-     * @param  string  $timeframe  The timeframe
      * @return array<int, array{filePath: string, type: string, dataType: int, brickSize: float}>
      */
     public function findDependencies(string $exchange, string $market, string $timeframe): array
@@ -55,8 +52,8 @@ readonly class DataAvailabilityService
                 $dependencies[] = [
                     'filePath' => $filePath,
                     'type' => $basename,
-                    'dataType' => $header['dataType'],
-                    'brickSize' => $header['brickSize'],
+                    'dataType' => (int) $header['dataType'],
+                    'brickSize' => (float) $header['brickSize'],
                 ];
             } catch (\Throwable $e) {
                 Log::error('Failed to read dependency file: {file}', [
@@ -72,7 +69,7 @@ readonly class DataAvailabilityService
     /**
      * Get a manifest of all available market data.
      *
-     * @return array<int, array{symbol: string, exchange: string, timeframes: array}>
+     * @return array<int, array{symbol: string, exchange: string, timeframes: array<int, array{timeframe: string, type: string, dataType: int, brickSize: float, startDate: string, endDate: string, recordCount: int}>}>
      */
     public function getManifest(): array
     {
@@ -113,13 +110,17 @@ readonly class DataAvailabilityService
                 $firstRecord = $this->binaryStorage->readRecordByIndex($filePath, 0);
                 $lastRecord = $this->binaryStorage->readRecordByIndex($filePath, $header['numRecords'] - 1);
 
+                if ($firstRecord === null || $lastRecord === null) {
+                    continue;
+                }
+
                 $timeframeData = [
                     'timeframe' => $timeframe,
                     'type' => $type,
-                    'dataType' => $header['dataType'],
-                    'brickSize' => $header['brickSize'],
-                    'startDate' => gmdate('Y-m-d\TH:i:s\Z', $firstRecord['timestamp']),
-                    'endDate' => gmdate('Y-m-d\TH:i:s\Z', $lastRecord['timestamp']),
+                    'dataType' => (int) $header['dataType'],
+                    'brickSize' => (float) $header['brickSize'],
+                    'startDate' => gmdate('Y-m-d\TH:i:s\Z', (int) $firstRecord['timestamp']),
+                    'endDate' => gmdate('Y-m-d\TH:i:s\Z', (int) $lastRecord['timestamp']),
                     'recordCount' => $header['numRecords'],
                 ];
 

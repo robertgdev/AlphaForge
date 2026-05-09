@@ -12,6 +12,8 @@ use Symfony\Component\Console\Helper\ProgressBar;
 
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
+use function Safe\file_put_contents;
+use function Safe\mkdir;
 
 /**
  * Artisan command for running Open-Cross Probability analysis.

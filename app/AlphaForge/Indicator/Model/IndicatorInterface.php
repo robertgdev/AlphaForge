@@ -8,9 +8,11 @@ use App\AlphaForge\Plot\PlotDefinition;
 interface IndicatorInterface
 {
     /**
-     * Calculate the indicator values based on the provided OHLCV data.
+     * Calculate the indicator values based on the provided dataframes map.
+     *
+     * @param  \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>>  $dataframes
      */
-    public function calculate(array $data): void;
+    public function calculate(\Ds\Map $dataframes): void;
 
     /**
      * Get the output series for this indicator.
@@ -19,6 +21,8 @@ interface IndicatorInterface
 
     /**
      * Get all output series for this indicator.
+     *
+     * @return array<string, Series>
      */
     public function getAllOutputs(): array;
 

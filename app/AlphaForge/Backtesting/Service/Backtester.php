@@ -47,6 +47,7 @@ class Backtester
 
     private string $currentCapital;
 
+    /** @var array<string, string> */
     private array $commissionConfig;
 
     public function __construct(
@@ -485,33 +486,37 @@ class Backtester
 
     /**
      * Get the current bar data from the signal timeframe.
+     *
+     * @return array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}
      */
     private function getCurrentBar(OhlcvSeries $ohlcv): array
     {
         $i = $this->cursor->currentIndex;
 
         return [
-            'timestamp' => $ohlcv->getTimestamps()->getVector()->get($i),
-            'open' => $ohlcv->getOpens()->getVector()->get($i),
-            'high' => $ohlcv->getHighs()->getVector()->get($i),
-            'low' => $ohlcv->getLows()->getVector()->get($i),
-            'close' => $ohlcv->getCloses()->getVector()->get($i),
-            'volume' => $ohlcv->getVolumes()->getVector()->get($i),
+            'timestamp' => (int) $ohlcv->getTimestamps()->getVector()->get($i),
+            'open' => (float) $ohlcv->getOpens()->getVector()->get($i),
+            'high' => (float) $ohlcv->getHighs()->getVector()->get($i),
+            'low' => (float) $ohlcv->getLows()->getVector()->get($i),
+            'close' => (float) $ohlcv->getCloses()->getVector()->get($i),
+            'volume' => (float) $ohlcv->getVolumes()->getVector()->get($i),
         ];
     }
 
     /**
      * Get bar data at a specific index from any OhlcvSeries.
+     *
+     * @return array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}
      */
     private function getBarByIndex(OhlcvSeries $ohlcv, int $index): array
     {
         return [
-            'timestamp' => $ohlcv->getTimestamps()->getVector()->get($index),
-            'open' => $ohlcv->getOpens()->getVector()->get($index),
-            'high' => $ohlcv->getHighs()->getVector()->get($index),
-            'low' => $ohlcv->getLows()->getVector()->get($index),
-            'close' => $ohlcv->getCloses()->getVector()->get($index),
-            'volume' => $ohlcv->getVolumes()->getVector()->get($index),
+            'timestamp' => (int) $ohlcv->getTimestamps()->getVector()->get($index),
+            'open' => (float) $ohlcv->getOpens()->getVector()->get($index),
+            'high' => (float) $ohlcv->getHighs()->getVector()->get($index),
+            'low' => (float) $ohlcv->getLows()->getVector()->get($index),
+            'close' => (float) $ohlcv->getCloses()->getVector()->get($index),
+            'volume' => (float) $ohlcv->getVolumes()->getVector()->get($index),
         ];
     }
 

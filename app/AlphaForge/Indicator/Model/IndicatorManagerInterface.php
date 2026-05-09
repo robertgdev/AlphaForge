@@ -33,6 +33,8 @@ interface IndicatorManagerInterface
 
     /**
      * Get all output data for saving.
+     *
+     * @return array<string, array<string, array<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>>>
      */
     public function getAllOutputDataForSave(): array;
 }

@@ -10,6 +10,8 @@ use App\AlphaForge\Services\MarketDataFileService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
+use function Safe\filesize;
+
 readonly class OhlcvDownloader
 {
     public function __construct(

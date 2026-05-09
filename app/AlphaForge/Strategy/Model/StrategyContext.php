@@ -6,6 +6,7 @@ use App\AlphaForge\Backtesting\Model\BacktestCursor;
 use App\AlphaForge\Indicator\Model\IndicatorManagerInterface;
 use App\AlphaForge\Order\Model\OrderManagerInterface;
 use Ds\Map;
+use Ds\Vector;
 
 class StrategyContext implements StrategyContextInterface
 {
@@ -15,6 +16,7 @@ class StrategyContext implements StrategyContextInterface
         private IndicatorManagerInterface $indicatorManager,
         private OrderManagerInterface $orderManager,
         private BacktestCursor $cursor,
+        /** @var \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>> */
         private Map $dataframes
     ) {}
 
@@ -38,6 +40,9 @@ class StrategyContext implements StrategyContextInterface
         return $this->cursor->currentIndex;
     }
 
+    /**
+     * @return \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>>
+     */
     public function getDataframes(): Map
     {
         return $this->dataframes;

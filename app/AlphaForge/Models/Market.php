@@ -6,6 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $exchange_id
+ * @property string $symbol
+ * @property string $base_currency
+ * @property string $quote_currency
+ * @property bool $active
+ * @property \DateTimeInterface $created_at
+ * @property \DateTimeInterface $updated_at
+ */
 class Market extends Model
 {
     /**
@@ -40,6 +50,8 @@ class Market extends Model
 
     /**
      * Get the exchange that owns this market.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\Exchange>
      */
     public function exchange(): BelongsTo
     {
@@ -48,6 +60,8 @@ class Market extends Model
 
     /**
      * Get the OHLCV records for this market.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Ohlcv>
      */
     public function ohlcvRecords(): HasMany
     {
@@ -56,6 +70,8 @@ class Market extends Model
 
     /**
      * Get the renko records for this market.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Renko>
      */
     public function renkoRecords(): HasMany
     {
@@ -64,8 +80,11 @@ class Market extends Model
 
     /**
      * Scope a query to only include active markets.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeActive($query)
+    public function scopeActive($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('active', true);
     }

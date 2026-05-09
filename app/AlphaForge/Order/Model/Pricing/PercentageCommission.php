@@ -10,8 +10,8 @@ final class PercentageCommission implements CommissionInterface
 
     public function calculate(string $quantity, string $price): string
     {
-        $tradeValue = bcmul($quantity, $price);
+        $tradeValue = bcmul($quantity, $price, 12);
 
-        return bcmul($tradeValue, $this->rate);
+        return bcmul($tradeValue, $this->rate, 12);
     }
 }

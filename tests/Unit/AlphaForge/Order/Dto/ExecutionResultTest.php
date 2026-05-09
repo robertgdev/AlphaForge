@@ -13,7 +13,8 @@ describe('ExecutionResult', function () {
             direction: 'long',
             quantity: '0.02',
             entryPrice: '50000',
-            entryTime: Carbon::now()
+            entryTime: Carbon::now(),
+            realizedPnl: '0'
         );
 
         $result = new ExecutionResult(

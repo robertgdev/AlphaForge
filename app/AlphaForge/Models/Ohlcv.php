@@ -5,6 +5,17 @@ namespace App\AlphaForge\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $market_id
+ * @property int $timeframe_id
+ * @property int $timestamp
+ * @property string $open
+ * @property string $high
+ * @property string $low
+ * @property string $close
+ * @property string $volume
+ */
 class Ohlcv extends Model
 {
     /**
@@ -51,6 +62,8 @@ class Ohlcv extends Model
 
     /**
      * Get the market that owns this OHLCV record.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\Market>
      */
     public function market(): BelongsTo
     {
@@ -59,6 +72,8 @@ class Ohlcv extends Model
 
     /**
      * Get the timeframe that owns this OHLCV record.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\Timeframe>
      */
     public function timeframe(): BelongsTo
     {
@@ -67,24 +82,32 @@ class Ohlcv extends Model
 
     /**
      * Scope a query to filter by timestamp range.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
      */
-    public function scopeTimestampRange($query, int $start, int $end)
+    public function scopeTimestampRange($query, int $start, int $end): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereBetween('timestamp', [$start, $end]);
     }
 
     /**
      * Scope a query to order by timestamp ascending.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeOrderByTimestampAsc($query)
+    public function scopeOrderByTimestampAsc($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->orderBy('timestamp', 'asc');
     }
 
     /**
      * Scope a query to order by timestamp descending.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeOrderByTimestampDesc($query)
+    public function scopeOrderByTimestampDesc($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->orderBy('timestamp', 'desc');
     }

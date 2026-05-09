@@ -10,10 +10,12 @@ use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
 
+use function Safe\json_encode;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\table;
+
 
 class RunBacktestCommand extends Command
 {

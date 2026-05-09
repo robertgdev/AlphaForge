@@ -25,16 +25,15 @@ final class OrderExecutor implements OrderExecutorInterface
         $commission = $this->commissionModel->calculate($signal->quantity, $fillPrice);
         $orderId = uniqid('order_', true);
 
-        return new ExecutionResult(
+return new ExecutionResult(
             orderId: $orderId,
-            clientOrderId: $signal->clientOrderId,
             symbol: $signal->symbol,
             direction: $signal->direction,
-            filledPrice: $fillPrice,
-            filledQuantity: $signal->quantity,
-            commissionAmount: $commission,
-            commissionAsset: 'USDT', // Default to stake currency
-            executedAt: $executionTime,
+            quantity: (string) $signal->quantity,
+            price: $fillPrice,
+            commission: $commission,
+            timestamp: $executionTime,
+            clientOrderId: $signal->clientOrderId,
             stopLossPrice: $signal->stopLossPrice,
             takeProfitPrice: $signal->takeProfitPrice,
             enterTags: $signal->enterTags,

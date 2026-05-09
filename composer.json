@@ -8,13 +8,20 @@
         "framework"
     ],
     "license": "MIT",
-    "repositories": [],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "src/TaLibHybrid",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
     "require": {
         "php": "^8.3",
         "ext-bcmath": "*",
         "ext-ds": "*",
         "ext-gmp": "*",
-        "ext-ta_lib": "*",
         "ccxt/ccxt": "^4.0",
         "illuminate/broadcasting": "*",
         "inertiajs/inertia-laravel": "^2.0",
@@ -23,7 +30,8 @@
         "laravel/reverb": "^1.0",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
-        "laravel/wayfinder": "^0.1.9"
+        "laravel/wayfinder": "^0.1.9",
+        "stochastix/ta-lib-hybrid": "@dev"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -37,6 +45,9 @@
         "pestphp/pest-plugin-laravel": "^4.0",
         "thecodingmachine/phpstan-safe-rule": "^1.4",
         "wnx/laravel-stats": "^2.17"
+    },
+    "suggest": {
+        "ext-ta_lib": "^1.0 - Use the C extension for 5-30x faster TA-Lib calculations"
     },
     "autoload": {
         "psr-4": {

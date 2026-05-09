@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a760a6938e6ad41a2b6efff408cfdbbf",
+    "content-hash": "2f65535f165334e3f64c48460965e31a",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1801,96 +1801,6 @@
                 "source": "https://github.com/inertiajs/inertia-laravel/tree/v2.0.24"
             },
             "time": "2026-04-10T14:36:44+00:00"
-        },
-        {
-            "name": "laratrade/trader",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/robertgdev/trader.git",
-                "reference": "4dc99d2ef97d8e1e483990e3d142f7d674a590b7"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/robertgdev/trader/zipball/4dc99d2ef97d8e1e483990e3d142f7d674a590b7",
-                "reference": "4dc99d2ef97d8e1e483990e3d142f7d674a590b7",
-                "shasum": ""
-            },
-            "require": {
-                "ext-trader": "*",
-                "illuminate/support": ">=10.0",
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "orchestra/testbench": ">=8.0",
-                "phpunit/phpunit": ">=10.0",
-                "squizlabs/php_codesniffer": ">=3.0"
-            },
-            "default-branch": true,
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Laratrade\\Trader\\TraderServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "files": [
-                    "src/helpers.php"
-                ],
-                "psr-4": {
-                    "Laratrade\\Trader\\": "src"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Laratrade\\Trader\\Tests\\": "tests"
-                }
-            },
-            "scripts": {
-                "lint": [
-                    "phpcs -p --standard=psr2 src"
-                ],
-                "phpunit": [
-                    "phpunit"
-                ],
-                "phpunit-integration": [
-                    "phpunit --testsuite Integration"
-                ],
-                "phpunit-unit": [
-                    "phpunit --testsuite Unit"
-                ],
-                "phpunit-coverage": [
-                    "phpunit --testdox --coverage-clover=coverage.clover"
-                ],
-                "test": [
-                    "@lint",
-                    "@phpunit-coverage"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Evgenii Nasyrov",
-                    "email": "inasyrov@ya.ru",
-                    "homepage": "https://github.com/nasyrov",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Laravel package for trader extension interface.",
-            "homepage": "https://github.com/laratrade/trader",
-            "keywords": [
-                "laratrade",
-                "laravel",
-                "trader"
-            ],
-            "support": {
-                "source": "https://github.com/robertgdev/trader/tree/master"
-            },
-            "time": "2024-01-06T15:00:29+00:00"
         },
         {
             "name": "laravel/fortify",
@@ -5971,6 +5881,50 @@
                 }
             ],
             "time": "2026-03-23T22:56:56+00:00"
+        },
+        {
+            "name": "stochastix/ta-lib-hybrid",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "src/TaLibHybrid",
+                "reference": "0cb989f327986cc702e557a6dd7a1c0e8555479b"
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "pestphp/pest": "^3.0|^4.0"
+            },
+            "suggest": {
+                "ext-ta_lib": "^1.0 - Use the C extension for 5-30x faster calculations"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "TaLibHybrid\\": "src/"
+                },
+                "files": [
+                    "src/Constants.php",
+                    "src/Functions.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "TaLibHybrid\\Tests\\": "tests/"
+                },
+                "files": [
+                    "tests/Helpers.php"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Hybrid TA-Lib wrapper: ext-ta-lib with pure PHP fallback",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "symfony/clock",
@@ -12979,7 +12933,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "laratrade/trader": 20
+        "stochastix/ta-lib-hybrid": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
@@ -12987,8 +12941,7 @@
         "php": "^8.3",
         "ext-bcmath": "*",
         "ext-ds": "*",
-        "ext-gmp": "*",
-        "ext-trader": "*"
+        "ext-gmp": "*"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"

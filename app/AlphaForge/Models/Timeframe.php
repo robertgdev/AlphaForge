@@ -5,6 +5,13 @@ namespace App\AlphaForge\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property int $minutes
+ * @property \DateTimeInterface $created_at
+ * @property \DateTimeInterface $updated_at
+ */
 class Timeframe extends Model
 {
     /**
@@ -35,6 +42,8 @@ class Timeframe extends Model
 
     /**
      * Get the OHLCV records for this timeframe.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Ohlcv>
      */
     public function ohlcvRecords(): HasMany
     {
@@ -43,6 +52,8 @@ class Timeframe extends Model
 
     /**
      * Get the renko records for this timeframe.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Renko>
      */
     public function renkoRecords(): HasMany
     {

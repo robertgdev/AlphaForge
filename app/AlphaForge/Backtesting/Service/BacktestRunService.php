@@ -49,25 +49,25 @@ class BacktestRunService
         return $backtestRun;
     }
 
-    /**
-     * Run a backtest synchronously (for CLI/scripts).
-     *
-     * @param  array{
-     *     user_id?: int|null,
-     *     strategy: string,
-     *     symbols: array<string>,
-     *     timeframe: string,
-     *     execution_timeframe?: string|null,
-     *     exchange: string,
-     *     initial_capital: float,
-     *     stake_currency?: string,
-     *     strategy_inputs?: array,
-     *     commission_config?: array,
-     *     start_date?: string|null,
-     *     end_date?: string|null
-     * }  $data
-     * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
-     */
+/**
+      * Run a backtest synchronously (for CLI/scripts).
+      *
+      * @param  array{
+      *     user_id?: int|null,
+      *     strategy: string,
+      *     symbols: array<string>,
+      *     timeframe: string,
+      *     execution_timeframe?: string|null,
+      *     exchange: string,
+      *     initial_capital: float,
+      *     stake_currency?: string,
+      *     strategy_inputs?: array,
+      *     commission_config?: array,
+      *     start_date?: string|null,
+      *     end_date?: string|null
+      * }  $data
+      * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
+      */
     public function runSync(array $data): array
     {
         $backtestRun = $this->createBacktestRun($data);
@@ -77,6 +77,8 @@ class BacktestRunService
 
     /**
      * Execute a queued backtest. Called by RunBacktestJob.
+     *
+     * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
      */
     public function execute(BacktestRun $backtestRun): array
     {

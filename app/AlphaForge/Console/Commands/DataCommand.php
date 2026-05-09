@@ -20,6 +20,8 @@ use App\AlphaForge\Services\MarketDataFileService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Events\Dispatcher;
+use function Safe\filesize;
+use function Safe\filemtime;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;

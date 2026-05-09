@@ -6,6 +6,8 @@ use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use Carbon\Carbon;
 use Carbon\CarbonTimeZone;
 
+use function Safe\filesize;
+
 readonly class DataInspectionService
 {
     private CarbonTimeZone $utcZone;
@@ -39,7 +41,7 @@ readonly class DataInspectionService
             $headCount = min(5, $recordCount);
             for ($i = 0; $i < $headCount; $i++) {
                 $record = $this->binaryStorage->readRecordByIndex($filePath, $i);
-                if ($record) {
+                if ($record !== null) {
                     $head[] = $this->formatRecord($record);
                 }
             }
@@ -48,7 +50,7 @@ readonly class DataInspectionService
                 $tailStart = max($headCount, $recordCount - 5);
                 for ($i = $tailStart; $i < $recordCount; $i++) {
                     $record = $this->binaryStorage->readRecordByIndex($filePath, $i);
-                    if ($record) {
+                    if ($record !== null) {
                         $tail[] = $this->formatRecord($record);
                     }
                 }
@@ -57,9 +59,12 @@ readonly class DataInspectionService
 
         $validation = $this->validateDataConsistency($filePath, $header);
 
+        /** @psalm-suppress MixedArgument */
+        $fileSize = @filesize($filePath);
+
         return [
             'filePath' => $filePath,
-            'fileSize' => filesize($filePath),
+            'fileSize' => $fileSize !== false ? $fileSize : 0,
             'header' => $header,
             'sample' => [
                 'head' => $head,
@@ -82,16 +87,20 @@ readonly class DataInspectionService
         );
     }
 
+    /**
+     * @param  array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}  $record
+     * @return array{timestamp: int|float, utc: string, open: float, high: float, low: float, close: float, volume: float}
+     */
     private function formatRecord(array $record): array
     {
         return [
             'timestamp' => $record['timestamp'],
             'utc' => Carbon::createFromTimestamp($record['timestamp'], $this->utcZone)->format('Y-m-d H:i:s'),
-            'open' => $record['open'],
-            'high' => $record['high'],
-            'low' => $record['low'],
-            'close' => $record['close'],
-            'volume' => $record['volume'],
+            'open' => (float) $record['open'],
+            'high' => (float) $record['high'],
+            'low' => (float) $record['low'],
+            'close' => (float) $record['close'],
+            'volume' => (float) $record['volume'],
         ];
     }
 
@@ -113,6 +122,9 @@ readonly class DataInspectionService
         };
     }
 
+    /**
+     * @param  array{numRecords: int, timeframe: string, timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}  $header
+     */
     private function validateDataConsistency(string $filePath, array $header): array
     {
         $recordCount = $header['numRecords'];
@@ -141,6 +153,7 @@ readonly class DataInspectionService
         $index = 0;
 
         foreach ($records as $record) {
+            /** @var int|float $currentTimestamp */
             $currentTimestamp = $record['timestamp'];
 
             if ($previousTimestamp !== null) {
@@ -171,6 +184,9 @@ readonly class DataInspectionService
         ];
     }
 
+    /**
+     * @param  array{numRecords: int, timeframe: string, timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}  $header
+     */
     private function validateMonthlyGaps(string $filePath, int $monthStep): array
     {
         $records = $this->binaryStorage->readRecordsSequentially($filePath);
@@ -180,7 +196,7 @@ readonly class DataInspectionService
         $index = 0;
 
         foreach ($records as $record) {
-            $currentDateTime = Carbon::createFromTimestamp($record['timestamp'], $this->utcZone);
+            $currentDateTime = Carbon::createFromTimestamp((int) $record['timestamp'], $this->utcZone);
 
             if ($previousDateTime !== null) {
                 $expectedDateTime = $previousDateTime->copy()->addMonths($monthStep);

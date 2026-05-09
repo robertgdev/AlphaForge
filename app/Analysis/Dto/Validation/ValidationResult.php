@@ -4,6 +4,8 @@ namespace App\Analysis\Dto\Validation;
 
 use App\Analysis\Config\ValidationConfig;
 
+use function Safe\json_encode;
+
 /**
  * Represents the complete validation result containing all test reports.
  */

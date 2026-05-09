@@ -12,6 +12,9 @@ class BacktestRun extends Model
 {
     use HasFactory, HasUuids;
 
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'user_id',
         'optimization_id',
@@ -34,6 +37,9 @@ class BacktestRun extends Model
         'completed_at',
     ];
 
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
         'symbols' => 'array',
         'strategy_inputs' => 'array',
@@ -47,11 +53,21 @@ class BacktestRun extends Model
         'completed_at' => 'datetime',
     ];
 
+    /**
+     * Get the user that owns this backtest run.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Get the optimization run that owns this backtest.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Backtesting\Model\OptimizationRun>
+     */
     public function optimization(): BelongsTo
     {
         return $this->belongsTo(OptimizationRun::class);
@@ -85,6 +101,9 @@ class BacktestRun extends Model
         ]);
     }
 
+    /**
+     * @param  array<string, mixed>  $statistics
+     */
     public function markAsCompleted(float $finalCapital, array $statistics): void
     {
         $this->update([

@@ -41,6 +41,8 @@ use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Support\ServiceProvider;
 
+use function Safe\mkdir;
+
 class AlphaForgeServiceProvider extends ServiceProvider
 {
     /**

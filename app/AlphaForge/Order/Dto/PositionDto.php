@@ -15,7 +15,7 @@ final readonly class PositionDto
      * @param  Carbon  $entryTime  Entry timestamp
      * @param  string|null  $exitPrice  Exit price (if closed)
      * @param  Carbon|null  $exitTime  Exit timestamp (if closed)
-     * @param  string|null  $realizedPnl  Realized profit/loss (if closed)
+     * @param  string  $realizedPnl  Realized profit/loss (if closed)
      * @param  string|null  $stopLoss  Stop loss price
      * @param  string|null  $takeProfit  Take profit price
      * @param  string  $costBasis  Original cost basis
@@ -28,9 +28,9 @@ final readonly class PositionDto
         public string $quantity,
         public string $entryPrice,
         public Carbon $entryTime,
+        public string $realizedPnl,
         public ?string $exitPrice = null,
         public ?Carbon $exitTime = null,
-        public string $realizedPnl = '0',
         public ?string $stopLoss = null,
         public ?string $takeProfit = null,
         public string $costBasis = '0',

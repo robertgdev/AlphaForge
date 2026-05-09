@@ -5,6 +5,16 @@ namespace App\AlphaForge\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $market_id
+ * @property int $timeframe_id
+ * @property int $renko_type_id
+ * @property int $timestamp
+ * @property string $open
+ * @property string $close
+ * @property string $direction
+ */
 class Renko extends Model
 {
     /**
@@ -49,6 +59,8 @@ class Renko extends Model
 
     /**
      * Get the market that owns this renko record.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\Market>
      */
     public function market(): BelongsTo
     {
@@ -57,6 +69,8 @@ class Renko extends Model
 
     /**
      * Get the timeframe that owns this renko record.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\Timeframe>
      */
     public function timeframe(): BelongsTo
     {
@@ -65,6 +79,8 @@ class Renko extends Model
 
     /**
      * Get the renko type that owns this renko record.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\AlphaForge\Models\RenkoType>
      */
     public function renkoType(): BelongsTo
     {
@@ -73,48 +89,64 @@ class Renko extends Model
 
     /**
      * Scope a query to filter by timestamp range.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
      */
-    public function scopeTimestampRange($query, int $start, int $end)
+    public function scopeTimestampRange($query, int $start, int $end): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereBetween('timestamp', [$start, $end]);
     }
 
     /**
      * Scope a query to filter by direction.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
      */
-    public function scopeByDirection($query, string $direction)
+    public function scopeByDirection($query, string $direction): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('direction', $direction);
     }
 
     /**
      * Scope a query to only include up bricks.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeUp($query)
+    public function scopeUp($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('direction', 'up');
     }
 
     /**
      * Scope a query to only include down bricks.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeDown($query)
+    public function scopeDown($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('direction', 'down');
     }
 
     /**
      * Scope a query to order by timestamp ascending.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeOrderByTimestampAsc($query)
+    public function scopeOrderByTimestampAsc($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->orderBy('timestamp', 'asc');
     }
 
     /**
      * Scope a query to order by timestamp descending.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
      */
-    public function scopeOrderByTimestampDesc($query)
+    public function scopeOrderByTimestampDesc($query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->orderBy('timestamp', 'desc');
     }

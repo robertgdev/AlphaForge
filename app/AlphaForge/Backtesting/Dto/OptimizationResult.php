@@ -4,6 +4,10 @@ namespace App\AlphaForge\Backtesting\Dto;
 
 readonly class OptimizationResult
 {
+    /**
+     * @param  array<string, mixed>  $parameters
+     * @param  array<string, mixed>  $statistics
+     */
     public function __construct(
         public array $parameters,
         public array $statistics,
@@ -13,9 +17,13 @@ readonly class OptimizationResult
 
     public function getMetricValue(string $metric): string
     {
-        return $this->statistics[$metric] ?? '0';
+        $value = $this->statistics[$metric] ?? '0';
+        return (string) $value;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [

@@ -4,6 +4,8 @@ namespace App\Analysis\Dto;
 
 use App\Analysis\Config\OpenCrossAnalysisConfig;
 
+use function Safe\json_encode;
+
 /**
  * Complete result of the Open-Cross Probability analysis.
  */

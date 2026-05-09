@@ -5,6 +5,9 @@ namespace App\AlphaForge\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\AlphaForge\Models\Market> $markets
+ */
 class Exchange extends Model
 {
     /**
@@ -34,6 +37,8 @@ class Exchange extends Model
 
     /**
      * Get the markets for this exchange.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Market>
      */
     public function markets(): HasMany
     {

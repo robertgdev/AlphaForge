@@ -13,7 +13,8 @@ describe('PositionDto', function () {
             direction: 'long',
             quantity: '0.02',
             entryPrice: '50000',
-            entryTime: $entryTime
+            entryTime: $entryTime,
+            realizedPnl: '0'
         );
 
         expect($position->id)->toBe('pos_1')
@@ -67,7 +68,8 @@ describe('PositionDto', function () {
             direction: 'long',
             quantity: '0.02',
             entryPrice: '50000',
-            entryTime: Carbon::now()
+            entryTime: Carbon::now(),
+            realizedPnl: '0'
         );
 
         expect($position)->toBeInstanceOf(PositionDto::class);

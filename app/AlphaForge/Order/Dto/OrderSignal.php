@@ -31,6 +31,8 @@ final readonly class OrderSignal
         public ?string $stopLoss = null,
         public ?string $takeProfit = null,
         public ?int $timeInForce = null,
-        public ?string $clientOrderId = null
+        public ?string $clientOrderId = null,
+        public ?array $enterTags = null,
+        public ?array $exitTags = null,
     ) {}
 }

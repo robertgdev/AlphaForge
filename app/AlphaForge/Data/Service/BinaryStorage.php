@@ -4,6 +4,20 @@ namespace App\AlphaForge\Data\Service;
 
 use App\AlphaForge\Data\Exception\StorageException;
 
+use function Safe\copy;
+use function Safe\fclose;
+use function Safe\fflush;
+use function Safe\filesize;
+use function Safe\flock;
+use function Safe\fopen;
+use function Safe\fread;
+use function Safe\ftell;
+use function Safe\fwrite;
+use function Safe\mkdir;
+use function Safe\rename;
+use function Safe\unlink;
+use function Safe\unpack;
+
 final class BinaryStorage implements BinaryStorageInterface
 {
     private const MAGIC_NUMBER = 'STCHXBF1';

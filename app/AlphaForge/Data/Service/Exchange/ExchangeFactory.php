@@ -21,6 +21,7 @@ final class ExchangeFactory
             return $this->instances[$exchangeId];
         }
 
+        /** @psalm-suppress PossiblyInvalidArgument */
         if (! in_array($exchangeId, Exchange::$exchanges, true)) {
             throw new ExchangeException(sprintf('Exchange "%s" is not supported by CCXT.', $exchangeId));
         }
@@ -34,10 +35,11 @@ final class ExchangeFactory
     /**
      * Get all supported exchange IDs.
      *
-     * @return array<string>
+     * @return list<string>
      */
     public function getSupportedExchanges(): array
     {
+        /** @psalm-suppress PossiblyInvalidArgument */
         $exchanges = Exchange::$exchanges;
         sort($exchanges);
 

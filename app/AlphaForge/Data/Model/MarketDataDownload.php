@@ -8,35 +8,75 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property string $id
+ * @property string $exchange_id
+ * @property string $symbol
+ * @property string $timeframe
+ * @property string $type
+ * @property string $status
+ * @property int $records_expected
+ * @property int $records_downloaded
+ * @property array|null $error_log
+ * @property \DateTimeInterface $created_at
+ * @property \DateTimeInterface|null $completed_at
+ * @property string|null $file_path
+ * @property int|null $file_size
+ * @property int|null $bars_count
+ * @property string|null $error_message
+ * @property \DateTimeInterface|null $started_at
+ */
 class MarketDataDownload extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory;
 
+    /**
+     * The table associated with the model.
+     */
+    protected $table = 'alphaforge_data_downloads';
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
-        'user_id',
+        'exchange_id',
         'symbol',
         'timeframe',
-        'exchange',
-        'start_date',
-        'end_date',
+        'type',
         'status',
+        'records_expected',
+        'records_downloaded',
+        'error_log',
+        'completed_at',
         'file_path',
         'file_size',
         'bars_count',
         'error_message',
         'started_at',
-        'completed_at',
-    ];
-
-    protected $casts = [
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
-        'started_at' => 'datetime',
-        'completed_at' => 'datetime',
     ];
 
     /**
-     * Get the user that owns the download.
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'records_expected' => 'integer',
+        'records_downloaded' => 'integer',
+        'error_log' => 'array',
+        'created_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'started_at' => 'datetime',
+        'file_size' => 'integer',
+        'bars_count' => 'integer',
+    ];
+
+    /**
+     * Get the user that owns this download.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
      */
     public function user(): BelongsTo
     {

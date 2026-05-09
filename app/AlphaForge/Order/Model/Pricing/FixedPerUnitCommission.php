@@ -10,6 +10,6 @@ final class FixedPerUnitCommission implements CommissionInterface
 
     public function calculate(string $quantity, string $price): string
     {
-        return bcmul($quantity, $this->rate);
+        return bcmul($quantity, $this->rate, 12);
     }
 }
