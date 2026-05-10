@@ -48,9 +48,17 @@ app/AlphaForge/
 |   |   |-- MutableSeries.php       # Mutable time series
 |   |   |-- MultiTimeframeOhlcvSeries.php  # Multi-timeframe container
 |   |   |-- OhlcvSeries.php         # OHLCV data container
-|   |   `-- Series.php              # Immutable time series
+|   |   `-- Series.php              # Immutable time series (cursor-relative indexing)
 |   `-- Util/
 |       `-- Math.php                 # BCMath statistical functions
+|-- Condition/
+|   |-- ConditionInterface.php      # Composable boolean condition contract
+|   |-- AbstractCondition.php       # Default and/or/not composition
+|   |-- CrossCondition.php          # Crosses-above / crosses-below detection
+|   |-- ComparisonCondition.php     # >, <, >=, <= comparisons
+|   |-- TrendCondition.php          # Rising / falling over N bars
+|   |-- LogicalCondition.php        # AND / OR composition
+|   `-- NotCondition.php            # Negation
 |-- Conversion/
 |   |-- RenkoConverter.php          # Fixed-brick Renko conversion
 |   `-- AtrRenkoConverter.php       # ATR-based Renko conversion
@@ -106,6 +114,25 @@ app/AlphaForge/
 |       `-- PortfolioManager.php      # Position and cash management
 |-- Plot/
 |   `-- PlotDefinition.php           # Chart plot definitions
+|-- Indicator/
+|   `-- Model/
+|       |-- IndicatorContext.php         # Strategy indicator computation + caching layer
+|       |-- IndicatorRegistry.php        # Data-driven TaLibHybrid function registry (100+ indicators)
+|       |-- IndicatorResult.php          # Multi-output indicator container
+|       |-- IndicatorResultInterface.php # Multi-output contract
+|       |-- IndicatorInterface.php       # Plot-system indicator (unchanged)
+|       `-- IndicatorManager.php         # Plot-system manager (unchanged)
+|-- TimeSeries/
+|   |-- TimeSeriesInterface.php     # Behavioral time series contract
+|   `-- ArrayTimeSeries.php         # Absolute-indexed float[] with condition methods
+|-- Condition/
+|   |-- ConditionInterface.php      # Composable boolean condition contract
+|   |-- AbstractCondition.php       # Default and/or/not composition
+|   |-- CrossCondition.php          # Crosses-above / crosses-below detection
+|   |-- ComparisonCondition.php     # >, <, >=, <= comparisons
+|   |-- TrendCondition.php          # Rising / falling over N bars
+|   |-- LogicalCondition.php        # AND / OR composition
+|   `-- NotCondition.php            # Negation
 |-- Strategy/
 |   |-- Attribute/
 |   |   |-- AsStrategy.php          # Strategy metadata attribute
@@ -978,74 +1005,226 @@ curl -X POST http://localhost:8000/api/alphaforge/backtests \
 
 ### Strategy Interface
 
-All strategies must implement `StrategyInterface`:
+All strategies must implement `StrategyInterface`, which includes three lifecycle hooks:
 
 ```php
 interface StrategyInterface
 {
-    public function configure(array $inputs): void;
+    public function configure(array $runtimeParameters): void;
+    public function initialize(array $data): void;
     public function onBar(array $data): array;
 }
 ```
 
-### Strategy Attribute
+- **`configure()`** — Called once when the strategy is instantiated. Sets input parameters (fast period, stop loss %, etc.).
+- **`initialize()`** — Called once before the backtest loop starts. Compute all indicators and define entry/exit conditions here. The `$data` array contains `ohlcv` (OhlcvSeries) and `multi_timeframe` (if applicable).
+- **`onBar()`** — Called on each bar. With vectorized pre-computation, this typically just indexes into pre-computed boolean arrays for O(1) per-bar signal checks.
 
-Use the `AsStrategy` attribute to define metadata:
+### Strategy Abstraction Layer
+
+The strategy abstraction layer provides **declarative, vectorized** condition evaluation. Instead of manually computing indicators per bar with `bcadd`/`bccomp` loops, strategies define conditions once in `initialize()`, and the system pre-evaluates all bars in bulk.
+
+#### Architecture
+
+```
+IndicatorContext (wraps OhlcvSeries + TaLibHybrid)
+  -> indicator('sma', ['period' => 10]) → TimeSeriesInterface
+  -> indicator('macd', [...])            → IndicatorResultInterface
+      -> get('macd')                     → TimeSeriesInterface
+      -> get('signal')                   → TimeSeriesInterface
+
+TimeSeriesInterface (float[] with behavioral methods)
+  -> crossesAbove(other) → ConditionInterface
+  -> isBelow(threshold)  → ConditionInterface
+  -> isRising(period)    → ConditionInterface
+
+ConditionInterface (bool[] compositional)
+  -> and(other)           → ConditionInterface
+  -> or(other)            → ConditionInterface
+  -> not()                → ConditionInterface
+  -> evaluateAll(length)  → bool[]  (vectorized, O(n))
+  -> evaluate(index)      → bool    (single-bar fallback)
+```
+
+#### TimeSeries
+
+`ArrayTimeSeries` holds `array<int, float|null>` — null-padded for TaLibHybrid lookback periods. It uses **absolute bar indexing** (index 0 = first bar, index N = Nth bar), unlike the cursor-relative `Series` class used by the plot system.
 
 ```php
-use App\alphaforge\Strategy\Attribute\AsStrategy;
-use App\alphaforge\Strategy\Attribute\Input;
-use App\alphaforge\Strategy\StrategyInterface;
-use App\alphaforge\Common\Enum\TimeframeEnum;
+$ts = new ArrayTimeSeries([null, null, 45.2, 46.1, 47.0]);
+$ts->get(0);  // null (lookback period)
+$ts->get(3);  // 46.1
+$ts->count(); // 5
+```
+
+#### Condition Types
+
+| Condition | Method | Description |
+|-----------|--------|-------------|
+| `CrossCondition` | `crossesAbove()`, `crossesBelow()` | Detects when series A crosses over/under series B |
+| `ComparisonCondition` | `isAbove()`, `isBelow()` | Compares series to a float threshold or another series |
+| `TrendCondition` | `isRising()`, `isFalling()` | Detects if series value increased/decreased over N bars |
+| `LogicalCondition` | `and()`, `or()` | Combines two conditions |
+| `NotCondition` | `not()` | Negates a condition |
+
+All conditions support **vectorized** `evaluateAll()` for O(n) bulk evaluation and **single-bar** `evaluate()` for O(1) lookups. Null values in lookback periods return `false`, naturally preventing false signals.
+
+#### IndicatorRegistry
+
+A data-driven registry mapping indicator names to TaLibHybrid function configurations. Covers all 100+ TaLibHybrid functions (overlap studies, momentum indicators, volatility, volume, cycle, candlestick patterns, price transforms, statistics, math transforms/operators).
+
+```php
+// Look up an indicator definition
+$def = IndicatorRegistry::getDefinition('macd');
+// ['function' => 'macd', 'inputs' => ['close'], 'params' => [...], 'outputs' => ['macd', 'signal', 'histogram']]
+
+// Check availability
+IndicatorRegistry::has('rsi'); // true
+
+// Register custom indicators at runtime
+IndicatorRegistry::register('my_indicator', [...]);
+```
+
+#### IndicatorContext
+
+The central computation and caching layer. Wraps `OhlcvSeries` and delegates to `TaLibHybrid` for actual computation. Results are cached by indicator name + params hash.
+
+```php
+$ctx = new IndicatorContext($ohlcv);
+
+// Generic call (all params required)
+$ts = $ctx->indicator('sma', ['period' => 10]);
+
+// Convenience methods (with sensible defaults)
+$fast = $ctx->sma(10);
+$slow = $ctx->sma(50);
+$rsi  = $ctx->rsi(14);
+$atr  = $ctx->atr(14);
+
+// Multi-output indicators return IndicatorResultInterface
+$macd = $ctx->macd(12, 26, 9);
+$macd->get('macd');     // TimeSeriesInterface
+$macd->get('signal');   // TimeSeriesInterface
+$macd->get('histogram'); // TimeSeriesInterface
+
+$bb = $ctx->bbands(20, 2.0, 2.0);
+$bb->get('upper');      // TimeSeriesInterface
+$bb->get('lower');      // TimeSeriesInterface
+```
+
+### Complete Strategy Example
+
+```php
+use App\AlphaForge\Common\Enum\DirectionEnum;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Condition\ConditionInterface;
+use App\AlphaForge\Indicator\Model\IndicatorContext;
+use App\AlphaForge\Order\Dto\OrderSignal;
+use App\AlphaForge\Order\Enum\OrderTypeEnum;
+use App\AlphaForge\Strategy\Attribute\AsStrategy;
+use App\AlphaForge\Strategy\Attribute\Input;
+use App\AlphaForge\Strategy\StrategyInterface;
 
 #[AsStrategy(
     alias: 'sma_crossover',
     name: 'SMA Crossover',
     description: 'Simple Moving Average crossover strategy',
     timeframe: TimeframeEnum::H1,
-    requiredMarketData: [TimeframeEnum::H1, TimeframeEnum::H4]
+    requiredMarketData: [TimeframeEnum::H1]
 )]
-class SmaCrossover implements StrategyInterface
+class SmaCrossoverStrategy implements StrategyInterface
 {
-    #[Input(
-        description: 'Fast SMA period',
-        min: 5,
-        max: 50,
-        step: 5
-    )]
+    #[Input(description: 'Fast SMA period', min: 5, max: 50, step: 5)]
     private int $fastPeriod = 10;
-    
-    #[Input(
-        description: 'Slow SMA period',
-        min: 20,
-        max: 200,
-        step: 10
-    )]
+
+    #[Input(description: 'Slow SMA period', min: 20, max: 200, step: 10)]
     private int $slowPeriod = 50;
-    
-    public function configure(array $inputs): void
+
+    #[Input(description: 'Stop loss %', min: 0.5, max: 20.0, step: 0.5)]
+    private float $stopLossPercent = 5.0;
+
+    #[Input(description: 'Take profit %', min: 1.0, max: 50.0, step: 2.0)]
+    private float $takeProfitPercent = 10.0;
+
+    #[Input(description: 'Stake amount', min: 10, max: 100000, step: 1000)]
+    private string $stakeAmount = '1000';
+
+    private ?IndicatorContext $ctx = null;
+    private array $entrySignals = [];
+    private array $exitSignals = [];
+
+    public function configure(array $inputs): void { /* assign inputs to properties */ }
+
+    public function initialize(array $data): void
     {
-        if (isset($inputs['fastPeriod'])) {
-            $this->fastPeriod = (int) $inputs['fastPeriod'];
-        }
-        if (isset($inputs['slowPeriod'])) {
-            $this->slowPeriod = (int) $inputs['slowPeriod'];
-        }
+        $ohlcv = $data['ohlcv'];
+        $this->ctx = new IndicatorContext($ohlcv);
+
+        // Compute indicators once (cached by IndicatorContext)
+        $fast = $this->ctx->sma($this->fastPeriod);
+        $slow = $this->ctx->sma($this->slowPeriod);
+
+        // Define conditions declaratively
+        $entryCondition = $fast->crossesAbove($slow);
+        $exitCondition = $fast->crossesBelow($slow);
+
+        // Pre-evaluate all bars in bulk (O(n))
+        $totalBars = $ohlcv->getTimestamps()->count();
+        $this->entrySignals = $entryCondition->evaluateAll($totalBars);
+        $this->exitSignals = $exitCondition->evaluateAll($totalBars);
     }
-    
+
     public function onBar(array $data): array
     {
         $signals = [];
-        $ohlcv = $data['ohlcv'];
-        $cursor = $data['cursor'];
-        $portfolio = $data['portfolio'];
-        
-        // Calculate SMAs and generate signals
-        // ...
-        
+        $i = $data['cursor']->currentIndex;
+        $openPosition = $data['portfolio']->getOpenPosition($data['symbol']);
+
+        // O(1) array lookup — no per-bar indicator computation
+        if ($this->entrySignals[$i] ?? false && $openPosition === null) {
+            $price = (string) $data['ohlcv']->getCloses()->getVector()->get($i);
+            $signals[] = new OrderSignal(
+                symbol: $data['symbol'],
+                direction: DirectionEnum::LONG,
+                orderType: OrderTypeEnum::Market,
+                stakeAmount: $this->stakeAmount,
+                stopLoss: bcmul($price, bcdiv((string)(100 - $this->stopLossPercent), '100', 6), 6),
+                takeProfit: bcmul($price, bcdiv((string)(100 + $this->takeProfitPercent), '100', 6), 6),
+            );
+        }
+
+        if ($this->exitSignals[$i] ?? false && $openPosition !== null) {
+            $signals[] = new OrderSignal(
+                symbol: $data['symbol'],
+                direction: DirectionEnum::SHORT,
+                orderType: OrderTypeEnum::Market,
+                quantity: (string) $openPosition->quantity,
+            );
+        }
+
         return $signals;
     }
 }
+```
+
+### Composing Complex Conditions
+
+Conditions can be chained to express complex trading logic:
+
+```php
+$fast = $ctx->sma(10);
+$slow = $ctx->sma(50);
+$rsi  = $ctx->rsi(14);
+
+// Entry: fast SMA crosses above slow SMA AND RSI is below 30 (oversold)
+$entry = $fast->crossesAbove($slow)->and($rsi->isBelow(30));
+
+// Exit: fast SMA crosses below slow SMA OR RSI is above 70 (overbought)
+$exit = $fast->crossesBelow($slow)->or($rsi->isAbove(70));
+
+// Pre-evaluate
+$entrySignals = $entry->evaluateAll($totalBars);
+$exitSignals = $exit->evaluateAll($totalBars);
 ```
 
 ### Input Attribute Properties

@@ -4,19 +4,14 @@ namespace App\AlphaForge\Strategy\Concretes;
 
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use App\AlphaForge\Common\Model\Series;
+use App\AlphaForge\Condition\ConditionInterface;
+use App\AlphaForge\Indicator\Model\IndicatorContext;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;
 use App\AlphaForge\Strategy\Attribute\Input;
 use App\AlphaForge\Strategy\StrategyInterface;
 
-/**
- * Simple Moving Average Crossover Strategy.
- *
- * This strategy generates buy signals when the fast SMA crosses above the slow SMA,
- * and sell signals when the fast SMA crosses below the slow SMA.
- */
 #[AsStrategy(
     alias: 'sma_crossover',
     name: 'SMA Crossover',
@@ -66,20 +61,18 @@ class SmaCrossoverStrategy implements StrategyInterface
     )]
     private string $stakeAmount = '1000';
 
-    /** @var array<int, string> Fast SMA values indexed by bar index */
-    private array $fastSma = [];
+    private ?IndicatorContext $ctx = null;
 
-    /** @var array<int, string> Slow SMA values indexed by bar index */
-    private array $slowSma = [];
+    private ?ConditionInterface $entryCondition = null;
 
-    /** @var string|null Previous crossover direction */
-    private ?string $previousCrossover = null;
+    private ?ConditionInterface $exitCondition = null;
 
-    /**
-     * Configure the strategy with inputs.
-     *
-     * @param  array<string, mixed>  $inputs
-     */
+    private array $entrySignals = [];
+
+    private array $exitSignals = [];
+
+    private int $totalBars = 0;
+
     public function configure(array $inputs): void
     {
         if (isset($inputs['fastPeriod'])) {
@@ -99,58 +92,36 @@ class SmaCrossoverStrategy implements StrategyInterface
         }
     }
 
-    /**
-     * Called on each bar to generate trading signals.
-     *
-     * @param  array{symbol: string, ohlcv: \App\AlphaForge\Common\Model\OhlcvSeries, cursor: \App\AlphaForge\Backtesting\Model\BacktestCursor, portfolio: \App\AlphaForge\Order\Model\PortfolioManager}  $data
-     * @return array<int, \App\AlphaForge\Order\Dto\OrderSignal>
-     */
+    public function initialize(array $data): void
+    {
+        $ohlcv = $data['ohlcv'];
+        $this->ctx = new IndicatorContext($ohlcv);
+
+        $fast = $this->ctx->sma($this->fastPeriod);
+        $slow = $this->ctx->sma($this->slowPeriod);
+
+        $this->entryCondition = $fast->crossesAbove($slow);
+        $this->exitCondition = $fast->crossesBelow($slow);
+
+        $this->totalBars = $ohlcv->getTimestamps()->count();
+        $this->entrySignals = $this->entryCondition->evaluateAll($this->totalBars);
+        $this->exitSignals = $this->exitCondition->evaluateAll($this->totalBars);
+    }
+
     public function onBar(array $data): array
     {
         $signals = [];
-        $ohlcv = $data['ohlcv'];
-        $cursor = $data['cursor'];
+        $currentIndex = $data['cursor']->currentIndex;
+        $closes = $data['ohlcv']->getCloses();
         $portfolio = $data['portfolio'];
         $symbol = $data['symbol'];
 
-        $currentIndex = $cursor->currentIndex;
-        $closes = $ohlcv->getCloses();
-
-        // Need enough bars for slow SMA
-        if ($currentIndex < $this->slowPeriod) {
-            return [];
-        }
-
-        // Calculate SMAs
-        $this->calculateSmas($closes, $currentIndex);
-
-        // Check for crossover
-        $crossover = $this->detectCrossover($currentIndex);
-
-        if ($crossover === null) {
-            return [];
-        }
-
-        // Get current price
-        $closesVector = $closes->getVector();
-        $currentPrice = (string) $closesVector->get($currentIndex);
-
-        // Check if we have an open position
+        $currentPrice = (string) $closes->getVector()->get($currentIndex);
         $openPosition = $portfolio->getOpenPosition($symbol);
 
-        // Generate signals based on crossover
-        if ($crossover === 'bullish' && $openPosition === null) {
-            // Fast SMA crossed above slow SMA - Buy signal
-            $stopLoss = bcmul(
-                $currentPrice,
-                bcdiv((string) (100 - $this->stopLossPercent), '100', 6),
-                6
-            );
-            $takeProfit = bcmul(
-                $currentPrice,
-                bcdiv((string) (100 + $this->takeProfitPercent), '100', 6),
-                6
-            );
+        if ($this->entrySignals[$currentIndex] ?? false && $openPosition === null) {
+            $stopLoss = bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent), '100', 6), 6);
+            $takeProfit = bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent), '100', 6), 6);
 
             $signals[] = new OrderSignal(
                 symbol: $symbol,
@@ -158,81 +129,19 @@ class SmaCrossoverStrategy implements StrategyInterface
                 orderType: OrderTypeEnum::Market,
                 stakeAmount: $this->stakeAmount,
                 stopLoss: $stopLoss,
-                takeProfit: $takeProfit
+                takeProfit: $takeProfit,
             );
-        } elseif ($crossover === 'bearish' && $openPosition !== null) {
-            // Fast SMA crossed below slow SMA - Sell signal
+        }
+
+        if ($this->exitSignals[$currentIndex] ?? false && $openPosition !== null) {
             $signals[] = new OrderSignal(
                 symbol: $symbol,
                 direction: DirectionEnum::SHORT,
                 orderType: OrderTypeEnum::Market,
-                quantity: (string) $openPosition->quantity
+                quantity: (string) $openPosition->quantity,
             );
         }
 
-        $this->previousCrossover = $crossover;
-
         return $signals;
-    }
-
-    /**
-     * Calculate SMAs for the current bar.
-     *
-     * @param  \App\AlphaForge\Common\Model\Series  $closes
-     */
-    private function calculateSmas(Series $closes, int $currentIndex): void
-    {
-        $closesVec = $closes->getVector();
-
-        // Calculate fast SMA
-        $fastSum = '0';
-        for ($i = $currentIndex - $this->fastPeriod + 1; $i <= $currentIndex; $i++) {
-            /** @var string|int|float $val */
-            $val = $closesVec->get($i);
-            $fastSum = bcadd($fastSum, (string) $val, 12);
-        }
-        $this->fastSma[$currentIndex] = bcdiv($fastSum, (string) $this->fastPeriod, 12);
-
-        // Calculate slow SMA
-        $slowSum = '0';
-        for ($i = $currentIndex - $this->slowPeriod + 1; $i <= $currentIndex; $i++) {
-            /** @var string|int|float $val */
-            $val = $closesVec->get($i);
-            $slowSum = bcadd($slowSum, (string) $val, 12);
-        }
-        $this->slowSma[$currentIndex] = bcdiv($slowSum, (string) $this->slowPeriod, 12);
-    }
-
-    /**
-     * Detect SMA crossover.
-     */
-    private function detectCrossover(int $currentIndex): ?string
-    {
-        $prevIndex = $currentIndex - 1;
-
-        if (! isset($this->fastSma[$prevIndex]) || ! isset($this->slowSma[$prevIndex])) {
-            return null;
-        }
-
-        /** @var string $prevFast */
-        $prevFast = $this->fastSma[$prevIndex];
-        /** @var string $prevSlow */
-        $prevSlow = $this->slowSma[$prevIndex];
-        /** @var string $currFast */
-        $currFast = $this->fastSma[$currentIndex];
-        /** @var string $currSlow */
-        $currSlow = $this->slowSma[$currentIndex];
-
-        // Bullish crossover: fast crosses above slow
-        if (bccomp($prevFast, $prevSlow, 12) <= 0 && bccomp($currFast, $currSlow, 12) > 0) {
-            return 'bullish';
-        }
-
-        // Bearish crossover: fast crosses below slow
-        if (bccomp($prevFast, $prevSlow, 12) >= 0 && bccomp($currFast, $currSlow, 12) < 0) {
-            return 'bearish';
-        }
-
-        return null;
     }
 }

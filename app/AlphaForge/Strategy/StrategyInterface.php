@@ -12,6 +12,15 @@ interface StrategyInterface
     public function configure(array $runtimeParameters): void;
 
     /**
+     * Called once before the backtest loop starts.
+     *
+     * Use this to compute indicators and define entry/exit conditions.
+     *
+     * @param  array  $data  Contains 'ohlcv', 'multi_timeframe', etc.
+     */
+    public function initialize(array $data): void;
+
+    /**
      * Called on each bar to generate trading signals.
      *
      * @param  array  $data  Contains 'symbol', 'ohlcv', 'cursor', 'portfolio', 'multi_timeframe'

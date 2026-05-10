@@ -202,7 +202,7 @@ class Backtester
                 if (! file_exists($filePath)) {
                     throw new RuntimeException(
                         "Execution timeframe data ({$executionTimeframe->value}) not found for {$symbol} on {$exchange}. "
-                        . 'Download the data first or remove the execution_timeframe setting.'
+                        .'Download the data first or remove the execution_timeframe setting.'
                     );
                 }
 
@@ -260,8 +260,8 @@ class Backtester
         if ($execStart > $signalStart || $execEnd < $signalEnd) {
             throw new RuntimeException(
                 "Execution timeframe data for {$symbol} does not cover the full signal timeframe date range. "
-                . "Signal: {$signalStart}-{$signalEnd}, Execution: {$execStart}-{$execEnd}. "
-                . 'Download execution data that covers the full period.'
+                ."Signal: {$signalStart}-{$signalEnd}, Execution: {$execStart}-{$execEnd}. "
+                .'Download execution data that covers the full period.'
             );
         }
     }
@@ -377,6 +377,8 @@ class Backtester
     {
         $totalBars = $primaryOhlcv->getTimestamps()->count();
 
+        $this->initializeStrategy($primarySymbol, $primaryOhlcv);
+
         for ($this->cursor->currentIndex = 0; $this->cursor->currentIndex < $totalBars; $this->cursor->currentIndex++) {
             // Get current bar data
             $currentBar = $this->getCurrentBar($primaryOhlcv);
@@ -421,6 +423,8 @@ class Backtester
         $totalSignalBars = $signalTimestamps->count();
         $totalExecBars = $execTimestamps->count();
         $signalBarDuration = $this->signalTimeframe->toSeconds();
+
+        $this->initializeStrategy($symbol, $signalOhlcv);
 
         // Find the first execution bar index that corresponds to the start of the signal data
         $signalStart = $signalTimestamps->getVector()->get(0);
@@ -707,6 +711,24 @@ class Backtester
                 }
             }
         }
+    }
+
+    /**
+     * Call the strategy's initialize() hook before the backtest loop.
+     */
+    private function initializeStrategy(string $symbol, OhlcvSeries $ohlcv): void
+    {
+        if (! method_exists($this->strategy, 'initialize')) {
+            return;
+        }
+
+        $data = [
+            'symbol' => $symbol,
+            'ohlcv' => $ohlcv,
+            'multi_timeframe' => $this->multiTimeframeData,
+        ];
+
+        $this->strategy->initialize($data);
     }
 
     /**

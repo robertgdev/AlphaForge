@@ -89,7 +89,7 @@ describe('SmaCrossoverStrategy', function () {
     });
 
     describe('onBar', function () {
-        it('returns empty signals when not enough bars for slow SMA', function () {
+        it('returns empty signals when initialize has not been called', function () {
             $closes = Mockery::mock(\App\AlphaForge\Common\Model\Series::class);
             $closes->shouldReceive('getVector')->andReturn(new \Ds\Vector(array_map('strval', range(100, 150))));
 
