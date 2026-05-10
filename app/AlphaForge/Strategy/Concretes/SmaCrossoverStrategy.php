@@ -5,6 +5,7 @@ namespace App\AlphaForge\Strategy\Concretes;
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Condition\ConditionInterface;
+use App\AlphaForge\ExitRule\DefaultExitRules;
 use App\AlphaForge\Indicator\Model\IndicatorContext;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
@@ -21,6 +22,8 @@ use App\AlphaForge\Strategy\StrategyInterface;
 )]
 class SmaCrossoverStrategy implements StrategyInterface
 {
+    use DefaultExitRules;
+
     #[Input(
         description: 'Fast SMA period (shorter timeframe)',
         min: 5,

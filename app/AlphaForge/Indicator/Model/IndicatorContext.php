@@ -11,13 +11,51 @@ class IndicatorContext
 {
     private array $cache = [];
 
+    private array $priceSeriesCache = [];
+
+    private const VALID_PRICE_FIELDS = ['open', 'high', 'low', 'close', 'volume', 'hlc3'];
+
     public function __construct(
         private OhlcvSeries $ohlcv,
     ) {}
 
-    public function indicator(string $name, array $params): TimeSeriesInterface|IndicatorResultInterface
+    public function priceSeries(string $field): ArrayTimeSeries
     {
-        $key = $name.':'.md5(json_encode($params));
+        if (! in_array($field, self::VALID_PRICE_FIELDS, true)) {
+            throw new \InvalidArgumentException(
+                "Unknown price field '{$field}'. Valid fields: ".implode(', ', self::VALID_PRICE_FIELDS)
+            );
+        }
+
+        if (isset($this->priceSeriesCache[$field])) {
+            return $this->priceSeriesCache[$field];
+        }
+
+        if ($field === 'hlc3') {
+            $data = $this->ohlcv->getHlc3()->getVector()->toArray();
+        } else {
+            $getter = 'get'.ucfirst($field).'s';
+            $data = $this->ohlcv->{$getter}()->getVector()->toArray();
+        }
+
+        $series = new ArrayTimeSeries($data);
+        $this->priceSeriesCache[$field] = $series;
+
+        return $series;
+    }
+
+    public function indicator(string $name, array $params, array $inputOverrides = []): TimeSeriesInterface|IndicatorResultInterface
+    {
+        $overrideKey = '';
+        if ($inputOverrides !== []) {
+            $overrideIds = [];
+            foreach ($inputOverrides as $inputName => $series) {
+                $overrideIds[] = $inputName.':'.spl_object_id($series);
+            }
+            $overrideKey = ':'.implode(',', $overrideIds);
+        }
+
+        $key = $name.':'.md5(json_encode($params)).$overrideKey;
 
         if (isset($this->cache[$key])) {
             return $this->cache[$key];
@@ -25,7 +63,7 @@ class IndicatorContext
 
         $definition = IndicatorRegistry::getDefinition($name);
 
-        $inputArrays = $this->buildInputArrays($definition);
+        $inputArrays = $this->buildInputArrays($definition, $inputOverrides);
 
         $args = $inputArrays;
         foreach ($definition['params'] as $paramName) {
@@ -56,19 +94,19 @@ class IndicatorContext
         return $indicatorResult;
     }
 
-    public function sma(int $period): TimeSeriesInterface
+    public function sma(int $period, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('sma', ['period' => $period]);
+        return $this->indicator('sma', ['period' => $period], $this->inputOverridesFor($input));
     }
 
-    public function ema(int $period): TimeSeriesInterface
+    public function ema(int $period, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('ema', ['period' => $period]);
+        return $this->indicator('ema', ['period' => $period], $this->inputOverridesFor($input));
     }
 
-    public function rsi(int $period = 14): TimeSeriesInterface
+    public function rsi(int $period = 14, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('rsi', ['period' => $period]);
+        return $this->indicator('rsi', ['period' => $period], $this->inputOverridesFor($input));
     }
 
     public function macd(int $fastPeriod = 12, int $slowPeriod = 26, int $signalPeriod = 9): IndicatorResultInterface
@@ -111,12 +149,18 @@ class IndicatorContext
         return $this->indicator('adx', ['period' => $period]);
     }
 
-    private function buildInputArrays(array $definition): array
+    private function buildInputArrays(array $definition, array $inputOverrides = []): array
     {
         $inputArrays = [];
         $dualInput = $definition['dualInput'] ?? false;
 
         foreach ($definition['inputs'] as $input) {
+            if (isset($inputOverrides[$input])) {
+                $inputArrays[] = $inputOverrides[$input]->toArray();
+
+                continue;
+            }
+
             $getter = 'get'.ucfirst($input).'s';
             if (method_exists($this->ohlcv, $getter)) {
                 $inputArrays[] = $this->ohlcv->{$getter}()->getVector()->toArray();
@@ -136,5 +180,14 @@ class IndicatorContext
         }
 
         return $inputArrays;
+    }
+
+    private function inputOverridesFor(?string $input): array
+    {
+        if ($input === null) {
+            return [];
+        }
+
+        return ['close' => $this->priceSeries($input)];
     }
 }

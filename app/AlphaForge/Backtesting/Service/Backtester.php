@@ -8,8 +8,12 @@ use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Model\MultiTimeframeOhlcvSeries;
 use App\AlphaForge\Common\Model\OhlcvSeries;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
+use App\AlphaForge\ExitRule\ExitContext;
+use App\AlphaForge\ExitRule\ExitRuleSet;
+use App\AlphaForge\ExitRule\ExitTrigger;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Dto\PendingOrder;
+use App\AlphaForge\Order\Dto\PositionDto;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\OrderManager;
 use App\AlphaForge\Order\Model\PortfolioManager;
@@ -53,6 +57,12 @@ class Backtester
 
     /** @var array<string, string> */
     private array $commissionConfig;
+
+    private array $highWaterMarks = [];
+
+    private array $lowWaterMarks = [];
+
+    private array $barsInPositionTracker = [];
 
     public function __construct(
         private readonly StrategyRegistryInterface $strategyRegistry,
@@ -155,6 +165,9 @@ class Backtester
         $this->executionOhlcvData = null;
         $this->executionTimeframe = null;
         $this->signalTimeframe = null;
+        $this->highWaterMarks = [];
+        $this->lowWaterMarks = [];
+        $this->barsInPositionTracker = [];
     }
 
     /**
@@ -389,6 +402,9 @@ class Backtester
             // Check for stop loss / take profit on open positions
             $this->checkPositionExits($currentBar);
 
+            // Update high/low water marks for trailing stop support
+            $this->updatePositionWaterMarks($currentBar);
+
             // Call strategy for signals
             $signals = $this->callStrategy($primarySymbol, $primaryOhlcv);
 
@@ -463,6 +479,9 @@ class Backtester
                 // Check SL/TP at execution granularity
                 $this->checkPositionExits($execBar);
 
+                // Update high/low water marks for trailing stop support
+                $this->updatePositionWaterMarks($execBar);
+
                 $execIndex++;
             }
 
@@ -487,6 +506,7 @@ class Backtester
 
             $this->processPendingOrders($execBar);
             $this->checkPositionExits($execBar);
+            $this->updatePositionWaterMarks($execBar);
 
             $execIndex++;
         }
@@ -666,50 +686,148 @@ class Backtester
         $openPositions = $this->portfolioManager->getOpenPositions();
 
         foreach ($openPositions as $position) {
-            $shouldClose = false;
-            $closePrice = $bar['close'];
+            $exitRules = $this->getStrategyExitRules();
+            $triggered = null;
 
-            // Check stop loss
-            if ($position->stopLoss) {
-                if ($position->direction === 'long' && bccomp($bar['low'], $position->stopLoss, 12) <= 0) {
-                    $shouldClose = true;
-                    $closePrice = $position->stopLoss;
-                } elseif ($position->direction === 'short' && bccomp($bar['high'], $position->stopLoss, 12) >= 0) {
-                    $shouldClose = true;
-                    $closePrice = $position->stopLoss;
-                }
+            if ($exitRules !== null) {
+                $context = $this->buildExitContext($position, $bar);
+                $triggered = $exitRules->evaluate($context);
+            } else {
+                $triggered = $this->checkStaticSlTp($position, $bar);
             }
 
-            // Check take profit
-            if (! $shouldClose && $position->takeProfit) {
-                if ($position->direction === 'long' && bccomp($bar['high'], $position->takeProfit, 12) >= 0) {
-                    $shouldClose = true;
-                    $closePrice = $position->takeProfit;
-                } elseif ($position->direction === 'short' && bccomp($bar['low'], $position->takeProfit, 12) <= 0) {
-                    $shouldClose = true;
-                    $closePrice = $position->takeProfit;
-                }
+            if ($triggered !== null) {
+                $this->closePositionFromTrigger($position, $triggered, $bar);
+            }
+        }
+    }
+
+    /**
+     * Legacy static SL/TP check — extracted from original checkPositionExits().
+     */
+    private function checkStaticSlTp(PositionDto $position, array $bar): ?ExitTrigger
+    {
+        if ($position->stopLoss) {
+            if ($position->direction === 'long' && bccomp($bar['low'], $position->stopLoss, 12) <= 0) {
+                return new ExitTrigger('stop_loss', (float) $position->stopLoss);
+            }
+            if ($position->direction === 'short' && bccomp($bar['high'], $position->stopLoss, 12) >= 0) {
+                return new ExitTrigger('stop_loss', (float) $position->stopLoss);
+            }
+        }
+
+        if ($position->takeProfit) {
+            if ($position->direction === 'long' && bccomp($bar['high'], $position->takeProfit, 12) >= 0) {
+                return new ExitTrigger('take_profit', (float) $position->takeProfit);
+            }
+            if ($position->direction === 'short' && bccomp($bar['low'], $position->takeProfit, 12) <= 0) {
+                return new ExitTrigger('take_profit', (float) $position->takeProfit);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Build an ExitContext for evaluating exit rules.
+     */
+    private function buildExitContext(PositionDto $position, array $bar): ExitContext
+    {
+        $positionId = $position->id;
+
+        return new ExitContext(
+            position: $position,
+            barIndex: $this->cursor->currentIndex,
+            open: $bar['open'],
+            high: $bar['high'],
+            low: $bar['low'],
+            close: $bar['close'],
+            volume: $bar['volume'],
+            timestamp: $bar['timestamp'],
+            barsInPosition: $this->barsInPositionTracker[$positionId] ?? 0,
+            highestSinceEntry: $this->highWaterMarks[$positionId] ?? (float) $position->entryPrice,
+            lowestSinceEntry: $this->lowWaterMarks[$positionId] ?? (float) $position->entryPrice,
+        );
+    }
+
+    /**
+     * Close a position triggered by an exit rule.
+     */
+    private function closePositionFromTrigger(PositionDto $position, ExitTrigger $trigger, array $bar): void
+    {
+        $exitPrice = (string) $trigger->exitPrice;
+        $closedPosition = $this->portfolioManager->closePosition(
+            $position->id,
+            $exitPrice,
+            Carbon::createFromTimestamp($bar['timestamp']),
+            $this->commissionConfig
+        );
+
+        if ($closedPosition) {
+            if ($this->openPositionIndex->hasKey($closedPosition->id)) {
+                $oldIndex = $this->openPositionIndex->get($closedPosition->id);
+                $this->positions->remove($oldIndex);
+                $this->openPositionIndex->remove($closedPosition->id);
+                $this->rebuildOpenPositionIndex();
             }
 
-            if ($shouldClose) {
-                $closedPosition = $this->portfolioManager->closePosition(
-                    $position->id,
-                    $closePrice,
-                    Carbon::createFromTimestamp($bar['timestamp']),
-                    $this->commissionConfig
-                );
+            $taggedPosition = new PositionDto(
+                id: $closedPosition->id,
+                symbol: $closedPosition->symbol,
+                direction: $closedPosition->direction,
+                quantity: $closedPosition->quantity,
+                entryPrice: $closedPosition->entryPrice,
+                entryTime: $closedPosition->entryTime,
+                realizedPnl: $closedPosition->realizedPnl,
+                exitPrice: $closedPosition->exitPrice,
+                exitTime: $closedPosition->exitTime,
+                stopLoss: $closedPosition->stopLoss,
+                takeProfit: $closedPosition->takeProfit,
+                costBasis: $closedPosition->costBasis,
+                commission: $closedPosition->commission,
+                exitTag: $trigger->exitTag ?? $trigger->ruleId,
+            );
 
-                if ($closedPosition) {
-                    if ($this->openPositionIndex->hasKey($closedPosition->id)) {
-                        $oldIndex = $this->openPositionIndex->get($closedPosition->id);
-                        $this->positions->remove($oldIndex);
-                        $this->openPositionIndex->remove($closedPosition->id);
-                        $this->rebuildOpenPositionIndex();
-                    }
-                    $this->positions->push($closedPosition);
-                    $this->currentCapital = $this->portfolioManager->getCashBalance();
-                }
+            $this->positions->push($taggedPosition);
+            $this->currentCapital = $this->portfolioManager->getCashBalance();
+
+            unset(
+                $this->highWaterMarks[$position->id],
+                $this->lowWaterMarks[$position->id],
+                $this->barsInPositionTracker[$position->id],
+            );
+        }
+    }
+
+    /**
+     * Get the strategy's exit rule set, if any.
+     */
+    private function getStrategyExitRules(): ?ExitRuleSet
+    {
+        if (method_exists($this->strategy, 'getExitRules')) {
+            return $this->strategy->getExitRules();
+        }
+
+        return null;
+    }
+
+    /**
+     * Update high/low water marks and bar counters for open positions.
+     */
+    private function updatePositionWaterMarks(array $bar): void
+    {
+        foreach ($this->portfolioManager->getOpenPositions() as $position) {
+            $id = $position->id;
+
+            if (! isset($this->highWaterMarks[$id])) {
+                $this->highWaterMarks[$id] = (float) $position->entryPrice;
+                $this->lowWaterMarks[$id] = (float) $position->entryPrice;
+                $this->barsInPositionTracker[$id] = 0;
             }
+
+            $this->highWaterMarks[$id] = max($this->highWaterMarks[$id], $bar['high']);
+            $this->lowWaterMarks[$id] = min($this->lowWaterMarks[$id], $bar['low']);
+            $this->barsInPositionTracker[$id]++;
         }
     }
 
@@ -835,6 +953,12 @@ class Backtester
                     $this->rebuildOpenPositionIndex();
                 }
                 $this->positions->push($closedPosition);
+
+                unset(
+                    $this->highWaterMarks[$position->id],
+                    $this->lowWaterMarks[$position->id],
+                    $this->barsInPositionTracker[$position->id],
+                );
             }
         }
 

@@ -34,6 +34,7 @@ final readonly class PositionDto
         public ?string $stopLoss = null,
         public ?string $takeProfit = null,
         public string $costBasis = '0',
-        public string $commission = '0'
+        public string $commission = '0',
+        public ?string $exitTag = null,
     ) {}
 }

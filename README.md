@@ -106,12 +106,24 @@ app/AlphaForge/
 |   |   |-- ExecutionResult.php      # Order execution result
 |   |   |-- OrderSignal.php         # Trading signal from strategy
 |   |   |-- PendingOrder.php         # Order awaiting execution
-|   |   `-- PositionDto.php          # Position data
+|   |   `-- PositionDto.php          # Position data (includes exitTag) (includes exitTag)
 |   |-- Enum/
 |   |   `-- OrderTypeEnum.php       # Market/Limit/Stop/StopLimit
 |   `-- Model/
 |       |-- OrderManager.php        # Order queue management
 |       `-- PortfolioManager.php      # Position and cash management
+|-- ExitRule/
+|   |-- ExitRuleInterface.php       # Exit rule contract
+|   |-- PriceBasedExitRule.php      # Marker interface for price-based rules
+|   |-- ExitContext.php             # Value object: position + bar data + water marks
+|   |-- ExitTrigger.php             # Value object: rule ID + exit price + tag
+|   |-- ExitRuleSet.php             # Composable rule container with priority evaluation
+|   |-- StaticStopLoss.php          # Fixed price stop-loss (wraps legacy logic)
+|   |-- StaticTakeProfit.php        # Fixed price take-profit (wraps legacy logic)
+|   |-- TrailingStop.php            # Trailing stop (% or ATR-based distance)
+|   |-- ConditionExit.php           # Exits when a ConditionInterface evaluates true
+|   |-- MaxBarsInPosition.php       # Time-based exit after N bars
+|   `-- DefaultExitRules.php        # Trait returning null from getExitRules()
 |-- Plot/
 |   `-- PlotDefinition.php           # Chart plot definitions
 |-- Indicator/
@@ -1005,7 +1017,7 @@ curl -X POST http://localhost:8000/api/alphaforge/backtests \
 
 ### Strategy Interface
 
-All strategies must implement `StrategyInterface`, which includes three lifecycle hooks:
+All strategies must implement `StrategyInterface`, which includes four lifecycle hooks:
 
 ```php
 interface StrategyInterface
@@ -1013,12 +1025,14 @@ interface StrategyInterface
     public function configure(array $runtimeParameters): void;
     public function initialize(array $data): void;
     public function onBar(array $data): array;
+    public function getExitRules(): ?ExitRuleSet;
 }
 ```
 
 - **`configure()`** — Called once when the strategy is instantiated. Sets input parameters (fast period, stop loss %, etc.).
 - **`initialize()`** — Called once before the backtest loop starts. Compute all indicators and define entry/exit conditions here. The `$data` array contains `ohlcv` (OhlcvSeries) and `multi_timeframe` (if applicable).
 - **`onBar()`** — Called on each bar. With vectorized pre-computation, this typically just indexes into pre-computed boolean arrays for O(1) per-bar signal checks.
+- **`getExitRules()`** — Return an `ExitRuleSet` to define dynamic exit rules, or `null` to use the legacy static SL/TP check. Strategies that don't need custom exits can use the `DefaultExitRules` trait, which returns `null`.
 
 ### Strategy Abstraction Layer
 
@@ -1112,12 +1126,65 @@ $bb->get('upper');      // TimeSeriesInterface
 $bb->get('lower');      // TimeSeriesInterface
 ```
 
+##### Accessing Raw Price Data
+
+`priceSeries(string $field): ArrayTimeSeries` extracts raw OHLC+Volume+HLC3 data as `ArrayTimeSeries`, making price data usable directly with the condition system. Valid fields: `open`, `high`, `low`, `close`, `volume`, `hlc3`. Results are cached per field.
+
+```php
+// Use price data directly in conditions
+$highs = $ctx->priceSeries('high');
+$closes = $ctx->priceSeries('close');
+
+// High crosses above upper Bollinger Band
+$bb = $ctx->bbands(20);
+$entry = $highs->crossesAbove($bb->get('upper'));
+
+// Close is above open (bullish bar)
+$opens = $ctx->priceSeries('open');
+$bullish = $closes->isAbove($opens);
+
+// Price is rising
+$highs->isRising(3);
+```
+
+##### Computing Indicators on Non-Close Inputs
+
+By default, indicators like SMA and RSI operate on close prices. The `inputOverrides` parameter on `indicator()` lets you compute indicators on any price series, and single-input convenience methods accept an optional `$input` field name.
+
+```php
+// Method 1: Convenience methods with $input parameter
+$smaHigh = $ctx->sma(20, input: 'high');  // SMA of highs
+$emaLow  = $ctx->ema(20, input: 'low');   // EMA of lows
+$rsiOC   = $ctx->rsi(14, input: 'close'); // same as default
+
+// Method 2: Generic indicator() with inputOverrides (for any indicator)
+$typicalPrice = $ctx->priceSeries('hlc3');
+$bbTypical = $ctx->indicator('bbands', [
+    'period' => 20,
+    'nbDevUp' => 2.0,
+    'nbDevDn' => 2.0,
+    'maType' => 0,
+], inputOverrides: ['close' => $typicalPrice]);
+
+// Method 3: Override multiple inputs (for multi-input indicators)
+$customHigh = $ctx->priceSeries('high');
+$customLow  = $ctx->priceSeries('low');
+$atrCustom = $ctx->indicator('atr', ['period' => 14], inputOverrides: [
+    'high' => $customHigh,
+    'low' => $customLow,
+    'close' => $ctx->priceSeries('close'),  // keep close unchanged
+]);
+```
+
+`inputOverrides` maps registry input names (e.g., `'close'`, `'high'`) to `ArrayTimeSeries` instances. Non-overridden inputs still resolve from `OhlcvSeries` as usual. Cache keys incorporate override identity, so different overrides produce separate cache entries.
+
 ### Complete Strategy Example
 
 ```php
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Condition\ConditionInterface;
+use App\AlphaForge\ExitRule\DefaultExitRules;
 use App\AlphaForge\Indicator\Model\IndicatorContext;
 use App\AlphaForge\Order\Dto\OrderSignal;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
@@ -1134,6 +1201,7 @@ use App\AlphaForge\Strategy\StrategyInterface;
 )]
 class SmaCrossoverStrategy implements StrategyInterface
 {
+    use DefaultExitRules;
     #[Input(description: 'Fast SMA period', min: 5, max: 50, step: 5)]
     private int $fastPeriod = 10;
 
@@ -1226,6 +1294,100 @@ $exit = $fast->crossesBelow($slow)->or($rsi->isAbove(70));
 $entrySignals = $entry->evaluateAll($totalBars);
 $exitSignals = $exit->evaluateAll($totalBars);
 ```
+
+### Exit Rule Engine
+
+By default, the backtester only supports static stop-loss and take-profit price levels set at entry time via `OrderSignal`. The Exit Rule Engine extends this with **declarative, composable exit rules** that strategies define in `initialize()` — enabling trailing stops, indicator-based exits, time-based exits, and more.
+
+#### How It Works
+
+When a strategy returns an `ExitRuleSet` from `getExitRules()`, the backtester **fully replaces** the legacy SL/TP check with the rule engine. Each bar, the engine evaluates all rules against open positions. If `getExitRules()` returns `null` (the default via the `DefaultExitRules` trait), the legacy static SL/TP logic runs unchanged — fully backward compatible.
+
+#### Exit Price Resolution
+
+| Rule Type | Exit Price | Rationale |
+|-----------|-----------|-----------|
+| `StaticStopLoss` | SL price | Price breached, fill at stop |
+| `StaticTakeProfit` | TP price | Price reached, fill at limit |
+| `TrailingStop` | Trailing SL price | Stop breached, fill at trail |
+| `ConditionExit` | Bar's close | Condition true on this bar, exit at close |
+| `MaxBarsInPosition` | Bar's close | Time expired, exit at close |
+
+Price-based rules (SL/TP/Trailing) use the actual stop/limit level. Signal-based rules (ConditionExit, MaxBars) use bar close — the condition is evaluated on bar N's data and the position closes at bar N's close.
+
+#### Evaluation Order
+
+`ExitRuleSet` evaluates **price-based rules first**, then signal-based rules. This reflects realistic intra-candle behavior: price-based exits would fill first within a bar. Among rules of the same category, evaluation follows insertion order.
+
+#### Built-in Exit Rules
+
+| Rule | Type | Description |
+|------|------|-------------|
+| `StaticStopLoss` | Price | Wraps the legacy SL logic — triggers when price breaches the position's stop-loss level |
+| `StaticTakeProfit` | Price | Wraps the legacy TP logic — triggers when price reaches the position's take-profit level |
+| `TrailingStop::percent(5.0)` | Price | Trails price by a fixed percentage. For longs: `trail = highestSinceEntry - close * percent`. For shorts: `trail = lowestSinceEntry + close * percent` |
+| `TrailingStop::atr($ctx, 14, 2.0)` | Price | Trails price by ATR × multiplier. For longs: `trail = highestSinceEntry - ATR * mult`. Falls back to `close * 0.02 * mult` when ATR is null |
+| `ConditionExit::when($condition, tag: 'rsi_exit')` | Signal | Exits at bar close when a `ConditionInterface` evaluates true. Leverages the same vectorized condition system used for entry signals |
+| `MaxBarsInPosition(100)` | Signal | Exits at bar close after the position has been open for N bars |
+
+#### Defining Exit Rules in a Strategy
+
+```php
+use App\AlphaForge\ExitRule\ConditionExit;
+use App\AlphaForge\ExitRule\DefaultExitRules;
+use App\AlphaForge\ExitRule\ExitRuleSet;
+use App\AlphaForge\ExitRule\MaxBarsInPosition;
+use App\AlphaForge\ExitRule\StaticStopLoss;
+use App\AlphaForge\ExitRule\StaticTakeProfit;
+use App\AlphaForge\ExitRule\TrailingStop;
+
+class MyStrategy implements StrategyInterface
+{
+    use DefaultExitRules;
+
+    private ?ExitRuleSet $exitRules = null;
+
+    public function initialize(array $data): void
+    {
+        $ohlcv = $data['ohlcv'];
+        $ctx = new IndicatorContext($ohlcv);
+
+        $fast = $ctx->sma(10);
+        $slow = $ctx->sma(50);
+
+        // Entry conditions (as before)
+        $this->entryCondition = $fast->crossesAbove($slow);
+
+        // Define exit rules declaratively
+        $this->exitRules = new ExitRuleSet([
+            new StaticStopLoss(),
+            new StaticTakeProfit(),
+            TrailingStop::percent(3.0),
+            ConditionExit::when($fast->crossesBelow($slow), tag: 'sma_cross_exit'),
+            new MaxBarsInPosition(100),
+        ]);
+    }
+
+    public function getExitRules(): ?ExitRuleSet
+    {
+        return $this->exitRules;
+    }
+}
+```
+
+The `DefaultExitRules` trait provides a default `getExitRules()` returning `null`, so strategies that don't define exit rules fall back to legacy behavior. Override `getExitRules()` to return an `ExitRuleSet` when you want the engine to manage exits.
+
+#### Water Mark Tracking
+
+The backtester automatically tracks **highest high** and **lowest low** since each position's entry, plus a **bars-in-position** counter. These are passed to every `ExitContext` and are used by `TrailingStop` and `MaxBarsInPosition`. Water marks update on each execution bar (M1 in dual-TF mode), giving trailing stops intra-candle resolution.
+
+#### Exit Tags on Positions
+
+When the exit rule engine closes a position, the resulting `PositionDto` gets an `exitTag` field — either the rule's custom tag (e.g., `'sma_cross_exit'`) or the rule ID (e.g., `'trailing_stop'`, `'stop_loss'`). This makes it easy to analyze which exit rule triggered for each position in backtest results.
+
+#### Coexistence with OrderSignal SL/TP
+
+If a strategy provides an `ExitRuleSet`, it **fully replaces** the legacy SL/TP check. To include static SL/TP from `OrderSignal`, add `StaticStopLoss` and `StaticTakeProfit` to the rule set — they read from the position's `stopLoss`/`takeProfit` fields. If omitted, SL/TP on the position is ignored; the strategy has chosen to manage exits differently.
 
 ### Input Attribute Properties
 

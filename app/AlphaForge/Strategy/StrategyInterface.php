@@ -2,6 +2,8 @@
 
 namespace App\AlphaForge\Strategy;
 
+use App\AlphaForge\ExitRule\ExitRuleSet;
+
 interface StrategyInterface
 {
     /**
@@ -27,4 +29,12 @@ interface StrategyInterface
      * @return array Array of OrderSignal objects
      */
     public function onBar(array $data): array;
+
+    /**
+     * Get the exit rule set for this strategy.
+     *
+     * Return null to use the legacy static SL/TP check.
+     * Return an ExitRuleSet to fully replace legacy SL/TP with custom exit rules.
+     */
+    public function getExitRules(): ?ExitRuleSet;
 }
