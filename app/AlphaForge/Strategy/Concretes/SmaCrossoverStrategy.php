@@ -71,6 +71,8 @@ class SmaCrossoverStrategy implements StrategyInterface
 
     private array $exitSignals = [];
 
+    private array $closePrices = [];
+
     private int $totalBars = 0;
 
     public function configure(array $inputs): void
@@ -106,17 +108,17 @@ class SmaCrossoverStrategy implements StrategyInterface
         $this->totalBars = $ohlcv->getTimestamps()->count();
         $this->entrySignals = $this->entryCondition->evaluateAll($this->totalBars);
         $this->exitSignals = $this->exitCondition->evaluateAll($this->totalBars);
+        $this->closePrices = $ohlcv->getCloses()->getVector()->toArray();
     }
 
     public function onBar(array $data): array
     {
         $signals = [];
         $currentIndex = $data['cursor']->currentIndex;
-        $closes = $data['ohlcv']->getCloses();
         $portfolio = $data['portfolio'];
         $symbol = $data['symbol'];
 
-        $currentPrice = (string) $closes->getVector()->get($currentIndex);
+        $currentPrice = (string) $this->closePrices[$currentIndex];
         $openPosition = $portfolio->getOpenPosition($symbol);
 
         if ($this->entrySignals[$currentIndex] ?? false && $openPosition === null) {
