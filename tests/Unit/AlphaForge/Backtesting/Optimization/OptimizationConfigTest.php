@@ -113,4 +113,65 @@ describe('OptimizationConfig', function () {
         expect($config->startDate)->toBeInstanceOf(DateTimeImmutable::class)
             ->and($config->endDate)->toBeInstanceOf(DateTimeImmutable::class);
     });
+
+    it('defaults executionTimeframe to null', function () {
+        $config = new OptimizationConfig;
+
+        expect($config->executionTimeframe)->toBeNull();
+    });
+
+    it('parses execution_timeframe from string', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'execution_timeframe' => '1m',
+        ]);
+
+        expect($config->executionTimeframe)->toBe(TimeframeEnum::M1);
+    });
+
+    it('parses executionTimeframe as enum', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'executionTimeframe' => TimeframeEnum::M5,
+        ]);
+
+        expect($config->executionTimeframe)->toBe(TimeframeEnum::M5);
+    });
+
+    it('handles null execution_timeframe explicitly', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'execution_timeframe' => null,
+        ]);
+
+        expect($config->executionTimeframe)->toBeNull();
+    });
+
+    it('preserves executionTimeframe with full config', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'initial_capital' => '10000',
+            'stake_currency' => 'USDT',
+            'method' => 'random',
+            'iterations' => 500,
+            'objective' => 'balanced',
+            'execution_timeframe' => '5m',
+        ]);
+
+        expect($config->executionTimeframe)->toBe(TimeframeEnum::M5)
+            ->and($config->method)->toBe(OptimizationMethod::RANDOM)
+            ->and($config->iterations)->toBe(500);
+    });
 });

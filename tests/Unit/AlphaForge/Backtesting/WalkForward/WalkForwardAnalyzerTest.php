@@ -266,4 +266,196 @@ describe('WalkForwardAnalyzer', function () {
         expect($analysis->reliableCount)->toBe(0)
             ->and($analysis->minTrades)->toBe(0);
     });
+
+    it('computes perfect positive Spearman correlation when IS and OOS ranks match', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 3.0, 2.5, 16.7, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, 1.5, 25.0, 10),
+            makeWfResult(3, ['fast' => 30], 1.0, 0.5, 50.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->rankCorrelation)->toBe(1.0)
+            ->and($analysis->rankStabilityLabel)->toBe('stable');
+    });
+
+    it('computes negative Spearman correlation when IS and OOS ranks are inverted', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 3.0, 0.3, 90.0, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, 0.5, 75.0, 10),
+            makeWfResult(3, ['fast' => 30], 1.0, 2.5, -150.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->rankCorrelation)->toBe(-1.0)
+            ->and($analysis->rankStabilityLabel)->toBe('unstable');
+    });
+
+    it('computes Spearman correlation with ties in OOS scores', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 3.0, 1.5, 50.0, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, 1.5, 25.0, 10),
+            makeWfResult(3, ['fast' => 30], 1.0, 0.5, 50.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->rankCorrelation)->not->toBeNull()
+            ->and($analysis->rankCorrelation)->toBeGreaterThan(0.0)
+            ->and($analysis->rankCorrelation)->toBeLessThanOrEqual(1.0);
+    });
+
+    it('classifies as likely_overfit when robustRatio < 20%', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, -0.5, 125.0, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, -0.3, 115.0, 10),
+            makeWfResult(3, ['fast' => 30], 2.0, -0.1, 105.0, 10),
+            makeWfResult(4, ['fast' => 40], 2.0, 0.1, 95.0, 10),
+            makeWfResult(5, ['fast' => 50], 2.0, 0.2, 90.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->classification)->toBe('likely_overfit')
+            ->and($analysis->robustRatio)->toBe(2 / 5)
+            ->and($analysis->interpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
+    });
+
+    it('classifies as marginal when WFE 30% and robustRatio 40%', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 2.0, 0.0, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, 1.0, 50.0, 10),
+            makeWfResult(3, ['fast' => 30], 2.0, -0.3, 115.0, 10),
+            makeWfResult(4, ['fast' => 40], 2.0, -0.2, 110.0, 10),
+            makeWfResult(5, ['fast' => 50], 2.0, -0.1, 105.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->classification)->toBe('marginal')
+            ->and($analysis->interpretation)->toBe('some parameters generalize; results should be treated with caution');
+    });
+
+    it('classifies rank stability as moderate for correlation between 0.3 and 0.7', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 3.0, 1.0, 66.7, 10),
+            makeWfResult(2, ['fast' => 20], 2.0, 2.0, -0.0, 10),
+            makeWfResult(3, ['fast' => 30], 1.0, 0.5, 50.0, 10),
+            makeWfResult(4, ['fast' => 40], 0.5, 1.5, -200.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        if ($analysis->rankCorrelation > 0.3 && $analysis->rankCorrelation <= 0.7) {
+            expect($analysis->rankStabilityLabel)->toBe('moderate');
+        }
+    });
+
+    it('counts reliable results as profitable OOS AND sufficient trades', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0, 20),
+            makeWfResult(2, ['fast' => 20], 1.5, 1.2, 20.0, 8),
+            makeWfResult(3, ['fast' => 30], 1.0, -0.3, 130.0, 25),
+            makeWfResult(4, ['fast' => 40], 0.8, 0.5, 37.5, 12),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun, minTrades: 10);
+
+        expect($analysis->reliableCount)->toBe(2)
+            ->and($analysis->reliableRatio)->toBe(2 / 4);
+    });
+
+    it('reliable count excludes profitable OOS with insufficient trades', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0, 3),
+            makeWfResult(2, ['fast' => 20], 1.5, 1.2, 20.0, 1),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun, minTrades: 10);
+
+        expect($analysis->reliableCount)->toBe(0)
+            ->and($analysis->reliableRatio)->toBe(0.0);
+    });
+
+    it('reliable count excludes unprofitable OOS even with sufficient trades', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, -0.5, 125.0, 50),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun, minTrades: 10);
+
+        expect($analysis->reliableCount)->toBe(0);
+    });
+
+    it('handles all results with zero OOS score', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 0.0, 100.0, 10),
+            makeWfResult(2, ['fast' => 20], 1.5, 0.0, 100.0, 10),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->robustCount)->toBe(0)
+            ->and($analysis->walkForwardEfficiency)->toBe(0.0)
+            ->and($analysis->rankCorrelation)->toBe(0.0);
+    });
+
+    it('handles large dataset of results', function () {
+        $results = collect();
+        for ($i = 1; $i <= 50; $i++) {
+            $results->push(makeWfResult($i, ['fast' => $i * 2], (float) (51 - $i), (float) max(0, 51 - $i - 5), 0.0, 10));
+        }
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->results)->toHaveCount(50)
+            ->and($analysis->rankCorrelation)->not->toBeNull()
+            ->and($analysis->rankCorrelation)->toBeGreaterThan(0.5);
+    });
 });

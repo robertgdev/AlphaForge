@@ -39,7 +39,7 @@ class WalkForwardExporter
             $row = [$result->rank];
 
             foreach ($paramKeys as $key) {
-                $row[] = $result->parameters[$key] ?? '';
+                $row[] = $this->formatCsvValue($result->parameters[$key] ?? null);
             }
 
             $row[] = $this->formatCsvValue($result->is_score);

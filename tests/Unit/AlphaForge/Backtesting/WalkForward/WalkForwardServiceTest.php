@@ -157,3 +157,80 @@ describe('WalkForwardService executionTimeframe propagation', function () {
             ->and($config->minTrades)->toBe(10);
     });
 });
+
+describe('WalkForwardService computeDateSplit edge cases', function () {
+    beforeEach(function () {
+        $this->service = new WalkForwardService(
+            Mockery::mock(Optimizer::class),
+            Mockery::mock(Backtester::class),
+        );
+    });
+
+    it('handles very short date range with small split ratio', function () {
+        $config = new WalkForwardConfiguration;
+        $config->strategyAlias = 'sma_crossover';
+        $config->symbols = ['BTCUSDT'];
+        $config->timeframe = TimeframeEnum::H1;
+        $config->exchange = 'binance';
+        $config->initialCapital = '10000';
+        $config->stakeCurrency = 'USDT';
+        $config->startDate = new DateTimeImmutable('2024-01-01');
+        $config->endDate = new DateTimeImmutable('2024-02-01');
+        $config->splitRatio = 0.50;
+
+        [$isStart, $isEnd, $oosStart, $oosEnd] = $this->service->computeDateSplit($config);
+
+        expect($oosStart->gt($isEnd))->toBeTrue()
+            ->and($oosEnd->gt($oosStart))->toBeTrue();
+    });
+
+    it('handles leap year date range correctly', function () {
+        $config = new WalkForwardConfiguration;
+        $config->strategyAlias = 'sma_crossover';
+        $config->symbols = ['BTCUSDT'];
+        $config->timeframe = TimeframeEnum::H1;
+        $config->exchange = 'binance';
+        $config->initialCapital = '10000';
+        $config->stakeCurrency = 'USDT';
+        $config->startDate = new DateTimeImmutable('2024-02-01');
+        $config->endDate = new DateTimeImmutable('2024-03-31');
+        $config->splitRatio = 0.50;
+
+        [$isStart, $isEnd, $oosStart, $oosEnd] = $this->service->computeDateSplit($config);
+
+        expect($oosStart->gt($isEnd))->toBeTrue();
+    });
+
+    it('throws when split ratio is 1.0', function () {
+        $config = new WalkForwardConfiguration;
+        $config->strategyAlias = 'sma_crossover';
+        $config->symbols = ['BTCUSDT'];
+        $config->timeframe = TimeframeEnum::H1;
+        $config->exchange = 'binance';
+        $config->initialCapital = '10000';
+        $config->stakeCurrency = 'USDT';
+        $config->startDate = new DateTimeImmutable('2024-01-01');
+        $config->endDate = new DateTimeImmutable('2024-12-31');
+        $config->splitRatio = 1.0;
+
+        expect(fn () => $this->service->computeDateSplit($config))
+            ->toThrow(InvalidArgumentException::class);
+    });
+
+    it('oosStartDate at exact end date throws exception', function () {
+        $config = new WalkForwardConfiguration;
+        $config->strategyAlias = 'sma_crossover';
+        $config->symbols = ['BTCUSDT'];
+        $config->timeframe = TimeframeEnum::H1;
+        $config->exchange = 'binance';
+        $config->initialCapital = '10000';
+        $config->stakeCurrency = 'USDT';
+        $config->startDate = new DateTimeImmutable('2024-01-01');
+        $config->endDate = new DateTimeImmutable('2024-12-31');
+        $config->splitRatio = 0.75;
+        $config->oosStartDate = '2024-12-31';
+
+        expect(fn () => $this->service->computeDateSplit($config))
+            ->toThrow(InvalidArgumentException::class);
+    });
+});
