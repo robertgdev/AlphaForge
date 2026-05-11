@@ -13,6 +13,7 @@ final readonly class InputDefinitionDto
         public ?float $max = null,
         public ?array $choices = null,
         public ?int $minChoices = null,
-        public ?int $maxChoices = null
+        public ?int $maxChoices = null,
+        public float|int|null $step = null,
     ) {}
 }

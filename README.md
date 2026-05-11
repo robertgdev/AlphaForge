@@ -20,7 +20,8 @@ AlphaForge is a Laravel port of the stochastix trading backtesting system. It ma
 - **Gap Detection**: Automatically detects and fills gaps in historical data
 - **Binary Storage**: Efficient binary format (.stchx) for market data storage
 - **Data Conversion**: Convert OHLCV data to Heiken-Ashi, fixed-brick Renko, and ATR-based Renko formats
-- **Parameter Optimization**: Grid search optimization across strategy parameter ranges
+- **Parameter Optimization**: Multi-method parameter optimization (grid search, random search, genetic algorithm) with composite objective functions
+- **Walk-Forward Analysis**: Unified backtest + forward-test command that optimizes on in-sample data and validates on out-of-sample data to detect overfitting
 
 ## Directory Structure
 
@@ -30,13 +31,43 @@ app/AlphaForge/
 |   |-- Model/
 |   |   |-- BacktestCursor.php      # Tracks current bar index during backtest
 |   |   |-- BacktestRun.php         # Eloquent model for backtest records
-|   |   `-- OptimizationRun.php      # Eloquent model for optimization runs
+|   |   |-- OptimizationRun.php      # Eloquent model for optimization runs
+|   |   |-- WalkForwardRun.php       # Eloquent model for walk-forward runs
+|   |   `-- WalkForwardResult.php    # Eloquent model for walk-forward results (IS/OOS pairs)
 |   |-- Service/
 |   |   |-- Backtester.php          # Main backtesting engine (single & dual-timeframe)
-|   |   |-- ParameterOptimizerService.php  # Parameter optimization engine
+|   |   |-- ParameterOptimizerService.php  # Legacy parameter optimization (backward compat)
+|   |-- Optimization/
+|   |   |-- Optimizer.php           # Main optimization orchestrator
+|   |   |-- OptimizationConfig.php  # Optimization configuration DTO
+|   |   |-- OptimizationMethod.php  # Enum: grid, random, genetic
+|   |   |-- ParameterSpace.php      # Parameter space built from #[Input] attributes
+|   |   |-- ParameterDimension.php  # Single parameter axis with values/clamp/random
+|   |   |-- ScoredResult.php        # Scored parameter set value object
+|   |   |-- TopNResults.php         # Keeps top-N ranked results efficiently
+|   |   |-- Generator/
+|   |   |   |-- ParameterGeneratorInterface.php  # Generator contract with inform() feedback
+|   |   |   |-- GridGenerator.php          # Cartesian product generator
+|   |   |   |-- RandomGenerator.php        # Random sampling generator
+|   |   |   `-- GeneticGenerator.php       # Genetic algorithm with tournament selection
+|   |   |-- Objective/
+|   |   |   |-- ObjectiveFunctionInterface.php  # Scoring contract
+|   |   |   |-- SingleMetricObjective.php  # Single metric (backward compat)
+|   |   |   |-- CompositeObjective.php     # Weighted multi-metric scoring
+|   |   |   |-- ObjectiveWeight.php        # Metric + coefficient pair
+|   |   |   |-- ObjectivePresets.php       # Preset objectives (balanced, conservative, etc.)
+|   |   |   `-- ObjectiveFactory.php       # Creates objective from string or interface
+|   |   `-- Runner/
+|   |       |-- OptimizationRunnerInterface.php  # Runner contract
+|   |       `-- LightweightOptimizationRunner.php # Runs Backtester without per-run Eloquent
+|   `-- WalkForward/
+|       |-- WalkForwardService.php   # Orchestrator: optimize IS → validate OOS
+|       |-- WalkForwardAnalyzer.php  # Computes WFE, degradation, robustness metrics
+|       `-- WalkForwardAnalysis.php  # Readonly analysis result DTO
 |   |-- Dto/
 |   |   |-- BacktestConfiguration.php  # Backtest config DTO (includes execution_timeframe)
-|   |   `-- OptimizationResult.php  # Optimization result DTO
+|   |   |-- OptimizationResult.php  # Optimization result DTO
+|   |   `-- WalkForwardConfiguration.php  # Walk-forward config DTO
 |-- Common/
 |   |-- Enum/
 |   |   |-- AppliedPriceEnum.php    # Price types for indicator calculation
@@ -431,7 +462,7 @@ php artisan alphaforge:backtest:debug sma_crossover BTCUSDT --timeframe=1h
 
 #### `alphaforge:optimize` - Run Parameter Optimization
 
-Run strategy parameter optimization using grid search.
+Run strategy parameter optimization using one of three methods: grid search, random search, or genetic algorithm.
 
 ```bash
 php artisan alphaforge:optimize <strategy> <symbol> [options]
@@ -456,7 +487,12 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 | `--end-date=` | End date (Y-m-d) | - |
 | `--params=` | Parameter ranges as JSON | See below |
 | `--use-strategy-ranges` | Use strategy's defined min/max/step ranges | - |
-| `--metric=` | Metric to optimize | `sharpe_ratio` |
+| `--method=` | Optimization method: `grid`, `random`, `genetic` | `random` |
+| `--iterations=` | Number of iterations for random search | `500` |
+| `--population=` | Population size for genetic algorithm | `50` |
+| `--generations=` | Number of generations for genetic algorithm | `20` |
+| `--objective=` | Objective function or metric name | `sharpe_ratio` |
+| `--top-n=` | Number of top results to persist | `50` |
 
 **Parameter JSON Format:**
 
@@ -468,31 +504,73 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 ```
 **Note:** The `step` field is required for each parameter. When using `--use-strategy-ranges`, ensure your strategy's `#[Input]` attributes define `step` values.
 
-**Optimization Metrics:**
+##### Optimization Methods
 
-- `sharpe_ratio` (default)
-- `total_return` / `total_return_percent`
-- `win_rate`
-- `profit_factor`
-- `max_drawdown` / `max_drawdown_percent` (lower is better)
-- `sortino_ratio`
-- `calmar_ratio`
+| Method | Description | When to Use |
+|--------|-------------|-------------|
+| `random` (default) | Randomly samples parameter combinations | Large parameter spaces; quick exploration |
+| `grid` | Exhaustive cartesian product of all parameters | Small spaces (< 10,000 combinations); when you need every combination |
+| `genetic` | Evolutionary algorithm with selection, crossover, and mutation | Medium-to-large spaces; when random search isn't converging |
+
+**Random search** is the default because it avoids combinatorial explosion. For a 5-parameter strategy with 10 values each, grid search requires 100,000 runs while random search with 500 iterations finds good solutions in 0.5% of the compute.
+
+**Genetic algorithm** uses tournament selection (size 3), uniform crossover at the parameter level, and Gaussian mutation snapped to valid step values. It evolves populations over generations, using score feedback to converge toward better parameter regions.
+
+##### Objective Functions
+
+The `--objective` option accepts either a single metric name or a preset composite objective:
+
+**Single Metrics:**
+
+| Metric | Description | Direction |
+|--------|-------------|-----------|
+| `sharpe_ratio` (default) | Risk-adjusted return | Higher is better |
+| `total_return` / `total_return_percent` | Absolute return | Higher is better |
+| `win_rate` | Percentage of winning trades | Higher is better |
+| `profit_factor` | Gross profit / gross loss | Higher is better |
+| `max_drawdown` / `max_drawdown_percent` | Maximum peak-to-trough decline | Lower is better |
+| `sortino_ratio` | Downside risk-adjusted return | Higher is better |
+| `calmar_ratio` | Return / max drawdown | Higher is better |
+
+**Composite Presets:**
+
+| Preset | Formula | Description |
+|--------|---------|-------------|
+| `sharpe_focused` | `1.0 × sharpe - 0.3 × drawdown` | Maximizes risk-adjusted return with mild drawdown penalty |
+| `balanced` | `1.0 × return - 0.5 × drawdown + 10.0 × sharpe + 0.5 × win_rate` | Weighted blend of return, risk, and consistency |
+| `conservative` | `-2.0 × drawdown + 1.0 × profit_factor + 5.0 × sortino` | Strongly penalizes drawdown; favors steady returns |
+| `aggressive` | `2.0 × return + 5.0 × sharpe - 0.2 × drawdown` | Maximizes return with minimal drawdown consideration |
+
+Composite objectives avoid degenerate solutions — a single metric like `win_rate` can produce 99% wins with negative total return, while a composite penalizes that outcome.
+
+##### Top-N Result Persistence
+
+Only the top-N results (default: 50) are persisted as `BacktestRun` database records. This is a significant performance improvement over the previous behavior, which created a database record for every parameter combination. All combinations are still evaluated and scored, but only the best are stored for later inspection.
 
 **Examples:**
 
 ```bash
-# Optimize using strategy's defined ranges
+# Random search with strategy ranges (default method)
 php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges
 
-# Optimize with explicit parameter ranges
-php artisan alphaforge:optimize sma_crossover BTCUSDT \
+# Grid search with explicit parameter ranges
+php artisan alphaforge:optimize sma_crossover BTCUSDT --method=grid \
     --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}'
 
-# Optimize for different metric
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --metric=total_return
+# Random search with 1000 iterations and balanced objective
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --method=random --iterations=1000 --objective=balanced
 
-# Optimize with date range
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --start-date="2024-01-01" --end-date="2024-06-01"
+# Genetic algorithm with custom population/generations
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --method=genetic --population=100 --generations=30
+
+# Conservative objective with date range and top-20 results
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --objective=conservative --start-date="2024-01-01" --end-date="2024-06-01" --top-n=20
+
+# Optimize for a single metric
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --objective=profit_factor
 ```
 
 #### `alphaforge:optimizations:list` - List Past Optimizations
@@ -586,6 +664,107 @@ php artisan alphaforge:optimizations:result 019d5725-3226-732b-9941-4e47a3350f93
 # Show with positions
 php artisan alphaforge:optimizations:result 019d5725-3226-732b-9941-4e47a3350f93 --show-positions
 ```
+
+---
+
+### Walk-Forward Analysis Commands
+
+#### `alphaforge:walk-forward` - Walk-Forward Analysis
+
+Run a combined optimization + forward-validation in a single operation. The system optimizes strategy parameters on an in-sample (IS) period, then validates the top-N parameter sets on an out-of-sample (OOS) period. This detects overfitting by proving parameter robustness on unseen data.
+
+**How it works:**
+
+1. **Phase 1 (Optimization)**: Runs parameter optimization on the in-sample date range using the specified method and objective function. The top-N results are persisted.
+2. **Phase 2 (Forward Validation)**: Each of the top-N parameter sets is backtested on the out-of-sample date range. The OOS score, IS score, and score degradation are recorded for comparison.
+3. **Analysis**: Walk-Forward Efficiency (WFE), robustness ratio, and degradation statistics are computed and displayed.
+
+```bash
+php artisan alphaforge:walk-forward <strategy> <symbol> [options]
+```
+
+**Arguments:**
+
+| Argument | Description | Example |
+|---------|-------------|---------|
+| `strategy` | Strategy alias | `sma_crossover`, `rsi_strategy` |
+| `symbol` | Trading symbol | `BTCUSDT` |
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--exchange=` | Exchange identifier | `binance` |
+| `--timeframe=` | Timeframe | `1h` |
+| `--capital=` | Initial capital | `10000` |
+| `--stake-currency=` | Stake currency | `USDT` |
+| `--start-date=` | Full data range start date (Y-m-d) | - |
+| `--end-date=` | Full data range end date (Y-m-d) | - |
+| `--split=` | In-sample fraction (0.75 = 75% backtest, 25% forward) | `0.75` |
+| `--oos-start=` | Explicit out-of-sample start date (Y-m-d, overrides --split) | - |
+| `--method=` | Optimization method: `grid`, `random`, `genetic` | `random` |
+| `--iterations=` | Number of iterations for random search | `500` |
+| `--population=` | Population size for genetic algorithm | `50` |
+| `--generations=` | Number of generations for genetic algorithm | `20` |
+| `--objective=` | Objective function or metric name | `sharpe_ratio` |
+| `--top-n=` | Number of top results to persist and forward-test | `50` |
+| `--params=` | Parameter ranges as JSON | See below |
+| `--use-strategy-ranges` | Use strategy's defined min/max/step ranges | - |
+
+**Data Split:**
+
+The `--split` option determines how your date range is divided. For example, with 2 years of data and `--split=0.75`:
+- **In-sample (IS)**: First 1.5 years — used for parameter optimization
+- **Out-of-sample (OOS)**: Last 0.5 years — used for forward validation
+
+Alternatively, `--oos-start` sets an exact OOS start date, useful when you know a regime change point.
+
+**Key Metrics:**
+
+| Metric | Description | Good Threshold |
+|--------|-------------|----------------|
+| Walk-Forward Efficiency (WFE) | Ratio of average OOS score to average IS score | > 50% |
+| Robust Ratio | Fraction of top-N that remain profitable OOS | > 50% |
+| Score Degradation | How much OOS score drops vs IS score (per parameter set) | < 50% |
+| Best OOS Rank | Which IS rank performed best OOS (rank 1 ≠ best OOS suggests IS rank instability) | - |
+
+**Examples:**
+
+```bash
+# Basic walk-forward with default 75/25 split
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges
+
+# 80/20 split with random search and top-25 results
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --split=0.80 --method=random --iterations=1000 \
+    --objective=balanced --top-n=25
+
+# Explicit OOS start date (regime boundary known)
+php artisan alphaforge:walk-forward rsi_ema BTCUSDT \
+    --start-date=2023-01-01 --end-date=2026-01-01 \
+    --oos-start=2025-07-01 --use-strategy-ranges
+
+# Genetic algorithm with conservative objective
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --method=genetic --population=100 --generations=30 \
+    --objective=conservative --use-strategy-ranges
+
+# With explicit parameter ranges
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}'
+```
+
+**Interpreting Results:**
+
+- **High WFE (>50%)**: Strategy parameters are robust — they generalize well to unseen data
+- **Low WFE (<20%)**: Likely overfitting — IS performance doesn't translate to OOS
+- **Best OOS Rank ≠ 1**: The #1 IS parameter set is not the best OOS, indicating IS ranking instability. The "best OOS" parameter set is a more reliable choice for live trading
+- **High degradation on specific ranks**: Those parameter sets are overfit to the IS period
 
 ---
 
@@ -915,18 +1094,22 @@ php artisan migrate
    - `status` (pending/running/completed/failed)
 
 2. **optimization_runs**: Stores optimization run metadata
-   - `id` (UUID)
-   - `user_id` (nullable foreign key)
-   - `strategy_alias`
-   - `symbols` (JSON array)
-   - `timeframe`
-   - `exchange`
-   - `parameter_ranges` (JSON - what was scanned)
-   - `optimization_metric` (what was optimized)
-   - `total_combinations` / `completed_combinations`
-   - `best_parameters` (JSON)
-   - `best_statistics` (JSON)
-   - `status`
+    - `id` (UUID)
+    - `user_id` (nullable foreign key)
+    - `strategy_alias`
+    - `symbols` (JSON array)
+    - `timeframe`
+    - `exchange`
+    - `parameter_ranges` (JSON - what was scanned)
+    - `optimization_method` (grid, random, or genetic)
+    - `optimization_objective` (metric or preset name used for scoring)
+    - `optimization_metric` (backward compat alias for objective)
+    - `top_n` (how many top results to persist)
+    - `top_results` (JSON - snapshot of ranked top results)
+    - `total_combinations` / `completed_combinations`
+    - `best_parameters` (JSON)
+    - `best_statistics` (JSON)
+    - `status`
 
 3. **market_data_downloads**: Tracks market data download jobs
    - `id` (UUID)
@@ -937,6 +1120,36 @@ php artisan migrate
    - `status`
    - `file_path`
    - `bars_count`
+
+4. **walk_forward_runs**: Stores walk-forward analysis run metadata
+   - `id` (UUID)
+   - `user_id` (nullable foreign key)
+   - `optimization_run_id` (nullable foreign key to optimization_runs)
+   - `strategy_alias`
+   - `symbols` (JSON array)
+   - `timeframe`
+   - `exchange`
+   - `initial_capital`
+   - `is_start_date` / `is_end_date` (in-sample date range)
+   - `oos_start_date` / `oos_end_date` (out-of-sample date range)
+   - `split_ratio` (decimal 5,4 — e.g., 0.7500)
+   - `optimization_method` (grid, random, or genetic)
+   - `optimization_objective`
+   - `top_n`
+   - `parameter_ranges` (JSON)
+   - `status` (pending/optimizing/forward_testing/completed/failed)
+   - `best_parameters` (JSON — best OOS parameter set)
+   - `best_is_statistics` / `best_oos_statistics` (JSON)
+
+5. **walk_forward_results**: Stores per-parameter-set IS/OOS result pairs
+   - `id` (UUID)
+   - `walk_forward_run_id` (foreign key with cascade delete)
+   - `rank` (IS rank)
+   - `parameters` (JSON)
+   - `is_final_capital` / `oos_final_capital`
+   - `is_statistics` / `oos_statistics` (JSON)
+   - `is_score` / `oos_score` (float)
+   - `score_degradation` (float — percentage drop from IS to OOS)
 
 ## API Endpoints
 
@@ -1404,6 +1617,109 @@ The `#[Input]` attribute supports the following properties for parameter optimiz
 | `minChoices` | `?int` | Minimum array items |
 | `maxChoices` | `?int` | Maximum array items |
 
+### Parameter Optimization Architecture
+
+The optimization system is built around five decoupled components that can be composed independently:
+
+```
+Optimizer (orchestrator)
+ ├── ParameterSpace      (reads #[Input] → builds range definitions)
+ ├── ParameterGenerator   (Grid / Random / Genetic — yields parameter sets)
+ ├── OptimizationRunner   (executes backtests — lightweight, no per-run Eloquent)
+ ├── ObjectiveFunction    (scores results — single metric or weighted composite)
+ └── TopNResults          (ranks and retains only the best N results)
+```
+
+#### ParameterGeneratorInterface
+
+All generators implement the same interface, making them interchangeable:
+
+```php
+interface ParameterGeneratorInterface
+{
+    public function initialize(ParameterSpace $space): void;
+    public function next(): ?array;              // yield next parameter set, or null when done
+    public function currentIteration(): int;
+    public function totalIterations(): ?int;     // null = unknown (adaptive methods)
+    public function inform(array $parameters, float $score): void;  // feedback loop
+}
+```
+
+The `inform()` method enables adaptive generators: grid and random ignore it, while the genetic generator uses scores for selection pressure in the next generation.
+
+#### GridGenerator
+
+Generates the complete cartesian product of all parameter dimensions. Use only for small spaces — the combinatorial explosion makes grid impractical beyond ~10K combinations.
+
+```
+fastPeriod: [5, 10, 15] × slowPeriod: [20, 30] = 6 combinations
+```
+
+#### RandomGenerator
+
+Randomly samples parameter values from each dimension. The default method because it finds good parameter regions quickly without exhaustive search. Configurable iteration count (default: 500).
+
+#### GeneticGenerator
+
+Evolutionary optimization with the following operators:
+
+| Operator | Strategy |
+|----------|----------|
+| **Selection** | Tournament (size 3) — pick 3 random individuals, select the best |
+| **Crossover** | Uniform at parameter level — each child parameter comes from either parent with 50% probability |
+| **Mutation** | Gaussian perturbation (σ = 2×step) snapped to nearest valid step value |
+| **Elitism** | Top 10% of population carried unchanged to next generation |
+
+The generator yields one generation at a time. When all individuals in a generation are scored via `inform()`, it evolves the next generation automatically. This design enables future parallel execution where a generation's individuals can be evaluated concurrently.
+
+#### ObjectiveFunctionInterface
+
+```php
+interface ObjectiveFunctionInterface
+{
+    public function score(array $statistics): float;
+    public function label(): string;
+}
+```
+
+**SingleMetricObjective** — backward compatible with the old `--metric` behavior. Handles direction automatically (negates drawdown metrics so higher is always better).
+
+**CompositeObjective** — weighted sum of multiple metrics:
+
+```php
+// Balanced preset: return - drawdown penalty + sharpe bonus + win rate bonus
+score = 1.0 × total_return_percent
+      - 0.5 × max_drawdown_percent
+      + 10.0 × sharpe_ratio
+      + 0.5 × win_rate
+```
+
+Composite objectives prevent degenerate optimization outcomes — a strategy optimized purely for `win_rate` might achieve 99% wins while losing money overall.
+
+#### LightweightOptimizationRunner
+
+The optimization runner calls `Backtester::run()` directly without creating `BacktestRun` Eloquent records for each combination. Only the top-N results are persisted to the database after all iterations complete. For a 10,000-combination optimization with `--top-n=50`, this reduces database writes from 10,000 to 50.
+
+#### OptimizationConfig
+
+Centralizes all optimization settings into a single DTO. Can be constructed programmatically or from an array:
+
+```php
+$config = OptimizationConfig::fromArray([
+    'strategy_alias' => 'sma_crossover',
+    'symbols' => ['BTCUSDT'],
+    'timeframe' => TimeframeEnum::H1,
+    'exchange' => 'binance',
+    'method' => 'genetic',
+    'population_size' => 100,
+    'generations' => 30,
+    'objective' => 'balanced',
+    'top_n' => 50,
+]);
+
+$optimizationRun = $optimizer->optimize($config);
+```
+
 ## Broadcasting Events
 
 ### Backtest Progress
@@ -1571,7 +1887,7 @@ php artisan test
 
 ### Test Categories
 
-- **Unit Tests**: Enum tests, Math utility tests, Series model tests
+- **Unit Tests**: Enum tests, Math utility tests, Series model tests, Optimization component tests
 - **Feature Tests**: Controller tests, Job tests, Service tests
 
 ## Dependencies

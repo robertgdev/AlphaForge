@@ -13,21 +13,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $id
  * @property int|null $user_id
  * @property string $strategy_alias
- * @property array $symbols
+ * @property array<string> $symbols
  * @property string $timeframe
  * @property string $exchange
  * @property string $initial_capital
  * @property string|null $stake_currency
- * @property array|null $commission_config
+ * @property array<string, mixed>|null $commission_config
  * @property string|null $start_date
  * @property string|null $end_date
- * @property array|null $parameter_ranges
+ * @property array<string, mixed>|null $parameter_ranges
  * @property string $optimization_metric
  * @property int|null $total_combinations
  * @property int|null $completed_combinations
  * @property string $status
- * @property array|null $best_parameters
- * @property array|null $best_statistics
+ * @property array<string, mixed>|null $best_parameters
+ * @property array<string, mixed>|null $best_statistics
  * @property string|null $error_message
  * @property \DateTimeInterface|null $started_at
  * @property \DateTimeInterface|null $completed_at
@@ -51,12 +51,16 @@ class OptimizationRun extends Model
         'start_date',
         'end_date',
         'parameter_ranges',
+        'optimization_method',
+        'optimization_objective',
         'optimization_metric',
         'total_combinations',
         'completed_combinations',
         'status',
         'best_parameters',
         'best_statistics',
+        'top_n',
+        'top_results',
         'error_message',
         'started_at',
         'completed_at',
@@ -71,7 +75,9 @@ class OptimizationRun extends Model
         'parameter_ranges' => 'array',
         'best_parameters' => 'array',
         'best_statistics' => 'array',
+        'top_results' => 'array',
         'initial_capital' => 'decimal:8',
+        'top_n' => 'integer',
         'start_date' => 'datetime',
         'end_date' => 'datetime',
         'started_at' => 'datetime',

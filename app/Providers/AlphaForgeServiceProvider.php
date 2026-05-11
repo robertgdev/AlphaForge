@@ -2,9 +2,9 @@
 
 namespace App\Providers;
 
-use App\Analysis\Console\Commands\OpenCrossProbabilityCommand;
-use App\Analysis\Engine\OpenCrossProbabilityEngine;
-use App\Analysis\Renderer\ProbabilitySurfaceRenderer;
+use App\AlphaForge\Backtesting\Optimization\Optimizer;
+use App\AlphaForge\Backtesting\Optimization\Runner\LightweightOptimizationRunner;
+use App\AlphaForge\Backtesting\Optimization\Runner\OptimizationRunnerInterface;
 use App\AlphaForge\Backtesting\Service\Backtester;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
 use App\AlphaForge\Backtesting\Service\MultiTimeframeDataService;
@@ -14,15 +14,11 @@ use App\AlphaForge\Backtesting\Service\SeriesMetricService;
 use App\AlphaForge\Backtesting\Service\SeriesMetricServiceInterface;
 use App\AlphaForge\Backtesting\Service\StatisticsService;
 use App\AlphaForge\Backtesting\Service\StatisticsServiceInterface;
-use App\AlphaForge\Console\Commands\AggregateDataCommand;
-use App\AlphaForge\Console\Commands\AtrRenkoCommand;
-use App\AlphaForge\Console\Commands\DataCommand;
-use App\AlphaForge\Console\Commands\HeikenAshiCommand;
+use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
+use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
-use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\OptimizationResultCommand;
-use App\AlphaForge\Console\Commands\RenkoCommand;
-use App\AlphaForge\Console\Commands\RunBacktestCommand;
+use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\ShowOptimizationCommand;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
@@ -39,6 +35,8 @@ use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
+use App\Analysis\Engine\OpenCrossProbabilityEngine;
+use App\Analysis\Renderer\ProbabilitySurfaceRenderer;
 use Illuminate\Support\ServiceProvider;
 
 use function Safe\mkdir;
@@ -52,7 +50,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
     {
         // Merge config
         $this->mergeConfigFrom(
-            __DIR__ . '/../../config/alphaforge.php',
+            __DIR__.'/../../config/alphaforge.php',
             'alphaforge'
         );
 
@@ -120,6 +118,13 @@ class AlphaForgeServiceProvider extends ServiceProvider
         // Bind ParameterOptimizerService
         $this->app->singleton(ParameterOptimizerService::class);
 
+        // Bind Optimization runner and Optimizer
+        $this->app->singleton(OptimizationRunnerInterface::class, LightweightOptimizationRunner::class);
+        $this->app->singleton(Optimizer::class);
+
+        $this->app->singleton(WalkForwardService::class);
+        $this->app->singleton(WalkForwardAnalyzer::class);
+
         // Bind RenkoConverter with configuration
         $this->app->bind(RenkoConverter::class, function ($app) {
             return new RenkoConverter(
@@ -171,7 +176,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
 
         // Publish config
         $this->publishes([
-            __DIR__ . '/../../config/alphaforge.php' => config_path('alphaforge.php'),
+            __DIR__.'/../../config/alphaforge.php' => config_path('alphaforge.php'),
         ], 'alphaforge-config');
 
         // Load routes

@@ -159,7 +159,8 @@ class StrategyRegistry implements StrategyRegistryInterface
                 max: $inputAttribute->max,
                 choices: $choices,
                 minChoices: $inputAttribute->minChoices,
-                maxChoices: $inputAttribute->maxChoices
+                maxChoices: $inputAttribute->maxChoices,
+                step: $inputAttribute->step,
             );
         }
 
@@ -237,6 +238,7 @@ class StrategyRegistry implements StrategyRegistryInterface
                 'default' => $input->defaultValue,
                 'min' => $input->min,
                 'max' => $input->max,
+                'step' => $input->step,
                 'choices' => $input->choices,
             ], $definition->inputs),
             'timeframes' => $definition->requiredMarketData,

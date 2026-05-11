@@ -18,7 +18,8 @@ describe('InputDefinitionDto', function () {
             ->and($dto->max)->toBeNull()
             ->and($dto->choices)->toBeNull()
             ->and($dto->minChoices)->toBeNull()
-            ->and($dto->maxChoices)->toBeNull();
+            ->and($dto->maxChoices)->toBeNull()
+            ->and($dto->step)->toBeNull();
     });
 
     it('creates with all parameters', function () {
@@ -32,6 +33,7 @@ describe('InputDefinitionDto', function () {
             choices: [5, 10, 20, 50],
             minChoices: 1,
             maxChoices: 3,
+            step: 5,
         );
 
         expect($dto->defaultValue)->toBe(14)
@@ -39,7 +41,8 @@ describe('InputDefinitionDto', function () {
             ->and($dto->max)->toBe(200.0)
             ->and($dto->choices)->toBe([5, 10, 20, 50])
             ->and($dto->minChoices)->toBe(1)
-            ->and($dto->maxChoices)->toBe(3);
+            ->and($dto->maxChoices)->toBe(3)
+            ->and($dto->step)->toBe(5);
     });
 
     it('accepts string default value', function () {
