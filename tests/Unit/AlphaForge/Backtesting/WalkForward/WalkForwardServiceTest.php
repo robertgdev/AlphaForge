@@ -6,6 +6,7 @@ use App\AlphaForge\Backtesting\Service\Backtester;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Carbon\Carbon;
+use Safe\DateTimeImmutable;
 
 describe('WalkForwardService computeDateSplit', function () {
     beforeEach(function () {

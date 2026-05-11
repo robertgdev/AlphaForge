@@ -13,6 +13,7 @@ use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Service\Backtester;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Safe\DateTimeImmutable;
 
 class WalkForwardService
 {
@@ -142,8 +143,8 @@ class WalkForwardService
         $optimizationConfig->objective = $config->objective;
         $optimizationConfig->topN = $config->topN;
         $optimizationConfig->parameterOverrides = $config->parameterOverrides;
-        $optimizationConfig->startDate = new \DateTimeImmutable($isStart->toIso8601String());
-        $optimizationConfig->endDate = new \DateTimeImmutable($isEnd->toIso8601String());
+        $optimizationConfig->startDate = new DateTimeImmutable($isStart->toIso8601String());
+        $optimizationConfig->endDate = new DateTimeImmutable($isEnd->toIso8601String());
         $optimizationConfig->executionTimeframe = $config->executionTimeframe;
 
         return $this->optimizer->optimize($optimizationConfig);

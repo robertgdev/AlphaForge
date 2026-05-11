@@ -4,6 +4,7 @@ namespace App\AlphaForge\Backtesting\Dto;
 
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use Safe\DateTimeImmutable;
 
 class WalkForwardConfiguration
 {
@@ -50,9 +51,9 @@ class WalkForwardConfiguration
     /** @var array<string, mixed> */
     public array $commissionConfig = [];
 
-    public ?\DateTimeImmutable $startDate = null;
+    public ?DateTimeImmutable $startDate = null;
 
-    public ?\DateTimeImmutable $endDate = null;
+    public ?DateTimeImmutable $endDate = null;
 
     public static function fromArray(array $data): self
     {
@@ -70,16 +71,16 @@ class WalkForwardConfiguration
 
         if (isset($data['start_date']) || isset($data['startDate'])) {
             $sd = $data['start_date'] ?? $data['startDate'];
-            $config->startDate = $sd instanceof \DateTimeImmutable
+            $config->startDate = $sd instanceof DateTimeImmutable
                 ? $sd
-                : ($sd !== null ? new \DateTimeImmutable($sd) : null);
+                : ($sd !== null ? new DateTimeImmutable($sd) : null);
         }
 
         if (isset($data['end_date']) || isset($data['endDate'])) {
             $ed = $data['end_date'] ?? $data['endDate'];
-            $config->endDate = $ed instanceof \DateTimeImmutable
+            $config->endDate = $ed instanceof DateTimeImmutable
                 ? $ed
-                : ($ed !== null ? new \DateTimeImmutable($ed) : null);
+                : ($ed !== null ? new DateTimeImmutable($ed) : null);
         }
 
         if (isset($data['method'])) {

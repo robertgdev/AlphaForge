@@ -4,9 +4,12 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
+use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use Illuminate\Console\Command;
+
+use function Safe\file_put_contents;
 
 class ShowWalkForwardRunCommand extends Command
 {

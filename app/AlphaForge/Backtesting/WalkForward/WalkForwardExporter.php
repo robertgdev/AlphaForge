@@ -2,6 +2,8 @@
 
 namespace App\AlphaForge\Backtesting\WalkForward;
 
+use function Safe\json_encode;
+
 class WalkForwardExporter
 {
     public function toCsv(WalkForwardAnalysis $analysis): string

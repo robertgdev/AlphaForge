@@ -14,6 +14,8 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Safe\DateTimeImmutable;
 
+use function Safe\file_put_contents;
+
 class WalkForwardCommand extends Command
 {
     protected $signature = 'alphaforge:walk-forward

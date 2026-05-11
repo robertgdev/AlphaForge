@@ -4,11 +4,13 @@ namespace App\AlphaForge\Backtesting\WalkForward;
 
 use App\AlphaForge\Backtesting\Model\WalkForwardResult;
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
+use Illuminate\Support\Collection;
 
 class WalkForwardAnalyzer
 {
     public function analyze(WalkForwardRun $wfRun, int $minTrades = 0): WalkForwardAnalysis
     {
+        /** @var \Illuminate\Database\Eloquent\Collection<int, WalkForwardResult> $results */
         $results = $wfRun->results()->orderBy('rank')->get();
 
         if ($results->isEmpty()) {
@@ -34,9 +36,12 @@ class WalkForwardAnalyzer
 
         $profitableOos = $results->filter(fn (WalkForwardResult $r) => ($r->oos_score ?? 0) > 0);
 
-        $isScores = $results->map(fn (WalkForwardResult $r) => $r->is_score ?? 0.0)->toArray();
-        $oosScores = $results->map(fn (WalkForwardResult $r) => $r->oos_score ?? 0.0)->toArray();
-        $degradations = $results->map(fn (WalkForwardResult $r) => $r->score_degradation ?? 0.0)->toArray();
+        /** @var list<float> $isScores */
+        $isScores = $results->map(fn (WalkForwardResult $r) => (float) ($r->is_score ?? 0.0))->values()->all();
+        /** @var list<float> $oosScores */
+        $oosScores = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_score ?? 0.0))->values()->all();
+        /** @var list<float> $degradations */
+        $degradations = $results->map(fn (WalkForwardResult $r) => (float) ($r->score_degradation ?? 0.0))->values()->all();
 
         $avgIsScore = array_sum($isScores) / count($isScores);
         $avgOosScore = array_sum($oosScores) / count($oosScores);
@@ -48,6 +53,7 @@ class WalkForwardAnalyzer
         $avgDegradation = array_sum($degradations) / count($degradations);
         $medianDegradation = $this->median($degradations);
 
+        /** @var WalkForwardResult|null $bestOosResult */
         $bestOosResult = $results->first(fn (WalkForwardResult $r) => $r->rank === (
             $results->sortByDesc('oos_score')->first()?->rank
         ));
@@ -69,9 +75,12 @@ class WalkForwardAnalyzer
 
         $reliableRatio = $results->count() > 0 ? $reliableCount / $results->count() : 0.0;
 
+        /** @var list<WalkForwardResult> $resultList */
+        $resultList = $results->all();
+
         return new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
-            results: $results->all(),
+            results: $resultList,
             walkForwardEfficiency: $wfe,
             robustCount: $profitableOos->count(),
             robustRatio: $results->count() > 0 ? $profitableOos->count() / $results->count() : 0.0,
@@ -129,7 +138,10 @@ class WalkForwardAnalyzer
         return 'unstable';
     }
 
-    private function spearmanRankCorrelation($results): ?float
+    /**
+     * @param  Collection<int, WalkForwardResult>  $results
+     */
+    private function spearmanRankCorrelation(Collection $results): ?float
     {
         if ($results->count() < 2) {
             return null;
