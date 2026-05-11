@@ -22,6 +22,9 @@ AlphaForge is a Laravel port of the stochastix trading backtesting system. It ma
 - **Data Conversion**: Convert OHLCV data to Heiken-Ashi, fixed-brick Renko, and ATR-based Renko formats
 - **Parameter Optimization**: Multi-method parameter optimization (grid search, random search, genetic algorithm) with composite objective functions
 - **Walk-Forward Analysis**: Unified backtest + forward-test command that optimizes on in-sample data and validates on out-of-sample data to detect overfitting
+- **Robustness Classification**: Automatic classification (robust / marginal / likely_overfit) with human-readable interpretation
+- **Spearman Rank Correlation**: IS-OOS rank stability metric to assess whether optimization ranking predicts OOS performance
+- **Walk-Forward Export**: Export analysis results to CSV or JSON for external analysis
 
 ## Directory Structure
 
@@ -62,8 +65,9 @@ app/AlphaForge/
 |   |       `-- LightweightOptimizationRunner.php # Runs Backtester without per-run Eloquent
 |   `-- WalkForward/
 |       |-- WalkForwardService.php   # Orchestrator: optimize IS → validate OOS
-|       |-- WalkForwardAnalyzer.php  # Computes WFE, degradation, robustness metrics
-|       `-- WalkForwardAnalysis.php  # Readonly analysis result DTO
+|       |-- WalkForwardAnalyzer.php  # Computes WFE, degradation, robustness, classification, Spearman correlation
+|       |-- WalkForwardAnalysis.php  # Readonly analysis result DTO
+|       `-- WalkForwardExporter.php  # CSV/JSON export formatting
 |   |-- Dto/
 |   |   |-- BacktestConfiguration.php  # Backtest config DTO (includes execution_timeframe)
 |   |   |-- OptimizationResult.php  # Optimization result DTO
@@ -696,6 +700,7 @@ php artisan alphaforge:walk-forward <strategy> <symbol> [options]
 |--------|-------------|---------|
 | `--exchange=` | Exchange identifier | `binance` |
 | `--timeframe=` | Timeframe | `1h` |
+| `--execution-timeframe=` | Lower timeframe for order/position execution (e.g., `1m`, `5m`) | - |
 | `--capital=` | Initial capital | `10000` |
 | `--stake-currency=` | Stake currency | `USDT` |
 | `--start-date=` | Full data range start date (Y-m-d) | - |
@@ -710,6 +715,11 @@ php artisan alphaforge:walk-forward <strategy> <symbol> [options]
 | `--top-n=` | Number of top results to persist and forward-test | `50` |
 | `--params=` | Parameter ranges as JSON | See below |
 | `--use-strategy-ranges` | Use strategy's defined min/max/step ranges | - |
+| `--min-trades=` | Minimum OOS trade count for statistical reliability | `0` |
+| `--min-oos-days=` | Warn if OOS period has fewer days than this (recommended: 90) | `0` |
+| `--force` | Skip data range warnings | - |
+| `--format=` | Output format: `table`, `csv`, `json` | `table` |
+| `--output=` | Write output to file instead of stdout | - |
 
 **Data Split:**
 
@@ -723,10 +733,13 @@ Alternatively, `--oos-start` sets an exact OOS start date, useful when you know 
 
 | Metric | Description | Good Threshold |
 |--------|-------------|----------------|
+| Classification | Automatic robustness label (robust / marginal / likely_overfit) | robust |
 | Walk-Forward Efficiency (WFE) | Ratio of average OOS score to average IS score | > 50% |
 | Robust Ratio | Fraction of top-N that remain profitable OOS | > 50% |
 | Score Degradation | How much OOS score drops vs IS score (per parameter set) | < 50% |
 | Best OOS Rank | Which IS rank performed best OOS (rank 1 ≠ best OOS suggests IS rank instability) | - |
+| IS-OOS Rank Correlation (Spearman) | Whether IS ranking predicts OOS ranking | > 0.7 (stable) |
+| Reliable Ratio | Fraction of top-N that are both profitable OOS and meet minimum trade count | > 50% |
 
 **Examples:**
 
@@ -757,14 +770,120 @@ php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
     --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}'
+
+# With execution timeframe (dual-TF: H1 signals, M1 execution)
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --timeframe=1h --execution-timeframe=1m \
+    --use-strategy-ranges
+
+# With minimum trade count and OOS data range validation
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --min-trades=10 --min-oos-days=90
+
+# Export results as JSON
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --format=json --output=wf-results.json
+
+# Export results as CSV
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --format=csv --output=wf-results.csv
 ```
 
 **Interpreting Results:**
 
-- **High WFE (>50%)**: Strategy parameters are robust — they generalize well to unseen data
-- **Low WFE (<20%)**: Likely overfitting — IS performance doesn't translate to OOS
+- **Classification ROBUST**: WFE > 50% and robust ratio > 50% — parameters generalize well to unseen data
+- **Classification MARGINAL**: Between robust and overfit — some parameters generalize; treat results with caution
+- **Classification LIKELY_OVERFIT**: WFE < 20% or robust ratio < 20% — parameters do not generalize; optimization results are likely overfit
 - **Best OOS Rank ≠ 1**: The #1 IS parameter set is not the best OOS, indicating IS ranking instability. The "best OOS" parameter set is a more reliable choice for live trading
 - **High degradation on specific ranks**: Those parameter sets are overfit to the IS period
+- **Spearman Rank Correlation > 0.7**: IS ranking strongly predicts OOS ranking (stable)
+- **Spearman Rank Correlation 0.3–0.7**: Moderate IS-OOS rank relationship
+- **Spearman Rank Correlation < 0.3**: IS ranking does not predict OOS ranking (unstable)
+
+##### Execution Timeframe in Walk-Forward
+
+The `--execution-timeframe` option applies dual-timeframe execution to **both phases** of the walk-forward analysis:
+
+- **Phase 1 (Optimization)**: The execution timeframe is passed through to the optimizer, so each in-sample backtest uses the dual-timeframe loop
+- **Phase 2 (Forward Testing)**: Each OOS backtest also uses the execution timeframe
+
+This ensures consistency — if your live strategy will use `--execution-timeframe=1m`, your walk-forward validation should too.
+
+##### Minimum Trade Count Filtering
+
+The `--min-trades` option filters for statistical reliability. A parameter set that makes only 2 trades OOS with a 300% return is meaningless. With `--min-trades=10`, only results with ≥10 OOS trades are counted as "statistically reliable" in the `reliableRatio` metric.
+
+##### Data Range Validation
+
+The `--min-oos-days` option warns when the OOS period is too short for meaningful validation. For example, `--min-oos-days=90` will display a warning if the OOS period is less than 90 days. Use `--force` to suppress these warnings.
+
+#### `alphaforge:walk-forward:list` - List Past Walk-Forward Runs
+
+List all past walk-forward analysis runs with key metrics.
+
+```bash
+php artisan alphaforge:walk-forward:list [options]
+```
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--strategy=` | Filter by strategy alias | - |
+| `--status=` | Filter by status: `pending`, `optimizing`, `forward_testing`, `completed`, `failed` | - |
+| `--limit=` | Number of results to show | `20` |
+
+**Example:**
+
+```bash
+# List all walk-forward runs
+php artisan alphaforge:walk-forward:list
+
+# Filter by strategy and status
+php artisan alphaforge:walk-forward:list --strategy=sma_crossover --status=completed
+
+# Show recent 5 runs
+php artisan alphaforge:walk-forward:list --limit=5
+```
+
+#### `alphaforge:walk-forward:show` - Show Walk-Forward Run Details
+
+Show detailed results of a walk-forward analysis run, including robustness classification, rank correlation, and per-result IS/OOS comparison.
+
+```bash
+php artisan alphaforge:walk-forward:show <run_id> [options]
+```
+
+**Arguments:**
+
+| Argument | Description | Example |
+|---------|-------------|---------|
+| `run_id` | The walk-forward run ID (UUID) | `019d5725-3226-732b-9941-4e47a3350f93` |
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--top=` | Number of top results to display | `20` |
+| `--format=` | Output format: `table`, `csv`, `json` | `table` |
+| `--output=` | Write output to file instead of stdout | - |
+
+**Example:**
+
+```bash
+# Show walk-forward run details
+php artisan alphaforge:walk-forward:show 019d5725-3226-732b-9941-4e47a3350f93
+
+# Show top 50 results
+php artisan alphaforge:walk-forward:show 019d5725-3226-732b-9941-4e47a3350f93 --top=50
+
+# Export as JSON
+php artisan alphaforge:walk-forward:show 019d5725-3226-732b-9941-4e47a3350f93 --format=json --output=analysis.json
+```
 
 ---
 
@@ -1128,6 +1247,7 @@ php artisan migrate
    - `strategy_alias`
    - `symbols` (JSON array)
    - `timeframe`
+   - `execution_timeframe` (nullable — lower timeframe for dual-TF execution in both phases)
    - `exchange`
    - `initial_capital`
    - `is_start_date` / `is_end_date` (in-sample date range)
@@ -1136,6 +1256,7 @@ php artisan migrate
    - `optimization_method` (grid, random, or genetic)
    - `optimization_objective`
    - `top_n`
+   - `min_trades_threshold` (nullable — minimum OOS trade count for reliability)
    - `parameter_ranges` (JSON)
    - `status` (pending/optimizing/forward_testing/completed/failed)
    - `best_parameters` (JSON — best OOS parameter set)
@@ -1702,7 +1823,7 @@ The optimization runner calls `Backtester::run()` directly without creating `Bac
 
 #### OptimizationConfig
 
-Centralizes all optimization settings into a single DTO. Can be constructed programmatically or from an array:
+Centralizes all optimization settings into a single DTO. Can be constructed programmatically or from an array. The `executionTimeframe` field propagates dual-timeframe execution through the optimizer to each backtest:
 
 ```php
 $config = OptimizationConfig::fromArray([
@@ -1715,10 +1836,214 @@ $config = OptimizationConfig::fromArray([
     'generations' => 30,
     'objective' => 'balanced',
     'top_n' => 50,
+    'execution_timeframe' => '1m',       // optional: dual-TF execution for all backtests
 ]);
 
 $optimizationRun = $optimizer->optimize($config);
 ```
+
+### Walk-Forward Analysis Architecture
+
+The walk-forward system is built on top of the optimization infrastructure, adding an out-of-sample validation phase. It comprises four decoupled components:
+
+```
+WalkForwardService (orchestrator)
+ ├── Optimizer              (inherited — runs IS optimization unchanged)
+ ├── Backtester             (inherited — runs each top-N on OOS data)
+ ├── WalkForwardAnalyzer    (computes WFE, degradation, robustness)
+ └── WalkForwardAnalysis    (readonly result DTO)
+```
+
+The key design principle is **zero modification** to the existing `Optimizer` — walk-forward wraps it as-is for the in-sample phase, then independently validates the top-N results on unseen data.
+
+#### Two-Phase Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant Command
+    participant WalkForwardService
+    participant Optimizer
+    participant Backtester
+    participant WalkForwardAnalyzer
+
+    Command->>WalkForwardService: run(config)
+    WalkForwardService->>WalkForwardService: computeDateSplit(config)
+    Note over WalkForwardService: IS: start → split point<br/>OOS: split point → end
+
+    rect rgb(230, 245, 255)
+        Note over WalkForwardService,Optimizer: Phase 1 — In-Sample Optimization
+        WalkForwardService->>WalkForwardRun: markAsOptimizing()
+        WalkForwardService->>Optimizer: optimize(isConfig)
+        Optimizer-->>WalkForwardService: OptimizationRun (with top-N BacktestRuns)
+    end
+
+    rect rgb(255, 245, 230)
+        Note over WalkForwardService,Backtester: Phase 2 — Out-of-Sample Validation
+        WalkForwardService->>WalkForwardRun: markAsForwardTesting()
+        loop For each top-N result
+            WalkForwardService->>Backtester: run(strategy, params, oosStart, oosEnd)
+            Backtester-->>WalkForwardService: OOS statistics
+            WalkForwardService->>WalkForwardService: computeDegradation(isScore, oosScore)
+            WalkForwardService->>WalkForwardResult: create(rank, params, IS/OOS scores)
+        end
+    end
+
+    WalkForwardService->>WalkForwardRun: markAsCompleted(bestOosParams, IS/OOS stats)
+    WalkForwardService-->>Command: WalkForwardRun
+
+    Command->>WalkForwardAnalyzer: analyze(wfRun)
+    WalkForwardAnalyzer-->>Command: WalkForwardAnalysis (WFE, robustness, degradation)
+```
+
+#### WalkForwardConfiguration
+
+Centralizes all walk-forward settings into a single DTO. Supports the same `fromArray()` pattern as `OptimizationConfig`, plus walk-forward-specific fields:
+
+```php
+$config = WalkForwardConfiguration::fromArray([
+    'strategy_alias' => 'sma_crossover',
+    'symbols' => ['BTCUSDT'],
+    'timeframe' => TimeframeEnum::H1,
+    'exchange' => 'binance',
+    'initial_capital' => '10000',
+    'method' => 'genetic',
+    'population_size' => 100,
+    'generations' => 30,
+    'objective' => 'balanced',
+    'top_n' => 25,
+    'split_ratio' => 0.75,           // 75% IS / 25% OOS
+    'oos_start_date' => null,        // or explicit '2025-07-01'
+    'start_date' => '2024-01-01',
+    'end_date' => '2026-01-01',
+    'execution_timeframe' => '1m',   // optional: dual-TF execution in both phases
+    'min_trades' => 10,              // optional: minimum OOS trade count for reliability
+]);
+
+$wfRun = $service->run($config);
+```
+
+Key walk-forward-specific properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `splitRatio` | `float` | Fraction of date range for in-sample (default `0.75`) |
+| `oosStartDate` | `?string` | Explicit OOS start date — overrides `splitRatio` when set |
+| `executionTimeframe` | `?TimeframeEnum` | Lower timeframe for order/position execution in both IS and OOS phases |
+| `minTrades` | `?int` | Minimum OOS trade count for statistical reliability filtering |
+| `topN` | `int` | Both the optimization persistence count **and** the forward-test count (default `50`) |
+
+All other properties (`method`, `iterations`, `populationSize`, `generations`, `objective`, `parameterOverrides`) are passed through to the `Optimizer` unchanged.
+
+#### Date Split Logic
+
+The `computeDateSplit()` method divides the full date range into IS and OOS periods:
+
+- **With `--split`**: Calculates the IS end date as `startDate + (totalDays × splitRatio)`. The OOS period starts the day after the IS end.
+- **With `--oos-start`**: Uses the explicit date as the OOS start. The IS end is the day before the OOS start.
+- **Validation**: Throws `InvalidArgumentException` if the OOS start would fall on or after the end date (e.g., split ratio too high or date range too short).
+
+When `startDate`/`endDate` are not provided, defaults to 2 years ago → now.
+
+#### WalkForwardService
+
+The orchestrator that coordinates both phases:
+
+1. **Creates a `WalkForwardRun`** record with status `pending`, storing `execution_timeframe` and `min_trades_threshold`
+2. **Phase 1**: Builds an `OptimizationConfig` from the IS date range (including `executionTimeframe`), delegates to `Optimizer::optimize()`, stores the `optimization_run_id`
+3. **Phase 2**: Loads the top-N `BacktestRun` results from the optimization, runs each through `Backtester::run()` on the OOS date range (with `executionTimeframe`), scores with the same `ObjectiveFunction`, computes score degradation, and persists `WalkForwardResult` records. A `$progressCallback` is called after each forward test for progress reporting.
+4. **Finalize**: Selects the best OOS result (highest OOS score), stores it as the run's `best_parameters`, and marks the run as `completed`
+
+Score degradation is computed as:
+
+```
+degradation = ((isScore - oosScore) / |isScore|) × 100
+```
+
+A positive degradation means OOS performance is worse than IS (expected). A negative degradation means OOS outperformed IS (rare but possible).
+
+#### WalkForwardAnalyzer
+
+Computes aggregate analysis metrics from a completed `WalkForwardRun`:
+
+| Metric | Computation | Interpretation |
+|--------|-------------|----------------|
+| **Classification** | `classifyRobustness(WFE, robustRatio)` | `robust` (WFE > 50% & robustRatio > 50%), `marginal`, or `likely_overfit` (WFE < 20% or robustRatio < 20%) |
+| **Interpretation** | Human-readable one-liner based on classification | e.g., "parameters generalize well to unseen data" |
+| **Walk-Forward Efficiency (WFE)** | `(avgOosScore / avgIsScore) × 100` | > 50% = robust; < 20% = likely overfit |
+| **Robust Count** | Count of results where `oos_score > 0` | How many top-N remain profitable OOS |
+| **Robust Ratio** | `robustCount / totalResults` | Fraction of top-N that are profitable OOS |
+| **Reliable Count** | Count where `oos_score > 0 AND total_trades >= minTrades` | How many are both profitable and statistically significant |
+| **Reliable Ratio** | `reliableCount / totalResults` | Fraction meeting trade count threshold |
+| **Average Degradation** | Mean of all `score_degradation` values | Typical IS→OOS drop |
+| **Median Degradation** | Median of all `score_degradation` values | Less sensitive to outliers than average |
+| **Best OOS Rank** | IS rank with highest OOS score | ≠ 1 indicates IS ranking instability |
+| **Rank Correlation (Spearman)** | Spearman rank correlation between IS and OOS rankings | > 0.7 = stable; 0.3–0.7 = moderate; < 0.3 = unstable |
+| **Rank Stability Label** | Derived from rank correlation | `stable`, `moderate`, or `unstable` |
+
+Handles edge cases: empty results return all zeros/nulls; zero average IS score returns WFE of 0.0; all identical OOS scores return correlation of 0.0; fewer than 2 results return null correlation.
+
+#### WalkForwardAnalysis
+
+A `readonly` DTO that carries all analysis results:
+
+```php
+readonly class WalkForwardAnalysis
+{
+    public function __construct(
+        public WalkForwardRun $walkForwardRun,
+        public array $results,              // WalkForwardResult[]
+        public float $walkForwardEfficiency, // percentage
+        public int $robustCount,
+        public float $robustRatio,           // 0.0 – 1.0
+        public float $avgDegradation,        // percentage
+        public float $medianDegradation,     // percentage
+        public ?int $bestOosRank,
+        public ?WalkForwardResult $bestOosResult,
+        public string $classification = 'marginal',    // robust / marginal / likely_overfit
+        public string $interpretation = '',            // human-readable one-liner
+        public ?float $rankCorrelation = null,         // Spearman IS-OOS rank correlation
+        public string $rankStabilityLabel = 'unstable', // stable / moderate / unstable
+        public int $reliableCount = 0,                 // results meeting min-trades threshold
+        public float $reliableRatio = 0.0,             // reliableCount / total
+        public int $minTrades = 0,                     // the min-trades threshold used
+    ) {}
+}
+```
+
+#### WalkForwardRun Model
+
+Tracks the full walk-forward lifecycle with status transitions:
+
+```
+pending → optimizing → forward_testing → completed
+                                           ↘ failed (from any state)
+```
+
+| Method | Description |
+|--------|-------------|
+| `markAsOptimizing()` | Sets status to `optimizing`, records `started_at` |
+| `markAsForwardTesting()` | Sets status to `forward_testing` |
+| `markAsCompleted($params, $isStats, $oosStats)` | Sets status to `completed`, stores best result, records `completed_at` |
+| `markAsFailed($message)` | Sets status to `failed`, stores error message, records `completed_at` |
+| `incrementProgress()` | Increments `completed_combinations` counter |
+| `getProgressPercent()` | Returns completion percentage (0–100) |
+
+Relationships: `belongsTo(OptimizationRun)`, `hasMany(WalkForwardResult)` (cascade delete), `belongsTo(User)`.
+
+#### WalkForwardResult Model
+
+Stores per-parameter-set IS/OOS result pairs. Each record represents one of the top-N parameter sets from optimization, with both its in-sample and out-of-sample metrics:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rank` | `int` | IS ranking (1 = best IS score) |
+| `parameters` | `JSON` | Strategy parameter set used |
+| `is_score` / `oos_score` | `float` | Objective function score for IS/OOS period |
+| `is_final_capital` / `oos_final_capital` | `decimal:8` | Ending capital for each period |
+| `is_statistics` / `oos_statistics` | `JSON` | Full statistics array from each period |
+| `score_degradation` | `float` | Percentage drop from IS to OOS score |
+
+The dual IS/OOS design enables direct per-parameter comparison — you can see exactly which parameter sets held up OOS and which were overfit to the IS period.
 
 ## Broadcasting Events
 
@@ -1887,7 +2212,7 @@ php artisan test
 
 ### Test Categories
 
-- **Unit Tests**: Enum tests, Math utility tests, Series model tests, Optimization component tests
+- **Unit Tests**: Enum tests, Math utility tests, Series model tests, Optimization component tests, Walk-Forward analysis tests
 - **Feature Tests**: Controller tests, Job tests, Service tests
 
 ## Dependencies

@@ -15,11 +15,14 @@ use App\AlphaForge\Backtesting\Service\SeriesMetricServiceInterface;
 use App\AlphaForge\Backtesting\Service\StatisticsService;
 use App\AlphaForge\Backtesting\Service\StatisticsServiceInterface;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
+use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
+use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
 use App\AlphaForge\Console\Commands\OptimizationResultCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\ShowOptimizationCommand;
+use App\AlphaForge\Console\Commands\ShowWalkForwardRunCommand;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
 use App\AlphaForge\Conversion\RenkoConverter;
@@ -124,6 +127,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
 
         $this->app->singleton(WalkForwardService::class);
         $this->app->singleton(WalkForwardAnalyzer::class);
+        $this->app->singleton(WalkForwardExporter::class);
 
         // Bind RenkoConverter with configuration
         $this->app->bind(RenkoConverter::class, function ($app) {
@@ -186,16 +190,16 @@ class AlphaForgeServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
 
         // Register commands
-        /*
         if ($this->app->runningInConsole()) {
             $this->commands([
                 OptimizeStrategyCommand::class,
                 ListOptimizationsCommand::class,
                 ShowOptimizationCommand::class,
                 OptimizationResultCommand::class,
+                ListWalkForwardRunsCommand::class,
+                ShowWalkForwardRunCommand::class,
             ]);
         }
-        */
 
         // Ensure storage directories exist
         $this->ensureStorageDirectoriesExist();

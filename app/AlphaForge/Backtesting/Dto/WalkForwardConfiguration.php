@@ -1,12 +1,11 @@
 <?php
 
-namespace App\AlphaForge\Backtesting\Optimization;
+namespace App\AlphaForge\Backtesting\Dto;
 
-use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFunctionInterface;
+use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use Safe\DateTimeImmutable;
 
-class OptimizationConfig
+class WalkForwardConfiguration
 {
     public OptimizationMethod $method = OptimizationMethod::RANDOM;
 
@@ -20,9 +19,17 @@ class OptimizationConfig
 
     public ?float $crossoverRate = null;
 
-    public string|ObjectiveFunctionInterface $objective = 'sharpe_ratio';
+    public string $objective = 'sharpe_ratio';
 
     public int $topN = 50;
+
+    public float $splitRatio = 0.75;
+
+    public ?string $oosStartDate = null;
+
+    public ?TimeframeEnum $executionTimeframe = null;
+
+    public ?int $minTrades = null;
 
     /** @var array<string, mixed>|null */
     public ?array $parameterOverrides = null;
@@ -43,11 +50,9 @@ class OptimizationConfig
     /** @var array<string, mixed> */
     public array $commissionConfig = [];
 
-    public ?DateTimeImmutable $startDate = null;
+    public ?\DateTimeImmutable $startDate = null;
 
-    public ?DateTimeImmutable $endDate = null;
-
-    public ?TimeframeEnum $executionTimeframe = null;
+    public ?\DateTimeImmutable $endDate = null;
 
     public static function fromArray(array $data): self
     {
@@ -65,16 +70,16 @@ class OptimizationConfig
 
         if (isset($data['start_date']) || isset($data['startDate'])) {
             $sd = $data['start_date'] ?? $data['startDate'];
-            $config->startDate = $sd instanceof DateTimeImmutable
+            $config->startDate = $sd instanceof \DateTimeImmutable
                 ? $sd
-                : ($sd !== null ? new DateTimeImmutable($sd) : null);
+                : ($sd !== null ? new \DateTimeImmutable($sd) : null);
         }
 
         if (isset($data['end_date']) || isset($data['endDate'])) {
             $ed = $data['end_date'] ?? $data['endDate'];
-            $config->endDate = $ed instanceof DateTimeImmutable
+            $config->endDate = $ed instanceof \DateTimeImmutable
                 ? $ed
-                : ($ed !== null ? new DateTimeImmutable($ed) : null);
+                : ($ed !== null ? new \DateTimeImmutable($ed) : null);
         }
 
         if (isset($data['method'])) {
@@ -91,6 +96,8 @@ class OptimizationConfig
 
         $config->objective = $data['objective'] ?? 'sharpe_ratio';
         $config->topN = $data['top_n'] ?? $data['topN'] ?? 50;
+        $config->splitRatio = $data['split_ratio'] ?? $data['splitRatio'] ?? 0.75;
+        $config->oosStartDate = $data['oos_start_date'] ?? $data['oosStartDate'] ?? null;
         $config->parameterOverrides = $data['parameter_overrides'] ?? $data['parameterOverrides'] ?? null;
 
         if (isset($data['execution_timeframe']) || isset($data['executionTimeframe'])) {
@@ -99,6 +106,8 @@ class OptimizationConfig
                 ? $etf
                 : ($etf !== null ? TimeframeEnum::from($etf) : null);
         }
+
+        $config->minTrades = $data['min_trades'] ?? $data['minTrades'] ?? null;
 
         return $config;
     }

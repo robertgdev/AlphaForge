@@ -78,6 +78,7 @@ class Optimizer
                     commissionConfig: $config->commissionConfig,
                     startDate: $config->startDate,
                     endDate: $config->endDate,
+                    executionTimeframe: $config->executionTimeframe,
                 );
 
                 $result = $this->runner->runSingle($backtestConfig);

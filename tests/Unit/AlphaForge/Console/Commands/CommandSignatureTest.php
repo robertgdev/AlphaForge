@@ -111,7 +111,13 @@ describe('Console Command Signatures', function () {
                 ->and($defaultProps['signature'])->toContain('--method=')
                 ->and($defaultProps['signature'])->toContain('--objective=')
                 ->and($defaultProps['signature'])->toContain('--top-n=')
-                ->and($defaultProps['signature'])->toContain('--use-strategy-ranges');
+                ->and($defaultProps['signature'])->toContain('--use-strategy-ranges')
+                ->and($defaultProps['signature'])->toContain('--execution-timeframe=')
+                ->and($defaultProps['signature'])->toContain('--min-trades=')
+                ->and($defaultProps['signature'])->toContain('--min-oos-days=')
+                ->and($defaultProps['signature'])->toContain('--force')
+                ->and($defaultProps['signature'])->toContain('--format=')
+                ->and($defaultProps['signature'])->toContain('--output=');
         });
 
         it('has description', function () {
