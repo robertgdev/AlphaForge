@@ -16,7 +16,7 @@ class StrategyContext implements StrategyContextInterface
         private IndicatorManagerInterface $indicatorManager,
         private OrderManagerInterface $orderManager,
         private BacktestCursor $cursor,
-        /** @var \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>> */
+        /** @var Map<string, Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>> */
         private Map $dataframes
     ) {}
 
@@ -41,7 +41,7 @@ class StrategyContext implements StrategyContextInterface
     }
 
     /**
-     * @return \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>>
+     * @return Map<string, Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>>
      */
     public function getDataframes(): Map
     {

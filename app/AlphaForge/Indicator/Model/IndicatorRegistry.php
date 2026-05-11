@@ -4,6 +4,7 @@ namespace App\AlphaForge\Indicator\Model;
 
 class IndicatorRegistry
 {
+    /** @var array<string, array{function: string, inputs: array<int, string>, params: array<int, string>, outputs: array<int, string>, dualInput?: bool}> */
     private static array $definitions = [];
 
     private static bool $initialized = false;
@@ -33,6 +34,9 @@ class IndicatorRegistry
         return array_keys(self::$definitions);
     }
 
+    /**
+     * @param  array{function: string, inputs: array<int, string>, params: array<int, string>, outputs: array<int, string>, dualInput?: bool}  $definition
+     */
     public static function register(string $name, array $definition): void
     {
         self::ensureInitialized();

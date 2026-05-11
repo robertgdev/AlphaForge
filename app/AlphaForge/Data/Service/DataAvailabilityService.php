@@ -20,7 +20,7 @@ readonly class DataAvailabilityService
     public function findDependencies(string $exchange, string $market, string $timeframe): array
     {
         $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-        $directory = rtrim($this->marketDataPath, '/') . '/' . strtolower($exchange) . '/' . $sanitizedSymbol . '/' . $timeframe;
+        $directory = rtrim($this->marketDataPath, '/').'/'.strtolower($exchange).'/'.$sanitizedSymbol.'/'.$timeframe;
 
         if (! is_dir($directory)) {
             return [];

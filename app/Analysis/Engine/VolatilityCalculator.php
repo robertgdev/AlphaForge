@@ -9,17 +9,17 @@ namespace App\Analysis\Engine;
  */
 final class VolatilityCalculator
 {
-/**
-      * Calculate rolling volatility for a series of records.
-      *
-      * Computes the standard deviation of log returns over a rolling window.
-      * This is the correct measure for sigma-based distance normalization.
-      *
-      * @param  array<int, array{close: float}>  $records  Array of OHLC records with 'close' key
-      * @param  int  $lookbackPeriod  Number of periods for rolling calculation (minimum 30 recommended)
-      * @return array<int, float> Array of volatility values (as decimals, not percentages)
-      */
-     public function calculateRollingVolatility(array $records, int $lookbackPeriod): array
+    /**
+     * Calculate rolling volatility for a series of records.
+     *
+     * Computes the standard deviation of log returns over a rolling window.
+     * This is the correct measure for sigma-based distance normalization.
+     *
+     * @param  array<int, array{close: float}>  $records  Array of OHLC records with 'close' key
+     * @param  int  $lookbackPeriod  Number of periods for rolling calculation (minimum 30 recommended)
+     * @return array<int, float> Array of volatility values (as decimals, not percentages)
+     */
+    public function calculateRollingVolatility(array $records, int $lookbackPeriod): array
     {
         $count = count($records);
 
@@ -36,13 +36,13 @@ final class VolatilityCalculator
         return $volatilities;
     }
 
-/**
-      * Calculate log returns for a series of records.
-      *
-      * @param  array<int, array{close: float}>  $records  Array of OHLC records
-      * @return array<int, float> Array of log return values
-      */
-     private function calculateLogReturns(array $records): array
+    /**
+     * Calculate log returns for a series of records.
+     *
+     * @param  array<int, array{close: float}>  $records  Array of OHLC records
+     * @return array<int, float> Array of log return values
+     */
+    private function calculateLogReturns(array $records): array
     {
         $count = count($records);
         $logReturns = [];
@@ -62,16 +62,16 @@ final class VolatilityCalculator
         return $logReturns;
     }
 
-/**
-      * Calculate rolling standard deviation of log returns.
-      *
-      * Uses exponentially weighted moving average (EWMA) for more stable estimates.
-      *
-      * @param  array<int, float>  $logReturns  Array of log return values
-      * @param  int  $lookbackPeriod  Number of periods for calculation
-      * @return array<int, float> Array of volatility values
-      */
-     private function calculateRollingStdDev(array $logReturns, int $lookbackPeriod): array
+    /**
+     * Calculate rolling standard deviation of log returns.
+     *
+     * Uses exponentially weighted moving average (EWMA) for more stable estimates.
+     *
+     * @param  array<int, float>  $logReturns  Array of log return values
+     * @param  int  $lookbackPeriod  Number of periods for calculation
+     * @return array<int, float> Array of volatility values
+     */
+    private function calculateRollingStdDev(array $logReturns, int $lookbackPeriod): array
     {
         $count = count($logReturns);
         $volatilities = [];
@@ -116,13 +116,13 @@ final class VolatilityCalculator
         return $volatilities;
     }
 
-/**
-      * Calculate the volatility for a single block of records.
-      *
-      * @param  array<int, array{close: float}>  $blockRecords  Array of OHLC records
-      * @return float The average volatility for the block
-      */
-     public function calculateBlockVolatility(array $blockRecords): float
+    /**
+     * Calculate the volatility for a single block of records.
+     *
+     * @param  array<int, array{close: float}>  $blockRecords  Array of OHLC records
+     * @return float The average volatility for the block
+     */
+    public function calculateBlockVolatility(array $blockRecords): float
     {
         $count = count($blockRecords);
 
@@ -149,17 +149,17 @@ final class VolatilityCalculator
         return sqrt($variance / (count($logReturns) - 1));
     }
 
-/**
-      * Get the volatility value to use for normalization at a given position.
-      *
-      * When volatility normalization is enabled, this returns the appropriate
-      * volatility value for converting raw distance to sigma-based distance.
-      *
-      * @param  array<int, float>  $volatilities  Array of volatility values
-      * @param  int  $index  Current index
-      * @return float Volatility value (minimum 0.001 to avoid extreme z-scores)
-      */
-     public function getVolatilityForNormalization(array $volatilities, int $index): float
+    /**
+     * Get the volatility value to use for normalization at a given position.
+     *
+     * When volatility normalization is enabled, this returns the appropriate
+     * volatility value for converting raw distance to sigma-based distance.
+     *
+     * @param  array<int, float>  $volatilities  Array of volatility values
+     * @param  int  $index  Current index
+     * @return float Volatility value (minimum 0.001 to avoid extreme z-scores)
+     */
+    public function getVolatilityForNormalization(array $volatilities, int $index): float
     {
         $volatility = $volatilities[$index] ?? 0.0;
 

@@ -22,23 +22,24 @@ class OptimizationResultCommand extends Command
 
         if (! $backtestRun) {
             $this->error("Backtest run not found: $backtestId");
+
             return 1;
         }
 
-        $this->line("<fg=yellow>Backtest Result Details</>");
+        $this->line('<fg=yellow>Backtest Result Details</>');
         $this->line("  ID: {$backtestRun->id}");
 
         if ($backtestRun->optimization) {
-            $this->line("  Optimization ID: " . substr($backtestRun->optimization->id, 0, 8));
+            $this->line('  Optimization ID: '.substr($backtestRun->optimization->id, 0, 8));
         }
 
         $this->line("  Strategy: {$backtestRun->strategy_alias}");
-        $this->line("  Symbol: " . ($backtestRun->symbols[0] ?? '-'));
+        $this->line('  Symbol: '.($backtestRun->symbols[0] ?? '-'));
         $this->line("  Timeframe: {$backtestRun->timeframe}");
         $this->line("  Status: {$backtestRun->status}");
         $this->newLine();
 
-        $this->line("<fg=yellow>Parameters:</>");
+        $this->line('<fg=yellow>Parameters:</>');
         foreach ($backtestRun->strategy_inputs as $param => $value) {
             $this->line("  - $param: $value");
         }
@@ -47,10 +48,10 @@ class OptimizationResultCommand extends Command
         if ($backtestRun->isCompleted()) {
             $stats = $backtestRun->statistics ?? [];
 
-            $this->line("<fg=yellow>Statistics:</>");
-            $this->line("  Initial Capital: " . number_format((float) $backtestRun->initial_capital, 2));
-            $this->line("  Final Capital: " . number_format((float) $backtestRun->final_capital, 2));
-            $this->line("  Net Profit: " . number_format((float) ($stats['total_return_percent'] ?? 0), 2) . "%");
+            $this->line('<fg=yellow>Statistics:</>');
+            $this->line('  Initial Capital: '.number_format((float) $backtestRun->initial_capital, 2));
+            $this->line('  Final Capital: '.number_format((float) $backtestRun->final_capital, 2));
+            $this->line('  Net Profit: '.number_format((float) ($stats['total_return_percent'] ?? 0), 2).'%');
 
             $formattedStats = $formatter->formatStatistics($stats);
             foreach ($formattedStats as $label => $value) {
@@ -59,7 +60,7 @@ class OptimizationResultCommand extends Command
             $this->newLine();
 
             if ($this->option('show-positions') && ! empty($stats['positions'])) {
-                $this->line("<fg=yellow>Positions:</>");
+                $this->line('<fg=yellow>Positions:</>');
                 $positionData = $formatter->formatPositions($stats['positions']);
 
                 $this->table(

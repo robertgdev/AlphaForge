@@ -70,13 +70,13 @@ describe('MutableSeries', function () {
         $series = new MutableSeries(['10', '20']);
 
         $series->setCurrentIndex(999);
-    })->throws(\OutOfBoundsException::class);
+    })->throws(OutOfBoundsException::class);
 
     it('setCurrentIndex throws for negative index', function () {
         $series = new MutableSeries(['10', '20']);
 
         $series->setCurrentIndex(-1);
-    })->throws(\OutOfBoundsException::class);
+    })->throws(OutOfBoundsException::class);
 
     it('can set current index to valid position', function () {
         $series = new MutableSeries(['10', '20', '30']);

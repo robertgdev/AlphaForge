@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\AlphaForge\Data;
 
-use App\Http\Controllers\Controller;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Service\DataInspectionService;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
 class InspectController extends Controller

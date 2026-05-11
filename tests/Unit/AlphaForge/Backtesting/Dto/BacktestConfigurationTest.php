@@ -76,8 +76,8 @@ describe('BacktestConfiguration', function () {
     });
 
     it('accepts all optional parameters', function () {
-        $startDate = new \DateTimeImmutable('2024-01-01');
-        $endDate = new \DateTimeImmutable('2024-12-31');
+        $startDate = new DateTimeImmutable('2024-01-01');
+        $endDate = new DateTimeImmutable('2024-12-31');
 
         $config = new BacktestConfiguration(
             strategyAlias: 'sma_crossover',

@@ -70,10 +70,13 @@ class SmaCrossoverStrategy implements StrategyInterface
 
     private ?ConditionInterface $exitCondition = null;
 
+    /** @var array<int, bool> */
     private array $entrySignals = [];
 
+    /** @var array<int, bool> */
     private array $exitSignals = [];
 
+    /** @var array<int, float> */
     private array $closePrices = [];
 
     private int $totalBars = 0;
@@ -124,7 +127,7 @@ class SmaCrossoverStrategy implements StrategyInterface
         $currentPrice = (string) $this->closePrices[$currentIndex];
         $openPosition = $portfolio->getOpenPosition($symbol);
 
-        if ($this->entrySignals[$currentIndex] ?? false && $openPosition === null) {
+        if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
             $stopLoss = bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent), '100', 6), 6);
             $takeProfit = bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent), '100', 6), 6);
 
@@ -138,7 +141,7 @@ class SmaCrossoverStrategy implements StrategyInterface
             );
         }
 
-        if ($this->exitSignals[$currentIndex] ?? false && $openPosition !== null) {
+        if (($this->exitSignals[$currentIndex] ?? false) && $openPosition !== null) {
             $signals[] = new OrderSignal(
                 symbol: $symbol,
                 direction: DirectionEnum::SHORT,

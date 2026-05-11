@@ -23,18 +23,7 @@ class ParameterOptimizerService
     /**
      * Run an optimization.
      *
-     * @param  string  $strategyAlias
-     * @param  array  $symbols
-     * @param  TimeframeEnum  $timeframe
-     * @param  string  $exchange
-     * @param  string  $initialCapital
-     * @param  string  $stakeCurrency
      * @param  array  $parameterRanges  e.g. ['fastPeriod' => ['min' => 5, 'max' => 20, 'step' => 5]]
-     * @param  string  $optimizationMetric
-     * @param  array  $commissionConfig
-     * @param  Carbon|null  $startDate
-     * @param  Carbon|null  $endDate
-     * @return OptimizationRun
      */
     public function optimize(
         string $strategyAlias,
@@ -70,11 +59,11 @@ class ParameterOptimizerService
         // Generate all parameter combinations
         $combinations = $this->generateCombinations($parameterRanges);
         $totalCombinations = count($combinations);
-        
+
         $optimizationRun->update(['total_combinations' => $totalCombinations]);
         $optimizationRun->markAsRunning();
 
-        Log::info("Starting optimization", [
+        Log::info('Starting optimization', [
             'optimization_id' => $optimizationRun->id,
             'total_combinations' => $totalCombinations,
         ]);
@@ -120,7 +109,7 @@ class ParameterOptimizerService
 
                 $optimizationRun->incrementProgress();
 
-                Log::debug("Optimization progress", [
+                Log::debug('Optimization progress', [
                     'optimization_id' => $optimizationRun->id,
                     'completed' => $optimizationRun->completed_combinations,
                     'total' => $totalCombinations,
@@ -142,14 +131,14 @@ class ParameterOptimizerService
 
             $optimizationRun->markAsCompleted($bestParams, $bestStats);
 
-            Log::info("Optimization completed", [
+            Log::info('Optimization completed', [
                 'optimization_id' => $optimizationRun->id,
                 'best_params' => $bestParams,
                 'best_metric' => $bestMetric,
             ]);
 
         } catch (\Throwable $e) {
-            Log::error("Optimization failed", [
+            Log::error('Optimization failed', [
                 'optimization_id' => $optimizationRun->id,
                 'error' => $e->getMessage(),
             ]);

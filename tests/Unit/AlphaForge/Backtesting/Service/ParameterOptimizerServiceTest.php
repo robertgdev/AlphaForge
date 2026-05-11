@@ -1,7 +1,7 @@
 <?php
 
-use App\AlphaForge\Backtesting\Service\ParameterOptimizerService;
 use App\AlphaForge\Backtesting\Service\Backtester;
+use App\AlphaForge\Backtesting\Service\ParameterOptimizerService;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 
 describe('ParameterOptimizerService', function () {

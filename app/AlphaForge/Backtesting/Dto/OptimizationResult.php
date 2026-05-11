@@ -18,6 +18,7 @@ readonly class OptimizationResult
     public function getMetricValue(string $metric): string
     {
         $value = $this->statistics[$metric] ?? '0';
+
         return (string) $value;
     }
 

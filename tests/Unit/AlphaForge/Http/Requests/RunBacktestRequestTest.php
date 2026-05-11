@@ -1,7 +1,6 @@
 <?php
 
 use App\AlphaForge\Http\Requests\RunBacktestRequest;
-use Illuminate\Support\Facades\Validator;
 
 describe('RunBacktestRequest', function () {
     it('has required fields defined', function () {

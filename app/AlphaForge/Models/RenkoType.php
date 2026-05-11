@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -46,7 +47,7 @@ class RenkoType extends Model
     /**
      * Get the renko records for this renko type.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Renko>
+     * @return HasMany<Renko>
      */
     public function renkoRecords(): HasMany
     {
@@ -56,10 +57,10 @@ class RenkoType extends Model
     /**
      * Scope a query to filter by method.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
-    public function scopeByMethod($query, string $method): \Illuminate\Database\Eloquent\Builder
+    public function scopeByMethod($query, string $method): Builder
     {
         return $query->where('method', $method);
     }

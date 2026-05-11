@@ -1,7 +1,7 @@
 <?php
 
-use App\AlphaForge\Condition\NotCondition;
 use App\AlphaForge\Condition\ComparisonCondition;
+use App\AlphaForge\Condition\NotCondition;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 
 it('negates condition results', function () {

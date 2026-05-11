@@ -2,11 +2,12 @@
 
 namespace Tests\Unit\Analysis\Engine;
 
-use App\Analysis\Config\OpenCrossAnalysisConfig;
-use App\Analysis\Engine\OpenCrossProbabilityEngine;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\Analysis\Config\OpenCrossAnalysisConfig;
+use App\Analysis\Engine\OpenCrossProbabilityEngine;
+use App\Analysis\Exception\AnalysisException;
 use PHPUnit\Framework\TestCase;
 
 final class OpenCrossProbabilityEngineTest extends TestCase
@@ -84,7 +85,7 @@ final class OpenCrossProbabilityEngineTest extends TestCase
             $this->marketDataPath
         );
 
-        $this->expectException(\App\Analysis\Exception\AnalysisException::class);
+        $this->expectException(AnalysisException::class);
         $this->expectExceptionMessage('Market data file not found');
 
         $engine->analyze($config);
@@ -108,7 +109,7 @@ final class OpenCrossProbabilityEngineTest extends TestCase
             $this->marketDataPath
         );
 
-        $this->expectException(\App\Analysis\Exception\AnalysisException::class);
+        $this->expectException(AnalysisException::class);
         $this->expectExceptionMessage('No data available');
 
         $engine->analyze($config);

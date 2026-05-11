@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\File;
 
 class StrategyRegistry implements StrategyRegistryInterface
 {
-/** @var array<string, StrategyDefinitionDto> */
+    /** @var array<string, StrategyDefinitionDto> */
     private array $definitions;
 
     /** @var array<string, AsStrategy> */

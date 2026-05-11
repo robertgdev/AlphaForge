@@ -15,6 +15,7 @@ use function Laravel\Prompts\warning;
 class RenkoCommand extends Command
 {
     use HasProgressBar;
+
     /**
      * The name and signature of the console command.
      *

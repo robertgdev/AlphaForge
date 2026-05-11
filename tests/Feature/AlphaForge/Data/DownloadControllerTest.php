@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\AlphaForge\Jobs\DownloadMarketDataJob;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;

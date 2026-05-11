@@ -1,8 +1,8 @@
 <?php
 
 use App\AlphaForge\Order\Model\Pricing\FixedCommission;
-use App\AlphaForge\Order\Model\Pricing\PercentageCommission;
 use App\AlphaForge\Order\Model\Pricing\FixedPerUnitCommission;
+use App\AlphaForge\Order\Model\Pricing\PercentageCommission;
 
 describe('Commission Models', function () {
     describe('FixedCommission', function () {

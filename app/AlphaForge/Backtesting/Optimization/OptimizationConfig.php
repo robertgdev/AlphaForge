@@ -49,7 +49,7 @@ class OptimizationConfig
 
     public static function fromArray(array $data): self
     {
-        $config = new self();
+        $config = new self;
 
         $config->strategyAlias = $data['strategy_alias'] ?? $data['strategyAlias'];
         $config->symbols = $data['symbols'];

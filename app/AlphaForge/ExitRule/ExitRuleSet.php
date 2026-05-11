@@ -4,8 +4,10 @@ namespace App\AlphaForge\ExitRule;
 
 class ExitRuleSet
 {
+    /** @var list<PriceBasedExitRule> */
     private array $priceRules = [];
 
+    /** @var list<ExitRuleInterface> */
     private array $signalRules = [];
 
     public function __construct(array $rules = [])

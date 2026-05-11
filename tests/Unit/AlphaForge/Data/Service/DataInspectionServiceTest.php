@@ -85,7 +85,9 @@ describe('DataInspectionService', function () {
                 ['timestamp' => 8200, 'open' => 50200.0, 'high' => 50300.0, 'low' => 50100.0, 'close' => 50250.0, 'volume' => 300.0],
             );
 
-            $generator = (function () { yield from []; })();
+            $generator = (function () {
+                yield from [];
+            })();
             $this->storage->shouldReceive('readRecordsSequentially')->andReturn($generator);
 
             $result = $this->service->inspect('binance', 'BTC/USDT', '1h');

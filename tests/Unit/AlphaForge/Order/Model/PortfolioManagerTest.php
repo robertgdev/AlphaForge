@@ -2,6 +2,7 @@
 
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Order\Dto\PendingOrder;
+use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\PortfolioManager;
 use Carbon\Carbon;
 
@@ -47,7 +48,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now(),
                 stopLoss: '45000',
@@ -79,7 +80,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -97,7 +98,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -114,7 +115,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -132,7 +133,7 @@ describe('PortfolioManager', function () {
                 id: 'order_entry',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -143,7 +144,7 @@ describe('PortfolioManager', function () {
                 id: 'order_exit',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::SHORT,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -166,7 +167,7 @@ describe('PortfolioManager', function () {
                 id: 'order_short',
                 symbol: 'ETH/USDT',
                 direction: DirectionEnum::SHORT,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '500',
                 createdAt: Carbon::now()
             );
@@ -194,7 +195,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -216,7 +217,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -234,7 +235,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -261,7 +262,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -277,7 +278,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -294,7 +295,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -327,7 +328,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -345,7 +346,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -363,7 +364,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '100',
                 createdAt: Carbon::now()
             );
@@ -382,7 +383,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -399,7 +400,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -420,7 +421,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -442,7 +443,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -464,7 +465,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -484,7 +485,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -505,7 +506,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );
@@ -513,7 +514,7 @@ describe('PortfolioManager', function () {
                 id: 'order_2',
                 symbol: 'ETH/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '500',
                 createdAt: Carbon::now()
             );
@@ -535,7 +536,7 @@ describe('PortfolioManager', function () {
                 id: 'order_1',
                 symbol: 'BTC/USDT',
                 direction: DirectionEnum::LONG,
-                type: \App\AlphaForge\Order\Enum\OrderTypeEnum::Market,
+                type: OrderTypeEnum::Market,
                 stakeAmount: '1000',
                 createdAt: Carbon::now()
             );

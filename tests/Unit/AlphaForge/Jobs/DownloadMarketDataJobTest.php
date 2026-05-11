@@ -3,6 +3,7 @@
 use App\AlphaForge\Data\Dto\DownloadRequestDto;
 use App\AlphaForge\Jobs\DownloadMarketDataJob;
 use Carbon\Carbon;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
 describe('DownloadMarketDataJob', function () {
     beforeEach(function () {
@@ -80,7 +81,7 @@ describe('DownloadMarketDataJob', function () {
         });
 
         it('implements ShouldQueue', function () {
-            expect($this->job)->toBeInstanceOf(\Illuminate\Contracts\Queue\ShouldQueue::class);
+            expect($this->job)->toBeInstanceOf(ShouldQueue::class);
         });
     });
 

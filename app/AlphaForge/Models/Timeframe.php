@@ -43,7 +43,7 @@ class Timeframe extends Model
     /**
      * Get the OHLCV records for this timeframe.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Ohlcv>
+     * @return HasMany<Ohlcv>
      */
     public function ohlcvRecords(): HasMany
     {
@@ -53,7 +53,7 @@ class Timeframe extends Model
     /**
      * Get the renko records for this timeframe.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\AlphaForge\Models\Renko>
+     * @return HasMany<Renko>
      */
     public function renkoRecords(): HasMany
     {

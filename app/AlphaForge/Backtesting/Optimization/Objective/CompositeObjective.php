@@ -6,7 +6,6 @@ class CompositeObjective implements ObjectiveFunctionInterface
 {
     /**
      * @param  ObjectiveWeight[]  $weights
-     * @param  string  $label
      */
     public function __construct(
         private readonly array $weights,

@@ -2,6 +2,8 @@
 
 namespace App\Analysis\Engine\Validation;
 
+use App\AlphaForge\Data\Service\BinaryStorageInterface;
+use App\AlphaForge\Services\MarketDataFileService;
 use App\Analysis\Config\ValidationConfig;
 use App\Analysis\Dto\Validation\CalibrationReport;
 use App\Analysis\Dto\Validation\CrossPeriodReport;
@@ -14,8 +16,6 @@ use App\Analysis\Dto\Validation\UncertaintyReport;
 use App\Analysis\Dto\Validation\ValidationResult;
 use App\Analysis\Engine\OpenCrossProbabilityEngine;
 use App\Analysis\Exception\AnalysisException;
-use App\AlphaForge\Data\Service\BinaryStorageInterface;
-use App\AlphaForge\Services\MarketDataFileService;
 
 /**
  * Orchestrates all validation tests and aggregates results.
@@ -159,15 +159,15 @@ final class ValidationOrchestrator
         return ValidationResult::fromResults($config, $results);
     }
 
-/**
-      * Load all records from the data file.
-      *
-      * @param  ValidationConfig  $config  Configuration
-      *
-      * @throws AnalysisException If file not found
-      * @return array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>
-      */
-     private function loadRecords(ValidationConfig $config): array
+    /**
+     * Load all records from the data file.
+     *
+     * @param  ValidationConfig  $config  Configuration
+     * @return array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>
+     *
+     * @throws AnalysisException If file not found
+     */
+    private function loadRecords(ValidationConfig $config): array
     {
         $sourcePath = $this->fileService->generateFilePath(
             $config->exchange,
@@ -212,14 +212,14 @@ final class ValidationOrchestrator
         return count($config->testsToRun);
     }
 
-/**
-      * Run train/test split validation.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      * @param  callable|null  $progressCallback  Progress callback
-      */
-     private function runTrainTest(
+    /**
+     * Run train/test split validation.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     * @param  callable|null  $progressCallback  Progress callback
+     */
+    private function runTrainTest(
         array $records,
         ValidationConfig $config,
         ?callable $progressCallback
@@ -231,13 +231,13 @@ final class ValidationOrchestrator
         return $this->trainTestSplitter->splitAndBuild($records, $config, $progressCallback);
     }
 
-/**
-      * Run calibration test.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      */
-     private function runCalibration(array $records, ValidationConfig $config): ?CalibrationReport
+    /**
+     * Run calibration test.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     */
+    private function runCalibration(array $records, ValidationConfig $config): ?CalibrationReport
     {
         if (! $config->hasTrainTestSplit()) {
             return null;
@@ -260,14 +260,14 @@ final class ValidationOrchestrator
         return $this->calibrationTester->test($trainSurface, array_values($testRecords), $config);
     }
 
-/**
-      * Run rolling stability test.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      * @param  callable|null  $progressCallback  Progress callback
-      */
-     private function runRollingStability(
+    /**
+     * Run rolling stability test.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     * @param  callable|null  $progressCallback  Progress callback
+     */
+    private function runRollingStability(
         array $records,
         ValidationConfig $config,
         ?callable $progressCallback
@@ -279,14 +279,14 @@ final class ValidationOrchestrator
         }
     }
 
-/**
-      * Run regime sensitivity analysis.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      * @param  callable|null  $progressCallback  Progress callback
-      */
-     private function runRegimeSensitivity(
+    /**
+     * Run regime sensitivity analysis.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     * @param  callable|null  $progressCallback  Progress callback
+     */
+    private function runRegimeSensitivity(
         array $records,
         ValidationConfig $config,
         ?callable $progressCallback
@@ -298,7 +298,7 @@ final class ValidationOrchestrator
         }
     }
 
-/**
+    /**
      * Run uncertainty estimation.
      *
      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
@@ -313,7 +313,7 @@ final class ValidationOrchestrator
         return $this->uncertaintyEstimator->estimate($surface, $config);
     }
 
-/**
+    /**
      * Run randomized baseline test.
      *
      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
@@ -332,14 +332,14 @@ final class ValidationOrchestrator
         return $this->randomizationGenerator->generate($surface, $records, $config, $progressCallback);
     }
 
-/**
-      * Run cross-period comparison.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      * @param  callable|null  $progressCallback  Progress callback
-      */
-     private function runCrossPeriod(
+    /**
+     * Run cross-period comparison.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     * @param  callable|null  $progressCallback  Progress callback
+     */
+    private function runCrossPeriod(
         array $records,
         ValidationConfig $config,
         ?callable $progressCallback
@@ -351,13 +351,13 @@ final class ValidationOrchestrator
         }
     }
 
-/**
-      * Run strategy simulation.
-      *
-      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
-      * @param  ValidationConfig  $config  Configuration
-      */
-     private function runStrategySimulation(array $records, ValidationConfig $config): ?SimulationReport
+    /**
+     * Run strategy simulation.
+     *
+     * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float, volume: float}>  $records  All records
+     * @param  ValidationConfig  $config  Configuration
+     */
+    private function runStrategySimulation(array $records, ValidationConfig $config): ?SimulationReport
     {
         if (! $config->hasTrainTestSplit()) {
             return null;

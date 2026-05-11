@@ -1,7 +1,5 @@
 <?php
 
-use App\AlphaForge\Condition\CrossCondition;
-use App\AlphaForge\Condition\ComparisonCondition;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 
 it('composes crossesAbove with isBelow', function () {

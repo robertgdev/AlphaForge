@@ -81,9 +81,9 @@ final class TrainTestSplitter
      *
      * @param  array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>  $records  All records
      * @param  ValidationConfig  $config  Configuration
+     * @return array{train: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>, test: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>}
      *
      * @throws AnalysisException If split validation fails
-     * @return array{train: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>, test: array<int, array{timestamp: int, open: float, high: float, low: float, close: float}>}
      */
     public function splitRecords(array $records, ValidationConfig $config): array
     {

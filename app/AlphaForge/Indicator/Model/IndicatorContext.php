@@ -7,10 +7,14 @@ use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 use App\AlphaForge\TimeSeries\TimeSeriesInterface;
 use TaLibHybrid\TaLibHybrid;
 
+use function Safe\json_encode;
+
 class IndicatorContext
 {
+    /** @var array<string, TimeSeriesInterface|IndicatorResultInterface> */
     private array $cache = [];
 
+    /** @var array<string, ArrayTimeSeries> */
     private array $priceSeriesCache = [];
 
     private const VALID_PRICE_FIELDS = ['open', 'high', 'low', 'close', 'volume', 'hlc3'];
@@ -96,57 +100,81 @@ class IndicatorContext
 
     public function sma(int $period, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('sma', ['period' => $period], $this->inputOverridesFor($input));
+        /** @var TimeSeriesInterface $result */
+        $result = $this->indicator('sma', ['period' => $period], $this->inputOverridesFor($input));
+
+        return $result;
     }
 
     public function ema(int $period, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('ema', ['period' => $period], $this->inputOverridesFor($input));
+        /** @var TimeSeriesInterface $result */
+        $result = $this->indicator('ema', ['period' => $period], $this->inputOverridesFor($input));
+
+        return $result;
     }
 
     public function rsi(int $period = 14, ?string $input = null): TimeSeriesInterface
     {
-        return $this->indicator('rsi', ['period' => $period], $this->inputOverridesFor($input));
+        /** @var TimeSeriesInterface $result */
+        $result = $this->indicator('rsi', ['period' => $period], $this->inputOverridesFor($input));
+
+        return $result;
     }
 
     public function macd(int $fastPeriod = 12, int $slowPeriod = 26, int $signalPeriod = 9): IndicatorResultInterface
     {
-        return $this->indicator('macd', [
+        /** @var IndicatorResultInterface $result */
+        $result = $this->indicator('macd', [
             'fastPeriod' => $fastPeriod,
             'slowPeriod' => $slowPeriod,
             'signalPeriod' => $signalPeriod,
         ]);
+
+        return $result;
     }
 
     public function bbands(int $period = 20, float $nbDevUp = 2.0, float $nbDevDn = 2.0, int $maType = 0): IndicatorResultInterface
     {
-        return $this->indicator('bbands', [
+        /** @var IndicatorResultInterface $result */
+        $result = $this->indicator('bbands', [
             'period' => $period,
             'nbDevUp' => $nbDevUp,
             'nbDevDn' => $nbDevDn,
             'maType' => $maType,
         ]);
+
+        return $result;
     }
 
     public function atr(int $period = 14): TimeSeriesInterface
     {
-        return $this->indicator('atr', ['period' => $period]);
+        /** @var TimeSeriesInterface $result */
+        $result = $this->indicator('atr', ['period' => $period]);
+
+        return $result;
     }
 
     public function stoch(int $fastKPeriod = 5, int $slowKPeriod = 3, int $slowKMaType = 0, int $slowDPeriod = 3, int $slowDMaType = 0): IndicatorResultInterface
     {
-        return $this->indicator('stoch', [
+        /** @var IndicatorResultInterface $result */
+        $result = $this->indicator('stoch', [
             'fastKPeriod' => $fastKPeriod,
             'slowKPeriod' => $slowKPeriod,
             'slowKMaType' => $slowKMaType,
             'slowDPeriod' => $slowDPeriod,
             'slowDMaType' => $slowDMaType,
         ]);
+
+        return $result;
     }
 
     public function adx(int $period = 14): TimeSeriesInterface
     {
-        return $this->indicator('adx', ['period' => $period]);
+        /** @var TimeSeriesInterface $result */
+        $result = $this->indicator('adx', ['period' => $period]);
+
+        return $result;
     }
 
     private function buildInputArrays(array $definition, array $inputOverrides = []): array

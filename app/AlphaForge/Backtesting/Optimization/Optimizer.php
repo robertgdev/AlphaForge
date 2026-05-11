@@ -10,9 +10,9 @@ use App\AlphaForge\Backtesting\Optimization\Generator\GridGenerator;
 use App\AlphaForge\Backtesting\Optimization\Generator\ParameterGeneratorInterface;
 use App\AlphaForge\Backtesting\Optimization\Generator\RandomGenerator;
 use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFactory;
-use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFunctionInterface;
 use App\AlphaForge\Backtesting\Optimization\Runner\OptimizationRunnerInterface;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class Optimizer
@@ -41,8 +41,8 @@ class Optimizer
             'initial_capital' => $config->initialCapital,
             'stake_currency' => $config->stakeCurrency,
             'commission_config' => $config->commissionConfig,
-            'start_date' => $config->startDate ? \Carbon\Carbon::instance($config->startDate) : null,
-            'end_date' => $config->endDate ? \Carbon\Carbon::instance($config->endDate) : null,
+            'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
+            'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
             'parameter_ranges' => $space->toArray(),
             'optimization_method' => $config->method->value,
             'optimization_objective' => $objective->label(),
@@ -111,8 +111,8 @@ class Optimizer
                     'stake_currency' => $config->stakeCurrency,
                     'strategy_inputs' => $r->parameters,
                     'commission_config' => $config->commissionConfig,
-                    'start_date' => $config->startDate ? \Carbon\Carbon::instance($config->startDate) : null,
-                    'end_date' => $config->endDate ? \Carbon\Carbon::instance($config->endDate) : null,
+                    'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
+                    'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
                     'status' => 'completed',
                     'final_capital' => $r->statistics['final_capital'] ?? $config->initialCapital,
                     'statistics' => array_merge($r->statistics, ['optimization_score' => (string) $r->score]),

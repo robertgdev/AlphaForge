@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\AlphaForge\Data;
 
-use App\Http\Controllers\Controller;
 use App\AlphaForge\Data\Service\MarketDataService;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
 class ExchangesController extends Controller

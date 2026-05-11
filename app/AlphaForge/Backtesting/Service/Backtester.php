@@ -58,10 +58,13 @@ class Backtester
     /** @var array<string, string> */
     private array $commissionConfig;
 
+    /** @var array<string, float> */
     private array $highWaterMarks = [];
 
+    /** @var array<string, float> */
     private array $lowWaterMarks = [];
 
+    /** @var array<string, int> */
     private array $barsInPositionTracker = [];
 
     public function __construct(

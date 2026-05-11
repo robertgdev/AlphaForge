@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Http\Requests;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -47,7 +48,7 @@ class RunBacktestRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator(\Illuminate\Contracts\Validation\Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
         $validator->after(function ($validator) {
             /** @var string $timeframeValue */

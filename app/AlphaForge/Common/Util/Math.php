@@ -111,6 +111,7 @@ final class Math
         if (bccomp($base, '0', $scale) === 0) {
             return '0';
         }
+
         return bcdiv($value, $base, $scale);
     }
 }

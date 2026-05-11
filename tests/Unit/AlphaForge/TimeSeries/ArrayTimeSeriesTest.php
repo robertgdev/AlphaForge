@@ -1,7 +1,7 @@
 <?php
 
-use App\AlphaForge\Condition\CrossCondition;
 use App\AlphaForge\Condition\ComparisonCondition;
+use App\AlphaForge\Condition\CrossCondition;
 use App\AlphaForge\Condition\TrendCondition;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 

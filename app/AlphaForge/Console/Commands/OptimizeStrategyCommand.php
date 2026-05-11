@@ -85,7 +85,7 @@ class OptimizeStrategyCommand extends Command
         } elseif ($paramsJson) {
             $parsed = $inputParser->parseInputs($paramsJson);
             if ($parsed === false) {
-                $this->error('Invalid JSON for --params: ' . json_last_error_msg());
+                $this->error('Invalid JSON for --params: '.json_last_error_msg());
 
                 return 1;
             }
@@ -147,10 +147,10 @@ class OptimizeStrategyCommand extends Command
             $this->newLine();
             $this->info('Best statistics:');
             $stats = $optimizationRun->best_statistics;
-            $this->line('  - Net Profit: ' . number_format((float) ($stats['total_return_percent'] ?? 0), 2) . '%');
-            $this->line('  - Win Rate: ' . number_format((float) ($stats['win_rate'] ?? 0) * 100, 2) . '%');
-            $this->line('  - Sharpe Ratio: ' . number_format((float) ($stats['sharpe_ratio'] ?? 0), 2));
-            $this->line('  - Max Drawdown: ' . number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2) . '%');
+            $this->line('  - Net Profit: '.number_format((float) ($stats['total_return_percent'] ?? 0), 2).'%');
+            $this->line('  - Win Rate: '.number_format((float) ($stats['win_rate'] ?? 0) * 100, 2).'%');
+            $this->line('  - Sharpe Ratio: '.number_format((float) ($stats['sharpe_ratio'] ?? 0), 2));
+            $this->line('  - Max Drawdown: '.number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2).'%');
         }
 
         return 0;

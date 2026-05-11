@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\AlphaForge\Backtesting\Model\BacktestRun;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 

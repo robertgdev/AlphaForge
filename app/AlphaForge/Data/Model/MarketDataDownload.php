@@ -3,7 +3,6 @@
 namespace App\AlphaForge\Data\Model;
 
 use App\Models\User;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -76,7 +75,7 @@ class MarketDataDownload extends Model
     /**
      * Get the user that owns this download.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+     * @return BelongsTo<User>
      */
     public function user(): BelongsTo
     {

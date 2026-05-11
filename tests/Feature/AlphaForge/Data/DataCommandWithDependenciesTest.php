@@ -1,16 +1,15 @@
 <?php
 
+use App\AlphaForge\Console\Commands\DataCommand;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
 use App\AlphaForge\Conversion\RenkoConverter;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
-use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Services\MarketDataFileService;
-use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
-    $this->tempDir = sys_get_temp_dir() . '/alphaforge_deps_test_' . uniqid();
+    $this->tempDir = sys_get_temp_dir().'/alphaforge_deps_test_'.uniqid();
     mkdir($this->tempDir, 0775, true);
 
     $this->binaryStorage = new BinaryStorage;
@@ -81,7 +80,7 @@ function createRenkoForDeps(BinaryStorage $storage, string $tempDir, string $exc
 
 describe('DataCommand update --with-dependencies', function () {
     it('shows --with-dependencies in command signature', function () {
-        $ref = new ReflectionClass(\App\AlphaForge\Console\Commands\DataCommand::class);
+        $ref = new ReflectionClass(DataCommand::class);
         $props = $ref->getDefaultProperties();
 
         expect($props['signature'])->toContain('--with-dependencies');

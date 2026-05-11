@@ -26,7 +26,7 @@ final class OrderExecutor implements OrderExecutorInterface
         $commission = $this->commissionModel->calculate($signal->quantity, $fillPrice);
         $orderId = uniqid('order_', true);
 
-return new ExecutionResult(
+        return new ExecutionResult(
             orderId: $orderId,
             symbol: $signal->symbol,
             direction: $signal->direction,

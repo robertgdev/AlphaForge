@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\AlphaForge\Data;
 
-use App\Http\Controllers\Controller;
 use App\AlphaForge\Data\Exception\ExchangeException;
 use App\AlphaForge\Data\Service\MarketDataService;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
 class SymbolsController extends Controller

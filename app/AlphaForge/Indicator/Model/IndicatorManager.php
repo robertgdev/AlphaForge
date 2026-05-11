@@ -5,6 +5,7 @@ namespace App\AlphaForge\Indicator\Model;
 use App\AlphaForge\Backtesting\Model\BacktestCursor;
 use App\AlphaForge\Common\Model\Series;
 use Ds\Map;
+use Ds\Vector;
 
 class IndicatorManager implements IndicatorManagerInterface
 {
@@ -16,7 +17,7 @@ class IndicatorManager implements IndicatorManagerInterface
 
     public function __construct(
         private BacktestCursor $cursor,
-        /** @var \Ds\Map<string, \Ds\Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>> */
+        /** @var Map<string, Vector<array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}>> */
         private Map $dataframes
     ) {}
 

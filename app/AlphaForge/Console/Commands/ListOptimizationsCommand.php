@@ -29,7 +29,8 @@ class ListOptimizationsCommand extends Command
         $optimizations = $query->limit((int) $this->option('limit'))->get();
 
         if ($optimizations->isEmpty()) {
-            $this->info("No optimization runs found.");
+            $this->info('No optimization runs found.');
+
             return 0;
         }
 
@@ -62,7 +63,7 @@ class ListOptimizationsCommand extends Command
 
         // Handle percentage metrics
         if (str_contains($metric, 'percent') || str_contains($metric, 'drawdown')) {
-            return number_format((float) $value * 100, 2) . '%';
+            return number_format((float) $value * 100, 2).'%';
         }
 
         return number_format((float) $value, 4);

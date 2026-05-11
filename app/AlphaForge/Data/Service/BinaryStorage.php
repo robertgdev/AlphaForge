@@ -125,7 +125,7 @@ final class BinaryStorage implements BinaryStorageInterface
         try {
             foreach ($records as $record) {
                 if (! is_array($record)) {
-                    throw new StorageException("Invalid record format: expected array.");
+                    throw new StorageException('Invalid record format: expected array.');
                 }
                 $packedRecord = pack(
                     self::RECORD_PACK_FORMAT,
@@ -703,7 +703,7 @@ final class BinaryStorage implements BinaryStorageInterface
             try {
                 foreach ($records as $record) {
                     if (! is_array($record)) {
-                        throw new StorageException("Invalid record format: expected array.");
+                        throw new StorageException('Invalid record format: expected array.');
                     }
                     $packedRecord = pack(
                         self::RECORD_PACK_FORMAT,

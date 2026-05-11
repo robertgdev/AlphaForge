@@ -1,8 +1,8 @@
 <?php
 
+use App\Providers\AlphaForgeServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\FortifyServiceProvider;
-use App\Providers\AlphaForgeServiceProvider;
 
 return [
     AppServiceProvider::class,

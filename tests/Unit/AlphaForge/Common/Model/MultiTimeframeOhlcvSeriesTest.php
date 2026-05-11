@@ -80,7 +80,7 @@ describe('MultiTimeframeOhlcvSeries', function () {
 
     it('throws for invalid magic property', function () {
         $this->multi->invalidProperty;
-    })->throws(\InvalidArgumentException::class);
+    })->throws(InvalidArgumentException::class);
 
     it('handles array data in secondary (converts to OhlcvSeries)', function () {
         $secondaryMap = new Map;

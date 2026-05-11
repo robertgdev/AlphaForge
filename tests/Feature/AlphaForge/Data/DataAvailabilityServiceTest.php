@@ -5,7 +5,7 @@ use App\AlphaForge\Data\Service\DataAvailabilityService;
 use App\AlphaForge\Services\MarketDataFileService;
 
 beforeEach(function () {
-    $this->tempDir = sys_get_temp_dir() . '/alphaforge_availability_test_' . uniqid();
+    $this->tempDir = sys_get_temp_dir().'/alphaforge_availability_test_'.uniqid();
     mkdir($this->tempDir, 0775, true);
 
     $this->binaryStorage = new BinaryStorage;
@@ -40,9 +40,9 @@ function createOhlcvAndHeikenAshi(BinaryStorage $binaryStorage, MarketDataFileSe
     $binaryStorage->updateRecordCount($ohlcvPath, count($records));
 
     $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-    $dir = rtrim($tempDir, '/') . '/' . strtolower($exchange) . '/' . $sanitizedSymbol . '/' . $timeframe;
+    $dir = rtrim($tempDir, '/').'/'.strtolower($exchange).'/'.$sanitizedSymbol.'/'.$timeframe;
 
-    $haPath = $dir . '/heikenashi.stchx';
+    $haPath = $dir.'/heikenashi.stchx';
     $binaryStorage->createFile($haPath, $market, $timeframe, BinaryStorage::DATA_TYPE_HEIKEN_ASHI);
 
     $haRecords = [
@@ -65,10 +65,10 @@ function createOhlcvAndRenko(BinaryStorage $binaryStorage, MarketDataFileService
     $binaryStorage->updateRecordCount($ohlcvPath, count($records));
 
     $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-    $dir = rtrim($tempDir, '/') . '/' . strtolower($exchange) . '/' . $sanitizedSymbol . '/' . $timeframe;
+    $dir = rtrim($tempDir, '/').'/'.strtolower($exchange).'/'.$sanitizedSymbol.'/'.$timeframe;
 
     $brickSizeStr = floor($brickSize) === $brickSize ? (string) (int) $brickSize : str_replace('.', '_', (string) $brickSize);
-    $renkoPath = $dir . '/renko_' . $brickSizeStr . '.stchx';
+    $renkoPath = $dir.'/renko_'.$brickSizeStr.'.stchx';
     $binaryStorage->createFile($renkoPath, $market, $timeframe, BinaryStorage::DATA_TYPE_RENKO, $brickSize);
 
     $renkoRecords = [
@@ -164,10 +164,10 @@ describe('DataAvailabilityService', function () {
         });
 
         it('skips files with zero records', function () {
-            $dir = $this->tempDir . '/binance/BTC_USDT/1h';
+            $dir = $this->tempDir.'/binance/BTC_USDT/1h';
             mkdir($dir, 0775, true);
 
-            $haPath = $dir . '/heikenashi.stchx';
+            $haPath = $dir.'/heikenashi.stchx';
             $this->binaryStorage->createFile($haPath, 'BTC/USDT', '1h', BinaryStorage::DATA_TYPE_HEIKEN_ASHI);
 
             $result = $this->service->findDependencies('binance', 'BTC/USDT', '1h');
@@ -176,13 +176,13 @@ describe('DataAvailabilityService', function () {
         });
 
         it('skips non-stchx files', function () {
-            $dir = $this->tempDir . '/binance/BTC_USDT/1h';
+            $dir = $this->tempDir.'/binance/BTC_USDT/1h';
             mkdir($dir, 0775, true);
 
-            file_put_contents($dir . '/readme.txt', 'ignore me');
-            file_put_contents($dir . '/data.json', '{}');
+            file_put_contents($dir.'/readme.txt', 'ignore me');
+            file_put_contents($dir.'/data.json', '{}');
 
-            $ohlcvPath = $dir . '/ohlcv.stchx';
+            $ohlcvPath = $dir.'/ohlcv.stchx';
             $this->binaryStorage->createFile($ohlcvPath, 'BTC/USDT', '1h');
             $records = [
                 ['timestamp' => 1700000000, 'open' => 100.0, 'high' => 110.0, 'low' => 90.0, 'close' => 105.0, 'volume' => 1000.0],

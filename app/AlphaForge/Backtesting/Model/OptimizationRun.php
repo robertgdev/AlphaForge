@@ -129,8 +129,8 @@ class OptimizationRun extends Model
     }
 
     /**
-     * @param array<string, mixed> $bestParameters
-     * @param array<string, mixed> $bestStatistics
+     * @param  array<string, mixed>  $bestParameters
+     * @param  array<string, mixed>  $bestStatistics
      */
     public function markAsCompleted(array $bestParameters, array $bestStatistics): void
     {
@@ -161,6 +161,7 @@ class OptimizationRun extends Model
         if ($this->total_combinations === 0) {
             return 0.0;
         }
+
         return ($this->completed_combinations / $this->total_combinations) * 100;
     }
 }

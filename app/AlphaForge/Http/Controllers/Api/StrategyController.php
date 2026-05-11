@@ -2,8 +2,8 @@
 
 namespace App\AlphaForge\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
 class StrategyController extends Controller

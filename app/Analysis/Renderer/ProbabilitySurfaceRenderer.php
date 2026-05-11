@@ -13,7 +13,7 @@ final class ProbabilitySurfaceRenderer
 {
     /**
      * @var array<int, int> ANSI foreground color codes for probability visualization
-     *            Using 256-color mode for better color gradients
+     *                      Using 256-color mode for better color gradients
      */
     private const PROBABILITY_COLORS = [
         // 0-10%: Dark red (very low probability)
@@ -40,7 +40,7 @@ final class ProbabilitySurfaceRenderer
 
     /**
      * @var array<int, string> Block characters for probability levels
-     *           Key is the probability threshold (multiplied by 10 to avoid float keys)
+     *                         Key is the probability threshold (multiplied by 10 to avoid float keys)
      */
     private const BLOCK_CHARS = [
         0 => '░',  // 0.0
@@ -56,15 +56,15 @@ final class ProbabilitySurfaceRenderer
         10 => '█', // 1.0
     ];
 
-/**
-      * Render a complete heatmap of the probability surface.
-      *
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  int  $width  Maximum width for the output
-      * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
-      * @return string ASCII art heatmap
-      */
-     public function renderHeatmap(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
+    /**
+     * Render a complete heatmap of the probability surface.
+     *
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  int  $width  Maximum width for the output
+     * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
+     * @return string ASCII art heatmap
+     */
+    public function renderHeatmap(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
     {
         $lines = [];
         $metadata = $result->metadata;
@@ -172,15 +172,15 @@ final class ProbabilitySurfaceRenderer
         return $legend;
     }
 
-/**
-      * Render a detailed view with probability bars.
-      *
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  int  $width  Maximum width for bars
-      * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
-      * @return string ASCII art with probability bars
-      */
-     public function renderDetailedView(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
+    /**
+     * Render a detailed view with probability bars.
+     *
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  int  $width  Maximum width for bars
+     * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
+     * @return string ASCII art with probability bars
+     */
+    public function renderDetailedView(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
     {
         $lines = [];
         $metadata = $result->metadata;
@@ -349,15 +349,15 @@ final class ProbabilitySurfaceRenderer
         return implode("\n", $lines);
     }
 
-/**
-      * Render a summary of the analysis results.
-      *
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  int  $width  Maximum width
-      * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
-      * @return string Summary text
-      */
-     public function renderSummary(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
+    /**
+     * Render a summary of the analysis results.
+     *
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  int  $width  Maximum width
+     * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
+     * @return string Summary text
+     */
+    public function renderSummary(OpenCrossProbabilityResult $result, int $width = 80, array $options = []): string
     {
         $lines = [];
         $metadata = $result->metadata;
@@ -447,15 +447,15 @@ final class ProbabilitySurfaceRenderer
         return implode("\n", $lines);
     }
 
-/**
-      * Filter distance buckets based on render options.
-      *
-      * @param  array<int, float>  $buckets  Array of distance buckets
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
-      * @return array<int, float> Filtered buckets
-      */
-     private function filterBuckets(array $buckets, OpenCrossProbabilityResult $result, array $options): array
+    /**
+     * Filter distance buckets based on render options.
+     *
+     * @param  array<int, float>  $buckets  Array of distance buckets
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
+     * @return array<int, float> Filtered buckets
+     */
+    private function filterBuckets(array $buckets, OpenCrossProbabilityResult $result, array $options): array
     {
         $maxDistance = $options['max_distance'] ?? null;
         $trimZeros = $options['trim_zeros'] ?? false;
@@ -473,15 +473,15 @@ final class ProbabilitySurfaceRenderer
         return array_values($buckets);
     }
 
-/**
-      * Trim buckets where all probabilities are zero, keeping a margin.
-      *
-      * @param  array<int, float>  $buckets  Array of distance buckets
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  int  $margin  Number of buckets to keep as margin (default 5)
-      * @return array<int, float> Trimmed buckets
-      */
-     private function trimZeroBuckets(array $buckets, OpenCrossProbabilityResult $result, int $margin = 5): array
+    /**
+     * Trim buckets where all probabilities are zero, keeping a margin.
+     *
+     * @param  array<int, float>  $buckets  Array of distance buckets
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  int  $margin  Number of buckets to keep as margin (default 5)
+     * @return array<int, float> Trimmed buckets
+     */
+    private function trimZeroBuckets(array $buckets, OpenCrossProbabilityResult $result, int $margin = 5): array
     {
         if (empty($buckets)) {
             return $buckets;
@@ -533,32 +533,32 @@ final class ProbabilitySurfaceRenderer
         return '['.str_repeat('█', $filled).str_repeat('░', $width - $filled).']';
     }
 
-/**
-      * Get the colored character for a probability value.
-      *
-      * @param  float  $probability  Probability value (0-1)
-      * @return string ANSI-colored character
-      */
-     private function getProbabilityChar(float $probability): string
-     {
-         $prob = max(0, min(1, $probability));
+    /**
+     * Get the colored character for a probability value.
+     *
+     * @param  float  $probability  Probability value (0-1)
+     * @return string ANSI-colored character
+     */
+    private function getProbabilityChar(float $probability): string
+    {
+        $prob = max(0, min(1, $probability));
 
-         // Get block character
-         $char = '█';
-         foreach (self::BLOCK_CHARS as $threshold => $blockChar) {
-             if ($prob <= ($threshold / 10)) {
-                 $char = $blockChar;
-                 break;
-             }
-         }
+        // Get block character
+        $char = '█';
+        foreach (self::BLOCK_CHARS as $threshold => $blockChar) {
+            if ($prob <= ($threshold / 10)) {
+                $char = $blockChar;
+                break;
+            }
+        }
 
-         // Get color index (0-9 for 10 deciles)
-         $colorIndex = (int) min(9, floor($prob * 10));
-         $colorCode = self::PROBABILITY_COLORS[$colorIndex];
+        // Get color index (0-9 for 10 deciles)
+        $colorIndex = (int) min(9, floor($prob * 10));
+        $colorCode = self::PROBABILITY_COLORS[$colorIndex];
 
-         // Return 256-color ANSI character
-         return sprintf("\e[38;5;%dm%s\e[0m", $colorCode, $char);
-     }
+        // Return 256-color ANSI character
+        return sprintf("\e[38;5;%dm%s\e[0m", $colorCode, $char);
+    }
 
     /**
      * Center text within a given width.
@@ -580,22 +580,22 @@ final class ProbabilitySurfaceRenderer
      * @param  OpenCrossProbabilityResult  $result  Analysis result
      * @return string|null Pattern description or null
      */
-private function analyzeTimeDecay(OpenCrossProbabilityResult $result): ?string
-     {
-         // Group by distance bucket and check if probability decreases with time
-         $grouped = [];
+    private function analyzeTimeDecay(OpenCrossProbabilityResult $result): ?string
+    {
+        // Group by distance bucket and check if probability decreases with time
+        $grouped = [];
 
-         foreach ($result->probabilitySurface as $point) {
-             if ($point->confidence !== 'high') {
-                 continue;
-             }
+        foreach ($result->probabilitySurface as $point) {
+            if ($point->confidence !== 'high') {
+                continue;
+            }
 
-             $bucketKey = sprintf('%.6f', $point->distanceBucket);
-             if (! isset($grouped[$bucketKey])) {
-                 $grouped[$bucketKey] = [];
-             }
-             $grouped[$bucketKey][] = $point;
-         }
+            $bucketKey = sprintf('%.6f', $point->distanceBucket);
+            if (! isset($grouped[$bucketKey])) {
+                $grouped[$bucketKey] = [];
+            }
+            $grouped[$bucketKey][] = $point;
+        }
 
         $decayCount = 0;
         $totalBuckets = 0;
@@ -630,14 +630,14 @@ private function analyzeTimeDecay(OpenCrossProbabilityResult $result): ?string
         return null;
     }
 
-/**
-      * Render an interactive HTML heatmap with Plotly.js.
-      *
-      * @param  OpenCrossProbabilityResult  $result  Analysis result
-      * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
-      * @return string Self-contained HTML document
-      */
-     public function renderHtml(OpenCrossProbabilityResult $result, array $options = []): string
+    /**
+     * Render an interactive HTML heatmap with Plotly.js.
+     *
+     * @param  OpenCrossProbabilityResult  $result  Analysis result
+     * @param  array<string, mixed>  $options  Render options (trim_zeros, max_distance)
+     * @return string Self-contained HTML document
+     */
+    public function renderHtml(OpenCrossProbabilityResult $result, array $options = []): string
     {
         $metadata = $result->metadata;
         $matrix = $result->getHeatmapMatrix();
@@ -694,11 +694,11 @@ private function analyzeTimeDecay(OpenCrossProbabilityResult $result): ?string
         // Prepare x-axis labels (minutes remaining) - ascending
         $xLabels = array_map(fn ($m) => (string) $m, $minutes);
 
-// Prepare y-axis labels (distance buckets) - ascending
-         // Use sigma for volatility normalized, percentage otherwise
-         $yLabels = $isVolatilityNormalized
-             ? array_map(fn ($b) => sprintf('%+.2fσ', $b), $buckets)
-             : array_map(fn ($b) => sprintf('%+.2f%%', $b * 100), $buckets);
+        // Prepare y-axis labels (distance buckets) - ascending
+        // Use sigma for volatility normalized, percentage otherwise
+        $yLabels = $isVolatilityNormalized
+            ? array_map(fn ($b) => sprintf('%+.2fσ', $b), $buckets)
+            : array_map(fn ($b) => sprintf('%+.2f%%', $b * 100), $buckets);
 
         // Bucket size label for subtitle (defined before use)
         $bucketLabel = $isVolatilityNormalized

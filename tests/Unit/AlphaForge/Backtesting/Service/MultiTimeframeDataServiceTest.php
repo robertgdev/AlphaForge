@@ -18,10 +18,10 @@ describe('MultiTimeframeDataService', function () {
                     1700006400, 1700010000, 1700013600, 1700017200,
                     1700020800, 1700024400, 1700028000, 1700031600,
                 ],
-                'open'   => ['100', '105', '103', '108', '110', '107', '112', '109'],
-                'high'   => ['110', '108', '107', '115', '120', '112', '118', '114'],
-                'low'    => ['95',  '102', '100', '106', '108', '104', '110', '106'],
-                'close'  => ['105', '103', '108', '110', '107', '112', '109', '111'],
+                'open' => ['100', '105', '103', '108', '110', '107', '112', '109'],
+                'high' => ['110', '108', '107', '115', '120', '112', '118', '114'],
+                'low' => ['95',  '102', '100', '106', '108', '104', '110', '106'],
+                'close' => ['105', '103', '108', '110', '107', '112', '109', '111'],
                 'volume' => ['1000', '1500', '1200', '2000', '1800', '1600', '1400', '1700'],
             ];
 
@@ -37,10 +37,10 @@ describe('MultiTimeframeDataService', function () {
         it('uses first open and last close in each period', function () {
             $marketData = [
                 'timestamp' => [1700006400, 1700010000, 1700013600, 1700017200],
-                'open'   => ['100', '105', '103', '108'],
-                'high'   => ['110', '108', '107', '115'],
-                'low'    => ['95',  '102', '100', '106'],
-                'close'  => ['105', '103', '108', '110'],
+                'open' => ['100', '105', '103', '108'],
+                'high' => ['110', '108', '107', '115'],
+                'low' => ['95',  '102', '100', '106'],
+                'close' => ['105', '103', '108', '110'],
                 'volume' => ['1000', '1500', '1200', '2000'],
             ];
 
@@ -57,10 +57,10 @@ describe('MultiTimeframeDataService', function () {
         it('computes highest high and lowest low per period', function () {
             $marketData = [
                 'timestamp' => [1700006400, 1700010000, 1700013600, 1700017200],
-                'open'   => ['100', '105', '103', '108'],
-                'high'   => ['110', '108', '107', '115'],
-                'low'    => ['95',  '102', '100', '106'],
-                'close'  => ['105', '103', '108', '110'],
+                'open' => ['100', '105', '103', '108'],
+                'high' => ['110', '108', '107', '115'],
+                'low' => ['95',  '102', '100', '106'],
+                'close' => ['105', '103', '108', '110'],
                 'volume' => ['1000', '1500', '1200', '2000'],
             ];
 
@@ -77,10 +77,10 @@ describe('MultiTimeframeDataService', function () {
         it('sums volumes per period', function () {
             $marketData = [
                 'timestamp' => [1700006400, 1700010000, 1700013600, 1700017200],
-                'open'   => ['100', '105', '103', '108'],
-                'high'   => ['110', '108', '107', '115'],
-                'low'    => ['95',  '102', '100', '106'],
-                'close'  => ['105', '103', '108', '110'],
+                'open' => ['100', '105', '103', '108'],
+                'high' => ['110', '108', '107', '115'],
+                'low' => ['95',  '102', '100', '106'],
+                'close' => ['105', '103', '108', '110'],
                 'volume' => ['1000', '1500', '1200', '2000'],
             ];
 
@@ -95,33 +95,33 @@ describe('MultiTimeframeDataService', function () {
         it('throws when target timeframe is lower than source', function () {
             $marketData = [
                 'timestamp' => [1700006400],
-                'open'   => ['100'],
-                'high'   => ['110'],
-                'low'    => ['95'],
-                'close'  => ['105'],
+                'open' => ['100'],
+                'high' => ['110'],
+                'low' => ['95'],
+                'close' => ['105'],
                 'volume' => ['1000'],
             ];
 
             $source = new OhlcvSeries($marketData, $this->cursor, 'BTC/USDT', TimeframeEnum::H4);
 
             expect(fn () => $this->service->resample($source, TimeframeEnum::H1))
-                ->toThrow(\InvalidArgumentException::class);
+                ->toThrow(InvalidArgumentException::class);
         });
 
         it('throws when source timeframe is not set', function () {
             $marketData = [
                 'timestamp' => [1700006400],
-                'open'   => ['100'],
-                'high'   => ['110'],
-                'low'    => ['95'],
-                'close'  => ['105'],
+                'open' => ['100'],
+                'high' => ['110'],
+                'low' => ['95'],
+                'close' => ['105'],
                 'volume' => ['1000'],
             ];
 
             $source = new OhlcvSeries($marketData, $this->cursor, 'BTC/USDT', null);
 
             expect(fn () => $this->service->resample($source, TimeframeEnum::H4))
-                ->toThrow(\TypeError::class);
+                ->toThrow(TypeError::class);
         });
 
         it('resamples 1m to 1h data correctly', function () {
@@ -149,10 +149,10 @@ describe('MultiTimeframeDataService', function () {
         it('returns base series plus resampled series', function () {
             $marketData = [
                 'timestamp' => [1700006400, 1700010000, 1700013600, 1700017200],
-                'open'   => ['100', '105', '103', '108'],
-                'high'   => ['110', '108', '107', '115'],
-                'low'    => ['95',  '102', '100', '106'],
-                'close'  => ['105', '103', '108', '110'],
+                'open' => ['100', '105', '103', '108'],
+                'high' => ['110', '108', '107', '115'],
+                'low' => ['95',  '102', '100', '106'],
+                'close' => ['105', '103', '108', '110'],
                 'volume' => ['1000', '1500', '1200', '2000'],
             ];
 

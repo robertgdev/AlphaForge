@@ -7,7 +7,7 @@ class StrategyInputParser
     /**
      * Parse a JSON string of strategy inputs into an array.
      *
-     * @return array<string, mixed>|false  Returns false on invalid JSON, empty array on null/empty input.
+     * @return array<string, mixed>|false Returns false on invalid JSON, empty array on null/empty input.
      */
     public function parseInputs(?string $json): array|false
     {

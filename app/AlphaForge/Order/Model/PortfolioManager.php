@@ -69,9 +69,10 @@ final class PortfolioManager
      */
     public function getOpenPosition(string $symbol): ?PositionDto
     {
-        if (!$this->openPositions->hasKey($symbol)) {
+        if (! $this->openPositions->hasKey($symbol)) {
             return null;
         }
+
         return $this->openPositions->get($symbol);
     }
 
@@ -149,16 +150,16 @@ final class PortfolioManager
                 // Close existing long position and return execution result
                 $closedPosition = $this->closePosition($position->id, $executionPrice, $executionTime, $commissionConfig);
                 if ($closedPosition) {
-return new ExecutionResult(
-                orderId: $order->id,
-                symbol: $order->symbol,
-                direction: $order->direction,
-                quantity: $closedPosition->quantity,
-                price: $executionPrice,
-                commission: $closedPosition->commission,
-                timestamp: $executionTime,
-                position: $closedPosition,
-            );
+                    return new ExecutionResult(
+                        orderId: $order->id,
+                        symbol: $order->symbol,
+                        direction: $order->direction,
+                        quantity: $closedPosition->quantity,
+                        price: $executionPrice,
+                        commission: $closedPosition->commission,
+                        timestamp: $executionTime,
+                        position: $closedPosition,
+                    );
                 }
 
                 return new ExecutionResult(

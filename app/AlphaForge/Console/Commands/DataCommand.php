@@ -20,14 +20,14 @@ use App\AlphaForge\Services\MarketDataFileService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Events\Dispatcher;
-use function Safe\filesize;
-use function Safe\filemtime;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\table;
 use function Laravel\Prompts\warning;
+use function Safe\filemtime;
+use function Safe\filesize;
 
 class DataCommand extends Command
 {
@@ -342,13 +342,13 @@ class DataCommand extends Command
 
                 if ($newRecordsCount === -1) {
                     $results[] = ['label' => $typeLabel, 'status' => 'full', 'count' => 0];
-                    $this->line("    <fg=green>Completed (full conversion performed)</>");
+                    $this->line('    <fg=green>Completed (full conversion performed)</>');
                 } elseif ($newRecordsCount === 0) {
                     $results[] = ['label' => $typeLabel, 'status' => 'uptodate', 'count' => 0];
-                    $this->line("    <fg=yellow>Already up to date</>");
+                    $this->line('    <fg=yellow>Already up to date</>');
                 } else {
                     $results[] = ['label' => $typeLabel, 'status' => 'updated', 'count' => $newRecordsCount];
-                    $this->line("    <fg=green>+ " . number_format($newRecordsCount) . ' new records</>');
+                    $this->line('    <fg=green>+ '.number_format($newRecordsCount).' new records</>');
                 }
             } catch (\Throwable $e) {
                 $results[] = ['label' => $typeLabel, 'status' => 'failed', 'count' => 0];
@@ -461,7 +461,7 @@ class DataCommand extends Command
     {
         return match ($dataType) {
             BinaryStorage::DATA_TYPE_RENKO => "Renko (brick: {$brickSize})",
-            BinaryStorage::DATA_TYPE_ATR_RENKO => "ATR-Renko (period: " . (int) $brickSize . ')',
+            BinaryStorage::DATA_TYPE_ATR_RENKO => 'ATR-Renko (period: '.(int) $brickSize.')',
             BinaryStorage::DATA_TYPE_HEIKEN_ASHI => 'Heiken-Ashi',
             default => "Unknown (type: {$dataType})",
         };

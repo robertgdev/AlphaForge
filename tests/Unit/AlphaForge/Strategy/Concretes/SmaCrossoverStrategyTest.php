@@ -1,6 +1,15 @@
 <?php
 
+use App\AlphaForge\Backtesting\Model\BacktestCursor;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Common\Model\OhlcvSeries;
+use App\AlphaForge\Common\Model\Series;
+use App\AlphaForge\Order\Model\PortfolioManager;
+use App\AlphaForge\Strategy\Attribute\AsStrategy;
+use App\AlphaForge\Strategy\Attribute\Input;
 use App\AlphaForge\Strategy\Concretes\SmaCrossoverStrategy;
+use App\AlphaForge\Strategy\StrategyInterface;
+use Ds\Vector;
 
 describe('SmaCrossoverStrategy', function () {
     beforeEach(function () {
@@ -90,16 +99,16 @@ describe('SmaCrossoverStrategy', function () {
 
     describe('onBar', function () {
         it('returns empty signals when initialize has not been called', function () {
-            $closes = Mockery::mock(\App\AlphaForge\Common\Model\Series::class);
-            $closes->shouldReceive('getVector')->andReturn(new \Ds\Vector(array_map('strval', range(100, 150))));
+            $closes = Mockery::mock(Series::class);
+            $closes->shouldReceive('getVector')->andReturn(new Vector(array_map('strval', range(100, 150))));
 
-            $ohlcv = Mockery::mock(\App\AlphaForge\Common\Model\OhlcvSeries::class);
+            $ohlcv = Mockery::mock(OhlcvSeries::class);
             $ohlcv->shouldReceive('getCloses')->andReturn($closes);
 
-            $cursor = new \App\AlphaForge\Backtesting\Model\BacktestCursor;
+            $cursor = new BacktestCursor;
             $cursor->currentIndex = 5;
 
-            $portfolio = new \App\AlphaForge\Order\Model\PortfolioManager('10000');
+            $portfolio = new PortfolioManager('10000');
 
             $data = [
                 'ohlcv' => $ohlcv,
@@ -116,21 +125,21 @@ describe('SmaCrossoverStrategy', function () {
 
     describe('implements StrategyInterface', function () {
         it('implements StrategyInterface', function () {
-            expect($this->strategy)->toBeInstanceOf(\App\AlphaForge\Strategy\StrategyInterface::class);
+            expect($this->strategy)->toBeInstanceOf(StrategyInterface::class);
         });
     });
 
     describe('AsStrategy attribute', function () {
         it('has AsStrategy attribute with correct alias', function () {
             $ref = new ReflectionClass($this->strategy);
-            $attrs = $ref->getAttributes(\App\AlphaForge\Strategy\Attribute\AsStrategy::class);
+            $attrs = $ref->getAttributes(AsStrategy::class);
 
             expect($attrs)->toHaveCount(1);
 
             $asStrategy = $attrs[0]->newInstance();
             expect($asStrategy->alias)->toBe('sma_crossover')
                 ->and($asStrategy->name)->toBe('SMA Crossover')
-                ->and($asStrategy->timeframe)->toBe(\App\AlphaForge\Common\Enum\TimeframeEnum::H1);
+                ->and($asStrategy->timeframe)->toBe(TimeframeEnum::H1);
         });
     });
 
@@ -140,7 +149,7 @@ describe('SmaCrossoverStrategy', function () {
             $inputProps = [];
 
             foreach ($ref->getProperties() as $property) {
-                $inputAttrs = $property->getAttributes(\App\AlphaForge\Strategy\Attribute\Input::class);
+                $inputAttrs = $property->getAttributes(Input::class);
                 if (! empty($inputAttrs)) {
                     $inputProps[] = $property->getName();
                 }

@@ -24,33 +24,34 @@ class ShowOptimizationCommand extends Command
 
         if (! $optimizationRun) {
             $this->error("Optimization run not found: $optimizationId");
+
             return 1;
         }
 
-        $this->line("<fg=yellow>Optimization Details</>");
+        $this->line('<fg=yellow>Optimization Details</>');
         $this->line("  ID: {$optimizationRun->id}");
         $this->line("  Strategy: {$optimizationRun->strategy_alias}");
-        $this->line("  Symbol: " . ($optimizationRun->symbols[0] ?? '-'));
+        $this->line('  Symbol: '.($optimizationRun->symbols[0] ?? '-'));
         $this->line("  Timeframe: {$optimizationRun->timeframe}");
         $this->line("  Status: {$optimizationRun->status}");
         $this->line("  Optimization Metric: {$optimizationRun->optimization_metric}");
         $this->line("  Progress: {$optimizationRun->completed_combinations}/{$optimizationRun->total_combinations}");
         $this->newLine();
 
-        $this->line("<fg=yellow>Parameter Ranges:</>");
+        $this->line('<fg=yellow>Parameter Ranges:</>');
         foreach ($optimizationRun->parameter_ranges as $param => $range) {
             $this->line("  - $param: {$range['min']} to {$range['max']} (step: {$range['step']})");
         }
         $this->newLine();
 
         if ($optimizationRun->isCompleted()) {
-            $this->line("<fg=yellow>Best Parameters:</>");
+            $this->line('<fg=yellow>Best Parameters:</>');
             foreach ($optimizationRun->best_parameters as $param => $value) {
                 $this->line("  - $param: $value");
             }
             $this->newLine();
 
-            $this->line("<fg=yellow>Best Statistics:</>");
+            $this->line('<fg=yellow>Best Statistics:</>');
             $formattedStats = $formatter->formatStatistics($optimizationRun->best_statistics);
             foreach ($formattedStats as $label => $value) {
                 $this->line("  - {$label}: {$value}");
@@ -64,7 +65,8 @@ class ShowOptimizationCommand extends Command
         $results = $optimizer->getRankedResults($optimizationRun)->take($topCount);
 
         if ($results->isEmpty()) {
-            $this->line("  No completed results yet.");
+            $this->line('  No completed results yet.');
+
             return 0;
         }
 
@@ -74,12 +76,12 @@ class ShowOptimizationCommand extends Command
             $stats = $result->statistics;
 
             return [
-                '#' . $result->rank,
+                '#'.$result->rank,
                 implode(', ', array_map(fn ($k, $v) => "$k=$v", array_keys($params), $params)),
-                number_format((float) ($stats['total_return_percent'] ?? 0), 2) . '%',
-                number_format((float) ($stats['win_rate'] ?? 0) * 100, 1) . '%',
+                number_format((float) ($stats['total_return_percent'] ?? 0), 2).'%',
+                number_format((float) ($stats['win_rate'] ?? 0) * 100, 1).'%',
                 number_format((float) ($stats[$metric] ?? 0), 4),
-                number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2) . '%',
+                number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2).'%',
             ];
         })->toArray();
 

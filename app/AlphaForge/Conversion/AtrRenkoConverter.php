@@ -110,14 +110,14 @@ final class AtrRenkoConverter
         );
     }
 
-/**
-      * Convert OHLC data to ATR-based Renko bricks using the high-low method
-      * with a dynamic brick size derived from the ATR indicator.
-      *
-      * Algorithm:
-      *   1. Read all OHLC records into memory and re-index to 0-based
-      *   2. Compute ATR series using TaLibHybrid::atr() (Wilders smoothing)
-      *   3. Replace NULL warmup entries in TaLibHybrid::atr() output with the first valid ATR value
+    /**
+     * Convert OHLC data to ATR-based Renko bricks using the high-low method
+     * with a dynamic brick size derived from the ATR indicator.
+     *
+     * Algorithm:
+     *   1. Read all OHLC records into memory and re-index to 0-based
+     *   2. Compute ATR series using TaLibHybrid::atr() (Wilders smoothing)
+     *   3. Replace NULL warmup entries in TaLibHybrid::atr() output with the first valid ATR value
      *   4. Iterate records with corresponding ATR-derived brick size,
      *      applying the same high-low Renko logic as the fixed-brick converter
      *
@@ -138,21 +138,21 @@ final class AtrRenkoConverter
         $records = array_values(iterator_to_array($this->binaryStorage->readRecordsSequentially($sourcePath)));
         $recordCount = count($records);
 
-$highs = array_column($records, 'high');
-         $lows = array_column($records, 'low');
-         $closes = array_column($records, 'close');
+        $highs = array_column($records, 'high');
+        $lows = array_column($records, 'low');
+        $closes = array_column($records, 'close');
 
-         try {
-             $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
-         } catch (\Throwable $e) {
-             throw new StorageException('TaLibHybrid::atr() failed: ' . $e->getMessage());
-         }
+        try {
+            $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
+        } catch (\Throwable $e) {
+            throw new StorageException('TaLibHybrid::atr() failed: '.$e->getMessage());
+        }
 
-         if (empty($atrRaw)) {
-             throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
-         }
+        if (empty($atrRaw)) {
+            throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        }
 
-         // TaLibHybrid::atr() returns a full-size array (same count as input) with NULL for warmup entries.
+        // TaLibHybrid::atr() returns a full-size array (same count as input) with NULL for warmup entries.
         // Find the first valid (non-NULL) ATR value, then fill NULLs with it.
         $fullAtr = $atrRaw;
         $firstValidAtr = null;
@@ -343,21 +343,21 @@ $highs = array_column($records, 'high');
 
         $allSourceRecords = array_values(iterator_to_array($this->binaryStorage->readRecordsSequentially($sourcePath)));
 
-$highs = array_column($allSourceRecords, 'high');
-         $lows = array_column($allSourceRecords, 'low');
-         $closes = array_column($allSourceRecords, 'close');
+        $highs = array_column($allSourceRecords, 'high');
+        $lows = array_column($allSourceRecords, 'low');
+        $closes = array_column($allSourceRecords, 'close');
 
-         try {
-             $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
-         } catch (\Throwable $e) {
-             throw new StorageException('TaLibHybrid::atr() failed: ' . $e->getMessage());
-         }
+        try {
+            $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
+        } catch (\Throwable $e) {
+            throw new StorageException('TaLibHybrid::atr() failed: '.$e->getMessage());
+        }
 
-         if (empty($atrRaw)) {
-             throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
-         }
+        if (empty($atrRaw)) {
+            throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+        }
 
-         $fullAtr = $atrRaw;
+        $fullAtr = $atrRaw;
         $firstValidAtr = null;
 
         foreach ($fullAtr as $val) {

@@ -1,7 +1,7 @@
 <?php
 
-use App\AlphaForge\Condition\LogicalCondition;
 use App\AlphaForge\Condition\ComparisonCondition;
+use App\AlphaForge\Condition\LogicalCondition;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 
 it('AND composition', function () {

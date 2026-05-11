@@ -106,15 +106,15 @@ final class UncertaintyEstimator
         return sqrt($p * (1 - $p) / $samples);
     }
 
-/**
-      * Compute confidence interval for a probability estimate.
-      *
-      * @param  float  $probability  Probability estimate
-      * @param  int  $samples  Sample count
-      * @param  float  $confidence  Confidence level (e.g., 0.95 for 95%)
-      * @return array{0: float, 1: float} [lower, upper]
-      */
-     public function computeConfidenceInterval(
+    /**
+     * Compute confidence interval for a probability estimate.
+     *
+     * @param  float  $probability  Probability estimate
+     * @param  int  $samples  Sample count
+     * @param  float  $confidence  Confidence level (e.g., 0.95 for 95%)
+     * @return array{0: float, 1: float} [lower, upper]
+     */
+    public function computeConfidenceInterval(
         float $probability,
         int $samples,
         float $confidence = 0.95
@@ -152,17 +152,17 @@ final class UncertaintyEstimator
         };
     }
 
-/**
-      * Compute Wilson score interval for better handling of extreme probabilities.
-      *
-      * This is more accurate than the normal approximation for probabilities near 0 or 1.
-      *
-      * @param  float  $probability  Probability estimate
-      * @param  int  $samples  Sample count
-      * @param  float  $confidence  Confidence level
-      * @return array{0: float, 1: float} [lower, upper]
-      */
-     public function computeWilsonInterval(
+    /**
+     * Compute Wilson score interval for better handling of extreme probabilities.
+     *
+     * This is more accurate than the normal approximation for probabilities near 0 or 1.
+     *
+     * @param  float  $probability  Probability estimate
+     * @param  int  $samples  Sample count
+     * @param  float  $confidence  Confidence level
+     * @return array{0: float, 1: float} [lower, upper]
+     */
+    public function computeWilsonInterval(
         float $probability,
         int $samples,
         float $confidence = 0.95
@@ -187,15 +187,15 @@ final class UncertaintyEstimator
         ];
     }
 
-/**
-      * Compute Agresti-Coull interval (another alternative for extreme probabilities).
-      *
-      * @param  float  $probability  Probability estimate
-      * @param  int  $samples  Sample count
-      * @param  float  $confidence  Confidence level
-      * @return array{0: float, 1: float} [lower, upper]
-      */
-     public function computeAgrestiCoullInterval(
+    /**
+     * Compute Agresti-Coull interval (another alternative for extreme probabilities).
+     *
+     * @param  float  $probability  Probability estimate
+     * @param  int  $samples  Sample count
+     * @param  float  $confidence  Confidence level
+     * @return array{0: float, 1: float} [lower, upper]
+     */
+    public function computeAgrestiCoullInterval(
         float $probability,
         int $samples,
         float $confidence = 0.95
@@ -242,15 +242,15 @@ final class UncertaintyEstimator
         return (int) ceil($n);
     }
 
-/**
-      * Flag buckets that have insufficient samples or high uncertainty.
-      *
-      * @param  UncertaintyReport  $report  Uncertainty report
-      * @param  int  $minimumSamples  Minimum samples threshold
-      * @param  float  $maximumStandardError  Maximum acceptable standard error
-      * @return array<string, array{distance_bucket: float, minutes_remaining: int, samples: int, standard_error: float, reason: string}> Array of flagged bucket keys
-      */
-     public function flagProblematicBuckets(
+    /**
+     * Flag buckets that have insufficient samples or high uncertainty.
+     *
+     * @param  UncertaintyReport  $report  Uncertainty report
+     * @param  int  $minimumSamples  Minimum samples threshold
+     * @param  float  $maximumStandardError  Maximum acceptable standard error
+     * @return array<string, array{distance_bucket: float, minutes_remaining: int, samples: int, standard_error: float, reason: string}> Array of flagged bucket keys
+     */
+    public function flagProblematicBuckets(
         UncertaintyReport $report,
         int $minimumSamples,
         float $maximumStandardError = 0.1

@@ -77,7 +77,7 @@ class FormattingService
         }
 
         if ($dataType === BinaryStorage::DATA_TYPE_ATR_RENKO && $brickSize > 0) {
-            return "ATR-Renko (".(int) $brickSize.')';
+            return 'ATR-Renko ('.(int) $brickSize.')';
         }
 
         return $typeName;

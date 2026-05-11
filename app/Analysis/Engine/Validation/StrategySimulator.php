@@ -58,12 +58,12 @@ final class StrategySimulator
         );
     }
 
-/**
-      * Build a surface lookup map.
-      *
-      * @param  OpenCrossProbabilityResult  $surface  Probability surface
-      * @return array<string, array<int, array{probability: float, confidence: string}>>
-      */
+    /**
+     * Build a surface lookup map.
+     *
+     * @param  OpenCrossProbabilityResult  $surface  Probability surface
+     * @return array<string, array<int, array{probability: float, confidence: string}>>
+     */
     private function buildSurfaceMap(OpenCrossProbabilityResult $surface): array
     {
         $map = [];
@@ -181,14 +181,14 @@ final class StrategySimulator
         ];
     }
 
-/**
-      * Simulate trades for a single block.
-      *
-      * @param  array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int, block_timestamp: int}  $blockData  Block data
-      * @param  array<string, array<int, array{probability: float, confidence: string|float}>>  $surfaceMap  Surface lookup map
-      * @param  ValidationConfig  $config  Configuration
-      * @return array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}> Trades
-      */
+    /**
+     * Simulate trades for a single block.
+     *
+     * @param  array{records: array<int, array{timestamp: int, open: float, high: float, low: float, close: float, future_min_low: float, future_max_high: float}>, block_open: float, block_length: int, block_timestamp: int}  $blockData  Block data
+     * @param  array<string, array<int, array{probability: float, confidence: string|float}>>  $surfaceMap  Surface lookup map
+     * @param  ValidationConfig  $config  Configuration
+     * @return array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}> Trades
+     */
     private function simulateBlock(
         array $blockData,
         array $surfaceMap,
