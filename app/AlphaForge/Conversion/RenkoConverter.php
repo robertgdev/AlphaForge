@@ -121,7 +121,13 @@ final class RenkoConverter
      * Convert OHLC data to Renko bricks using the high-low method.
      *
      * This method uses the high and low prices to determine brick movements,
-     * which is more accurate for Renko chart construction.
+     * which is more accurate for Renko chart construction than using closes alone.
+     *
+     * Limitation: because OHLC candles do not contain intrabar sequencing,
+     * when a single candle's range is large enough to satisfy both the
+     * continuation and reversal thresholds, continuation is prioritised.
+     * For example, in an uptrend if high yields 3 up-bricks and low yields
+     * 4 down-bricks, only the up-bricks are emitted.
      *
      * @param  string  $sourcePath  The path to the OHLC file
      * @param  float  $brickSize  The brick size
@@ -142,7 +148,6 @@ final class RenkoConverter
         $currentPrice = null;
         $currentDirection = 0;
         $processedCount = 0;
-        $lastTimestamp = 0;
 
         foreach ($records as $record) {
             $processedCount++;
@@ -241,8 +246,6 @@ final class RenkoConverter
                     $currentDirection = 1;
                 }
             }
-
-            $lastTimestamp = $timestamp;
         }
 
         if ($progressCallback !== null) {
@@ -448,7 +451,6 @@ final class RenkoConverter
 
         if ($newRecordsCount > 0) {
             $this->binaryStorage->appendRecords($destPath, $convertedBricks);
-            $this->binaryStorage->updateRecordCount($destPath, $destHeader['numRecords'] + $newRecordsCount);
         }
 
         return $newRecordsCount;

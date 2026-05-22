@@ -536,7 +536,6 @@ final class AtrRenkoConverter
 
         if ($newRecordsCount > 0) {
             $this->binaryStorage->appendRecords($destPath, $convertedBricks);
-            $this->binaryStorage->updateRecordCount($destPath, $destHeader['numRecords'] + $newRecordsCount);
         }
 
         return $newRecordsCount;
