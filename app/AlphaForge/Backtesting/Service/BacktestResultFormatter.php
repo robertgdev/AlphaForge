@@ -71,11 +71,14 @@ class BacktestResultFormatter
      * Format position objects for table display.
      *
      * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric}>  $positions
-     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string}>
+     * @param  float  $initialCapital  Initial capital for running balance calculation
+     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}>
      */
-    public function formatPositions(array $positions): array
+    public function formatPositions(array $positions, float $initialCapital = 0.0): array
     {
         $result = [];
+        $runningBalance = $initialCapital;
+
         foreach ($positions as $position) {
             if (is_array($position)) {
                 $symbol = (string) ($position['symbol'] ?? '?');
@@ -96,12 +99,15 @@ class BacktestResultFormatter
                 $pnl = $position->realizedPnl ?? 0;
             }
 
+            $runningBalance += $pnl;
+
             $result[] = [
                 $symbol,
                 $direction,
                 number_format($entryPrice, 2),
                 number_format($exitPrice, 2),
                 number_format($pnl, 2),
+                number_format($runningBalance, 2),
             ];
         }
 

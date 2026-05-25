@@ -58,6 +58,9 @@ class Backtester
     /** @var array<string, string> */
     private array $commissionConfig;
 
+    /** @var callable|null */
+    private $progressCallback = null;
+
     /** @var array<string, float> */
     private array $highWaterMarks = [];
 
@@ -91,6 +94,7 @@ class Backtester
      * @param  Carbon|null  $startDate  Optional start date filter
      * @param  Carbon|null  $endDate  Optional end date filter
      * @param  TimeframeEnum|null  $executionTimeframe  Lower timeframe for order/position execution
+     * @param  callable|null  $progressCallback  Optional callback receiving (int $current, int $total, string $message)
      * @return array Backtest results
      */
     public function run(
@@ -105,7 +109,8 @@ class Backtester
         array $additionalTimeframes = [],
         ?Carbon $startDate = null,
         ?Carbon $endDate = null,
-        ?TimeframeEnum $executionTimeframe = null
+        ?TimeframeEnum $executionTimeframe = null,
+        ?callable $progressCallback = null
     ): array {
         // Validate execution timeframe is lower than signal timeframe
         if ($executionTimeframe !== null && $executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
@@ -117,6 +122,11 @@ class Backtester
         // Initialize
         $this->initialize($initialCapital, $commissionConfig);
 
+        // Store progress callback
+        $this->progressCallback = $progressCallback;
+
+        $this->emitProgress(0, 100, 'Initializing...');
+
         // Load strategy
         $this->strategy = $this->strategyRegistry->get($strategyAlias);
         $this->configureStrategy($strategyInputs);
@@ -125,18 +135,28 @@ class Backtester
         $this->signalTimeframe = $timeframe;
         $this->executionTimeframe = $executionTimeframe;
 
+        $this->emitProgress(10, 100, 'Loading market data...');
+
         // Load market data
         $this->loadMarketData($symbols, $timeframe, $exchange, $additionalTimeframes, $startDate, $endDate, $executionTimeframe);
 
+        // Initialize strategy (pre-compute indicators)
+        $this->emitProgress(20, 100, 'Computing indicators...');
+        $this->initializeStrategy($symbols[0], $this->ohlcvData->get($symbols[0]));
+
         // Run the backtest loop
+        $this->emitProgress(30, 100, 'Running backtest...');
         $this->runBacktestLoop($symbols);
 
         // Calculate statistics
+        $this->emitProgress(90, 100, 'Calculating statistics...');
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
             $this->currentCapital
         );
+
+        $this->emitProgress(100, 100, 'Backtest completed');
 
         return [
             'strategy' => $strategyAlias,
@@ -171,6 +191,7 @@ class Backtester
         $this->highWaterMarks = [];
         $this->lowWaterMarks = [];
         $this->barsInPositionTracker = [];
+        $this->progressCallback = null;
     }
 
     /**
@@ -393,9 +414,15 @@ class Backtester
     {
         $totalBars = $primaryOhlcv->getTimestamps()->count();
 
-        $this->initializeStrategy($primarySymbol, $primaryOhlcv);
-
         for ($this->cursor->currentIndex = 0; $this->cursor->currentIndex < $totalBars; $this->cursor->currentIndex++) {
+            if ($this->cursor->currentIndex % 100 === 0) {
+                $this->emitProgress(
+                    30 + (int) round(($this->cursor->currentIndex / $totalBars) * 60),
+                    100,
+                    "Processing bar {$this->cursor->currentIndex}/{$totalBars}"
+                );
+            }
+
             // Get current bar data
             $currentBar = $this->getCurrentBar($primaryOhlcv);
 
@@ -445,6 +472,8 @@ class Backtester
 
         $this->initializeStrategy($symbol, $signalOhlcv);
 
+        $this->initializeStrategy($symbol, $signalOhlcv);
+
         // Find the first execution bar index that corresponds to the start of the signal data
         $signalStart = $signalTimestamps->getVector()->get(0);
         $execStart = 0;
@@ -459,6 +488,14 @@ class Backtester
 
         for ($signalIndex = 0; $signalIndex < $totalSignalBars; $signalIndex++) {
             $this->cursor->currentIndex = $signalIndex;
+
+            if ($signalIndex % 100 === 0) {
+                $this->emitProgress(
+                    30 + (int) round(($signalIndex / $totalSignalBars) * 60),
+                    100,
+                    "Processing signal bar {$signalIndex}/{$totalSignalBars}"
+                );
+            }
 
             // Determine the time window for this signal bar
             $signalBarStart = $signalTimestamps->getVector()->get($signalIndex);
@@ -966,5 +1003,12 @@ class Backtester
         }
 
         $this->currentCapital = $this->portfolioManager->getCashBalance();
+    }
+
+    private function emitProgress(int $current, int $total, string $message): void
+    {
+        if ($this->progressCallback !== null) {
+            ($this->progressCallback)($current, $total, $message);
+        }
     }
 }

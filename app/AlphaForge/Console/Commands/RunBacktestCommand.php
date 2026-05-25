@@ -6,6 +6,7 @@ use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Service\DateParsingService;
+use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
@@ -18,6 +19,7 @@ use function Safe\json_encode;
 
 class RunBacktestCommand extends Command
 {
+    use HasProgressBar;
     /**
      * The name and signature of the console command.
      *
@@ -175,12 +177,19 @@ class RunBacktestCommand extends Command
         $this->newLine();
 
         try {
-            $result = $service->runSync($data);
+            $this->startProgressBar('Running backtest...');
+
+            $result = $service->runSync($data, function (int $current, int $total, string $message) {
+                $this->updateProgress($current, $total, $message);
+            });
+
+            $this->finishProgressBar();
 
             $this->displayResults($result, $formatter);
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
+            $this->finishProgressBarOnError();
             error('Backtest failed: '.$e->getMessage());
             dump($e->getTraceAsString());
 
@@ -258,8 +267,8 @@ class RunBacktestCommand extends Command
 
         $summary = $formatter->formatCapitalSummary($result);
 
-        $this->components->twoColumnDetail('Final Capital', $summary['final_capital']);
         $this->components->twoColumnDetail('Initial Capital', $summary['initial_capital']);
+        $this->components->twoColumnDetail('Final Capital', $summary['final_capital']);
 
         if ($summary['execution_timeframe'] !== null) {
             $this->components->twoColumnDetail('Execution Timeframe', $summary['execution_timeframe']);
@@ -287,9 +296,9 @@ class RunBacktestCommand extends Command
 
             if (! empty($closedPositions)) {
                 $this->line('<fg=yellow>Positions (Closed):</>');
-                $positionData = $formatter->formatPositions($closedPositions);
+                $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital']);
 
-                table(['Symbol', 'Direction', 'Entry Price', 'Exit Price', 'PnL'], $positionData);
+                table(['Symbol', 'Direction', 'Entry Price', 'Exit Price', 'PnL', 'Balance'], $positionData);
                 $this->newLine();
             }
         }

@@ -68,11 +68,11 @@ class BacktestRunService
      * }  $data
      * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
      */
-    public function runSync(array $data): array
+    public function runSync(array $data, ?callable $progressCallback = null): array
     {
         $backtestRun = $this->createBacktestRun($data);
 
-        return $this->execute($backtestRun);
+        return $this->execute($backtestRun, $progressCallback);
     }
 
     /**
@@ -80,7 +80,7 @@ class BacktestRunService
      *
      * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
      */
-    public function execute(BacktestRun $backtestRun): array
+    public function execute(BacktestRun $backtestRun, ?callable $progressCallback = null): array
     {
         $backtestRun->markAsRunning();
         $this->broadcastProgress($backtestRun, 0, 'Starting backtest...');
@@ -110,7 +110,8 @@ class BacktestRunService
                 additionalTimeframes: $additionalTimeframes,
                 startDate: $startDate,
                 endDate: $endDate,
-                executionTimeframe: $executionTimeframe
+                executionTimeframe: $executionTimeframe,
+                progressCallback: $progressCallback
             );
 
             $this->broadcastProgress($backtestRun, 90, 'Calculating statistics...');

@@ -14,6 +14,7 @@ trait HasProgressBar
         $this->progressBar->setFormat(' %current:3s%%/%max:3s%% [%bar%] %message%');
         $this->progressBar->setMessage($message);
         $this->progressBar->start();
+        $this->progressBar->display();
     }
 
     protected function updateProgress(int $current, int $total, ?string $message = null): void
@@ -32,6 +33,8 @@ trait HasProgressBar
         } else {
             $this->progressBar->setMessage("Processing: {$current}/{$total} records");
         }
+
+        $this->progressBar->display();
     }
 
     protected function finishProgressBar(): void
