@@ -318,7 +318,7 @@ class Backtester
     private function loadOhlcvSeries(string $filePath): OhlcvSeries
     {
         if (! file_exists($filePath)) {
-            throw new RuntimeException("Market data file not found: {$filePath}. Download the data first using alphaforge:data:download.");
+            throw new RuntimeException("Market data file not found: {$filePath}. Download the data first using alphaforge:data:import.");
         }
 
         $records = iterator_to_array($this->binaryStorage->readRecordsSequentially($filePath));

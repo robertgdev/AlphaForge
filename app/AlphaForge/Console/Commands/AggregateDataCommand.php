@@ -67,7 +67,7 @@ class AggregateDataCommand extends Command
         if (! file_exists($sourcePath)) {
             warning("Source file not found: {$sourcePath}");
             $this->line('Use the import action to download market data:');
-            $this->line("  php artisan alphaforge:data import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
+            $this->line("  php artisan alphaforge:data:import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
 
             return self::FAILURE;
         }

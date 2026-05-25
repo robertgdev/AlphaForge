@@ -113,7 +113,7 @@ class BacktestRunService
                 executionTimeframe: $executionTimeframe,
                 progressCallback: $progressCallback,
                 dataType: $backtestRun->data_type ?? 'ohlcv',
-                brickSize: $backtestRun->brick_size ?? null,
+                brickSize: $backtestRun->brick_size !== null ? (float) $backtestRun->brick_size : null,
                 atrPeriod: $backtestRun->atr_period ?? null,
             );
 

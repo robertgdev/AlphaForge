@@ -1,7 +1,12 @@
 <?php
 
 use App\AlphaForge\Console\Commands\AggregateDataCommand;
-use App\AlphaForge\Console\Commands\DataCommand;
+use App\AlphaForge\Console\Commands\DataDeleteCommand;
+use App\AlphaForge\Console\Commands\DataExportCommand;
+use App\AlphaForge\Console\Commands\DataImportCommand;
+use App\AlphaForge\Console\Commands\DataInfoCommand;
+use App\AlphaForge\Console\Commands\DataListCommand;
+use App\AlphaForge\Console\Commands\DataUpdateCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\RepairDataCommand;
 use App\AlphaForge\Console\Commands\RunBacktestCommand;
@@ -35,25 +40,146 @@ describe('Console Command Signatures', function () {
         });
     });
 
-    describe('DataCommand', function () {
+    describe('DataImportCommand', function () {
         it('has correct command signature', function () {
-            $ref = new ReflectionClass(DataCommand::class);
+            $ref = new ReflectionClass(DataImportCommand::class);
             $defaultProps = $ref->getDefaultProperties();
 
-            expect($defaultProps['signature'])->toContain('alphaforge:data')
-                ->and($defaultProps['signature'])->toContain('{action')
-                ->and($defaultProps['signature'])->toContain('{exchange?')
-                ->and($defaultProps['signature'])->toContain('{market?')
-                ->and($defaultProps['signature'])->toContain('{timeframe?')
-                ->and($defaultProps['signature'])->toContain('--force')
+            expect($defaultProps['signature'])->toContain('alphaforge:data:import')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{timeframe')
+                ->and($defaultProps['signature'])->toContain('{startdate')
+                ->and($defaultProps['signature'])->toContain('{enddate?')
+                ->and($defaultProps['signature'])->toContain('--force');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(DataImportCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataImportCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('DataUpdateCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(DataUpdateCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:data:update')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{timeframe')
+                ->and($defaultProps['signature'])->toContain('{enddate?')
                 ->and($defaultProps['signature'])->toContain('--with-dependencies');
         });
 
         it('has description', function () {
-            $ref = new ReflectionClass(DataCommand::class);
+            $ref = new ReflectionClass(DataUpdateCommand::class);
             $defaultProps = $ref->getDefaultProperties();
 
             expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataUpdateCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('DataDeleteCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(DataDeleteCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:data:delete')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{timeframe')
+                ->and($defaultProps['signature'])->toContain('--force');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(DataDeleteCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataDeleteCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('DataInfoCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(DataInfoCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:data:info')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{timeframe');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(DataInfoCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataInfoCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('DataListCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(DataListCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:data:list')
+                ->and($defaultProps['signature'])->toContain('--exchange-filter=')
+                ->and($defaultProps['signature'])->toContain('--symbol-filter=');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(DataListCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataListCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('DataExportCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(DataExportCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:data:export')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{timeframe');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(DataExportCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(DataExportCommand::class, Command::class, true))->toBeTrue();
         });
     });
 

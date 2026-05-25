@@ -1,6 +1,6 @@
 <?php
 
-use App\AlphaForge\Console\Commands\DataCommand;
+use App\AlphaForge\Console\Commands\DataUpdateCommand;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
 use App\AlphaForge\Conversion\RenkoConverter;
 use App\AlphaForge\Data\Service\BinaryStorage;
@@ -78,9 +78,9 @@ function createRenkoForDeps(BinaryStorage $storage, string $tempDir, string $exc
     $converter->convert($exchange, $market, $timeframe, $brickSize);
 }
 
-describe('DataCommand update --with-dependencies', function () {
+describe('DataUpdateCommand --with-dependencies', function () {
     it('shows --with-dependencies in command signature', function () {
-        $ref = new ReflectionClass(DataCommand::class);
+        $ref = new ReflectionClass(DataUpdateCommand::class);
         $props = $ref->getDefaultProperties();
 
         expect($props['signature'])->toContain('--with-dependencies');
@@ -89,8 +89,7 @@ describe('DataCommand update --with-dependencies', function () {
     it('reports no dependencies found when no derived files exist', function () {
         createUpToDateOhlcvForDeps($this->binaryStorage, $this->fileService, $this->exchange, $this->market, $this->timeframe);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -104,8 +103,7 @@ describe('DataCommand update --with-dependencies', function () {
         createUpToDateOhlcvForDeps($this->binaryStorage, $this->fileService, $this->exchange, $this->market, $this->timeframe);
         createHeikenAshiForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -120,8 +118,7 @@ describe('DataCommand update --with-dependencies', function () {
         createUpToDateOhlcvForDeps($this->binaryStorage, $this->fileService, $this->exchange, $this->market, $this->timeframe);
         createRenkoForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe, 10.0);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -137,8 +134,7 @@ describe('DataCommand update --with-dependencies', function () {
         createHeikenAshiForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe);
         createRenkoForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe, 10.0);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -152,8 +148,7 @@ describe('DataCommand update --with-dependencies', function () {
         createUpToDateOhlcvForDeps($this->binaryStorage, $this->fileService, $this->exchange, $this->market, $this->timeframe);
         createHeikenAshiForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -203,8 +198,7 @@ describe('DataCommand update --with-dependencies', function () {
         $this->binaryStorage->appendRecords($ohlcvPath, $additionalRecords);
         $this->binaryStorage->updateRecordCount($ohlcvPath, 20);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
@@ -220,8 +214,7 @@ describe('DataCommand update --with-dependencies', function () {
         createUpToDateOhlcvForDeps($this->binaryStorage, $this->fileService, $this->exchange, $this->market, $this->timeframe);
         createHeikenAshiForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe);
 
-        $this->artisan('alphaforge:data', [
-            'action' => 'update',
+        $this->artisan('alphaforge:data:update', [
             'exchange' => $this->exchange,
             'market' => $this->market,
             'timeframe' => $this->timeframe,
