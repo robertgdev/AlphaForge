@@ -72,9 +72,10 @@ class BacktestResultFormatter
      *
      * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null, entryTime?: \Carbon\Carbon|null, exitTime?: \Carbon\Carbon|null}>  $positions
      * @param  float  $initialCapital  Initial capital for running balance calculation
+     * @param  bool  $noColor  Disable color output for PnL column
      * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string, 7: string, 8: string, 9: string}>
      */
-    public function formatPositions(array $positions, float $initialCapital = 0.0): array
+    public function formatPositions(array $positions, float $initialCapital = 0.0, bool $noColor = false): array
     {
         $result = [];
         $runningBalance = $initialCapital;
@@ -129,6 +130,13 @@ class BacktestResultFormatter
                 $duration = implode(' ', $parts);
             }
 
+            $formattedPnl = number_format($pnl, 2);
+            if (! $noColor) {
+                $formattedPnl = $pnl >= 0
+                    ? "\033[32m{$formattedPnl}\033[0m"
+                    : "\033[31m{$formattedPnl}\033[0m";
+            }
+
             $result[] = [
                 $symbol,
                 $direction,
@@ -137,7 +145,7 @@ class BacktestResultFormatter
                 $duration,
                 number_format($entryPrice, 2),
                 number_format($exitPrice, 2),
-                number_format($pnl, 2),
+                $formattedPnl,
                 number_format($runningBalance, 2),
                 $exitTag ?: '-',
             ];

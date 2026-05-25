@@ -25,5 +25,11 @@ describe('RunBacktestCommand Data Type Options', function () {
 
             expect($defaultProps['signature'])->toContain('--atr-period=');
         });
+        it('has --no-color option', function () {
+            $ref = new ReflectionClass(RunBacktestCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('--no-color');
+        });
     });
 });

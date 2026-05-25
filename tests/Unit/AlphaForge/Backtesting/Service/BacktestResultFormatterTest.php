@@ -137,7 +137,7 @@ describe('BacktestResultFormatter', function () {
     });
 
     describe('formatPositions', function () {
-        it('formats array positions', function () {
+        it('formats array positions with color', function () {
             $positions = [
                 [
                     'symbol' => 'BTC/USDT',
@@ -160,12 +160,12 @@ describe('BacktestResultFormatter', function () {
                 ->and($result[0][4])->toBe('-')
                 ->and($result[0][5])->toBe('50,000.00')
                 ->and($result[0][6])->toBe('55,000.00')
-                ->and($result[0][7])->toBe('1,000.00')
+                ->and($result[0][7])->toBe("\033[32m1,000.00\033[0m")
                 ->and($result[0][8])->toBe('11,000.00')
                 ->and($result[0][9])->toBe('-');
         });
 
-        it('formats object positions', function () {
+        it('formats object positions with color', function () {
             $position = new stdClass;
             $position->symbol = 'ETH/USDT';
             $position->direction = 'short';
@@ -180,7 +180,7 @@ describe('BacktestResultFormatter', function () {
             expect($result)->toHaveCount(1)
                 ->and($result[0][0])->toBe('ETH/USDT')
                 ->and($result[0][1])->toBe('short')
-                ->and($result[0][7])->toBe('-200.00')
+                ->and($result[0][7])->toBe("\033[31m-200.00\033[0m")
                 ->and($result[0][8])->toBe('9,800.00');
         });
 
@@ -198,7 +198,7 @@ describe('BacktestResultFormatter', function () {
                 ->and($result[0][4])->toBe('-')
                 ->and($result[0][5])->toBe('0.00')
                 ->and($result[0][6])->toBe('0.00')
-                ->and($result[0][7])->toBe('0.00')
+                ->and($result[0][7])->toBe("\033[32m0.00\033[0m")
                 ->and($result[0][8])->toBe('10,000.00')
                 ->and($result[0][9])->toBe('-');
         });
@@ -265,7 +265,7 @@ describe('BacktestResultFormatter', function () {
 
             $result = $this->formatter->formatPositions($positions);
 
-            expect($result[0][7])->toBe('1,000.00');
+            expect($result[0][7])->toBe("\033[32m1,000.00\033[0m");
         });
 
         it('calculates duration for positions with datetime', function () {
@@ -284,6 +284,30 @@ describe('BacktestResultFormatter', function () {
             $result = $this->formatter->formatPositions($positions, 10000);
 
             expect($result[0][4])->toBe('2d 4h 30m');
+        });
+
+        it('disables color when noColor is true', function () {
+            $positions = [
+                [
+                    'symbol' => 'BTC/USDT',
+                    'direction' => 'long',
+                    'entryPrice' => 50000,
+                    'exitPrice' => 55000,
+                    'realizedPnl' => 1000,
+                ],
+                [
+                    'symbol' => 'BTC/USDT',
+                    'direction' => 'long',
+                    'entryPrice' => 55000,
+                    'exitPrice' => 50000,
+                    'realizedPnl' => -500,
+                ],
+            ];
+
+            $result = $this->formatter->formatPositions($positions, 10000, true);
+
+            expect($result[0][7])->toBe('1,000.00')
+                ->and($result[1][7])->toBe('-500.00');
         });
     });
 });

@@ -42,6 +42,7 @@ class RunBacktestCommand extends Command
         {--start-date= : Start date (Y-m-d or Y-m-d H:i:s)}
         {--end-date= : End date (Y-m-d or Y-m-d H:i:s)}
         {--inputs= : Strategy inputs as JSON string (e.g., \'{"fastPeriod":10,"slowPeriod":50}\')}
+        {--no-color : Disable colored output in the positions table}
         {--async : Queue the backtest instead of running synchronously}';
 
     /**
@@ -74,6 +75,7 @@ class RunBacktestCommand extends Command
         $brickSize = $this->option('brick-size');
         $atrPeriod = $this->option('atr-period');
         $async = $this->option('async');
+        $noColor = $this->option('no-color');
         $inputsJson = $this->option('inputs');
 
         // Validate strategy exists
@@ -207,13 +209,13 @@ class RunBacktestCommand extends Command
             return $this->queueBacktest($backtestRunService, $data);
         }
 
-        return $this->runBacktestSync($backtestRunService, $resultFormatter, $data);
+        return $this->runBacktestSync($backtestRunService, $resultFormatter, $data, $noColor);
     }
 
     /**
      * Run the backtest synchronously.
      */
-    private function runBacktestSync(BacktestRunService $service, BacktestResultFormatter $formatter, array $data): int
+    private function runBacktestSync(BacktestRunService $service, BacktestResultFormatter $formatter, array $data, bool $noColor = false): int
     {
         info('Running backtest synchronously...');
         $this->newLine();
@@ -227,7 +229,7 @@ class RunBacktestCommand extends Command
 
             $this->finishProgressBar();
 
-            $this->displayResults($result, $formatter);
+            $this->displayResults($result, $formatter, $noColor);
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
@@ -316,7 +318,7 @@ class RunBacktestCommand extends Command
      *
      * @param  array{backtest_run_id?: string, final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
      */
-    private function displayResults(array $result, BacktestResultFormatter $formatter): void
+    private function displayResults(array $result, BacktestResultFormatter $formatter, bool $noColor = false): void
     {
         info('Backtest Results');
         $this->newLine();
@@ -352,7 +354,7 @@ class RunBacktestCommand extends Command
 
             if (! empty($closedPositions)) {
                 $this->line('<fg=yellow>Positions (Closed):</>');
-                $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital']);
+                $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital'], $noColor);
 
                 $table = new Table($this->output);
                 $table->setHeaders(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason']);
