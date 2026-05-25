@@ -405,7 +405,7 @@ class Backtester
 
         if ($startDate) {
             for ($i = 0; $i < $timestamps->count(); $i++) {
-                if ($timestamps[$i] >= $startDate->timestamp) {
+                if ($timestamps->getVector()->get($i) >= $startDate->timestamp) {
                     $startIndex = $i;
                     break;
                 }
@@ -414,7 +414,7 @@ class Backtester
 
         if ($endDate) {
             for ($i = $timestamps->count() - 1; $i >= 0; $i--) {
-                if ($timestamps[$i] <= $endDate->timestamp) {
+                if ($timestamps->getVector()->get($i) <= $endDate->timestamp) {
                     $endIndex = $i;
                     break;
                 }
@@ -741,6 +741,27 @@ class Backtester
                     $this->openPositionIndex->remove($position->id);
                     $this->rebuildOpenPositionIndex();
                 }
+
+                // Tag closes with exit reason from the order if not already set
+                if ($position->exitTag === null) {
+                    $exitTag = $order->exitTag ?? 'counter_signal';
+                    $position = new PositionDto(
+                        id: $position->id,
+                        symbol: $position->symbol,
+                        direction: $position->direction,
+                        quantity: $position->quantity,
+                        entryPrice: $position->entryPrice,
+                        entryTime: $position->entryTime,
+                        realizedPnl: $position->realizedPnl,
+                        exitPrice: $position->exitPrice,
+                        exitTime: $position->exitTime,
+                        stopLoss: $position->stopLoss,
+                        takeProfit: $position->takeProfit,
+                        costBasis: $position->costBasis,
+                        commission: $position->commission,
+                        exitTag: $exitTag,
+                    );
+                }
             } else {
                 $this->openPositionIndex->put($position->id, $this->positions->count());
             }
@@ -838,47 +859,31 @@ class Backtester
     private function closePositionFromTrigger(PositionDto $position, ExitTrigger $trigger, array $bar): void
     {
         $exitPrice = (string) $trigger->exitPrice;
-        $closedPosition = $this->portfolioManager->closePosition(
-            $position->id,
-            $exitPrice,
-            Carbon::createFromTimestamp($bar['timestamp']),
-            $this->commissionConfig
-        );
+            $closedPosition = $this->portfolioManager->closePosition(
+                $position->id,
+                $exitPrice,
+                Carbon::createFromTimestamp($bar['timestamp']),
+                $this->commissionConfig,
+                $trigger->exitTag ?? $trigger->ruleId,
+            );
 
-        if ($closedPosition) {
-            if ($this->openPositionIndex->hasKey($closedPosition->id)) {
-                $oldIndex = $this->openPositionIndex->get($closedPosition->id);
-                $this->positions->remove($oldIndex);
-                $this->openPositionIndex->remove($closedPosition->id);
-                $this->rebuildOpenPositionIndex();
+            if ($closedPosition) {
+                if ($this->openPositionIndex->hasKey($closedPosition->id)) {
+                    $oldIndex = $this->openPositionIndex->get($closedPosition->id);
+                    $this->positions->remove($oldIndex);
+                    $this->openPositionIndex->remove($closedPosition->id);
+                    $this->rebuildOpenPositionIndex();
+                }
+
+                $this->positions->push($closedPosition);
+                $this->currentCapital = $this->portfolioManager->getCashBalance();
+
+                unset(
+                    $this->highWaterMarks[$position->id],
+                    $this->lowWaterMarks[$position->id],
+                    $this->barsInPositionTracker[$position->id],
+                );
             }
-
-            $taggedPosition = new PositionDto(
-                id: $closedPosition->id,
-                symbol: $closedPosition->symbol,
-                direction: $closedPosition->direction,
-                quantity: $closedPosition->quantity,
-                entryPrice: $closedPosition->entryPrice,
-                entryTime: $closedPosition->entryTime,
-                realizedPnl: $closedPosition->realizedPnl,
-                exitPrice: $closedPosition->exitPrice,
-                exitTime: $closedPosition->exitTime,
-                stopLoss: $closedPosition->stopLoss,
-                takeProfit: $closedPosition->takeProfit,
-                costBasis: $closedPosition->costBasis,
-                commission: $closedPosition->commission,
-                exitTag: $trigger->exitTag ?? $trigger->ruleId,
-            );
-
-            $this->positions->push($taggedPosition);
-            $this->currentCapital = $this->portfolioManager->getCashBalance();
-
-            unset(
-                $this->highWaterMarks[$position->id],
-                $this->lowWaterMarks[$position->id],
-                $this->barsInPositionTracker[$position->id],
-            );
-        }
     }
 
     /**
@@ -989,6 +994,7 @@ class Backtester
             stopLoss: $signal->stopLoss,
             takeProfit: $signal->takeProfit,
             createdAt: Carbon::createFromTimestamp($bar['timestamp']),
+            exitTag: $signal->exitTags[0] ?? null,
         );
 
         $this->orderManager->addPendingOrder($pendingOrder);
@@ -1016,15 +1022,16 @@ class Backtester
     {
         $openPositions = $this->portfolioManager->getOpenPositions();
         $lastIndex = $ohlcv->getTimestamps()->count() - 1;
-        $lastPrice = $ohlcv->getCloses()[$lastIndex];
-        $lastTimestamp = $ohlcv->getTimestamps()[$lastIndex];
+        $lastPrice = $ohlcv->getCloses()->getVector()->get($lastIndex);
+        $lastTimestamp = $ohlcv->getTimestamps()->getVector()->get($lastIndex);
 
         foreach ($openPositions as $position) {
             $closedPosition = $this->portfolioManager->closePosition(
                 $position->id,
                 $lastPrice,
                 Carbon::createFromTimestamp($lastTimestamp),
-                $this->commissionConfig
+                $this->commissionConfig,
+                'end_of_backtest',
             );
 
             if ($closedPosition) {

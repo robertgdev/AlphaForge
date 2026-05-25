@@ -148,7 +148,13 @@ final class PortfolioManager
 
             if ($position) {
                 // Close existing long position and return execution result
-                $closedPosition = $this->closePosition($position->id, $executionPrice, $executionTime, $commissionConfig);
+                $closedPosition = $this->closePosition(
+                    $position->id,
+                    $executionPrice,
+                    $executionTime,
+                    $commissionConfig,
+                    $order->exitTag,
+                );
                 if ($closedPosition) {
                     return new ExecutionResult(
                         orderId: $order->id,
@@ -214,7 +220,8 @@ final class PortfolioManager
         string $positionId,
         string $exitPrice,
         Carbon $exitTime,
-        array $commissionConfig = []
+        array $commissionConfig = [],
+        ?string $exitTag = null,
     ): ?PositionDto {
         $position = $this->getOpenPositionById($positionId);
 
@@ -258,6 +265,7 @@ final class PortfolioManager
             takeProfit: $position->takeProfit,
             costBasis: $position->costBasis,
             commission: bcadd($position->commission, $exitCommission, 12),
+            exitTag: $exitTag,
         );
 
         // Remove from open positions

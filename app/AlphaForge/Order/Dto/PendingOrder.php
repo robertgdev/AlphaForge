@@ -18,6 +18,7 @@ final readonly class PendingOrder
         public ?string $price = null,
         public ?string $stopPrice = null,
         public ?string $stopLoss = null,
-        public ?string $takeProfit = null
+        public ?string $takeProfit = null,
+        public ?string $exitTag = null,
     ) {}
 }

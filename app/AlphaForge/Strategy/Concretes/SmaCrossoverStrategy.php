@@ -160,6 +160,7 @@ class SmaCrossoverStrategy implements StrategyInterface
                 direction: DirectionEnum::SHORT,
                 orderType: OrderTypeEnum::Market,
                 quantity: (string) $openPosition->quantity,
+                exitTags: ['strategy_signal'],
             );
         }
 

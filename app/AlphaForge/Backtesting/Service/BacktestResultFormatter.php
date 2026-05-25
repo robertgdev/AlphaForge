@@ -70,9 +70,9 @@ class BacktestResultFormatter
     /**
      * Format position objects for table display.
      *
-     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric}>  $positions
+     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null}>  $positions
      * @param  float  $initialCapital  Initial capital for running balance calculation
-     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}>
+     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string}>
      */
     public function formatPositions(array $positions, float $initialCapital = 0.0): array
     {
@@ -86,6 +86,7 @@ class BacktestResultFormatter
                 $entryPrice = (float) ($position['entryPrice'] ?? 0);
                 $exitPrice = (float) ($position['exitPrice'] ?? 0);
                 $pnl = (float) ($position['realizedPnl'] ?? 0);
+                $exitTag = (string) ($position['exitTag'] ?? '-');
             } else {
                 /** @var string $symbol */
                 $symbol = $position->symbol ?? '?';
@@ -97,6 +98,8 @@ class BacktestResultFormatter
                 $exitPrice = $position->exitPrice ?? 0;
                 /** @var float $pnl */
                 $pnl = $position->realizedPnl ?? 0;
+                /** @var string|null $exitTag */
+                $exitTag = $position->exitTag ?? '-';
             }
 
             $runningBalance += $pnl;
@@ -108,6 +111,7 @@ class BacktestResultFormatter
                 number_format($exitPrice, 2),
                 number_format($pnl, 2),
                 number_format($runningBalance, 2),
+                $exitTag ?: '-',
             ];
         }
 

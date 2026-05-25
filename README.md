@@ -366,6 +366,9 @@ php artisan alphaforge:backtest:run <strategy> <symbols*> [options]
 | `--exchange=` | Exchange identifier | `binance` |
 | `--timeframe=` | Signal timeframe | `1h` |
 | `--execution-timeframe=` | Lower timeframe for order/position execution (e.g., `1m`, `5m`) | - |
+| `--data-type=` | Market data type to backtest against: `ohlcv`, `heikenashi`, `renko`, `atr_renko` | `ohlcv` |
+| `--brick-size=` | Brick size for `renko` data type (e.g., `0.001`, `10`, `100`) | - |
+| `--atr-period=` | ATR period for `atr_renko` data type (e.g., `14`) | - |
 | `--capital=` | Initial capital in quote currency | `10000` |
 | `--stake-currency=` | Stake currency | `USDT` |
 | `--start-date=` | Start date (Y-m-d or Y-m-d H:i:s) | - |
@@ -394,6 +397,39 @@ php artisan alphaforge:backtest:run sma_crossover BTCUSDT --async
 # Backtest multiple symbols at once
 php artisan alphaforge:backtest:run sma_crossover BTCUSDT ETHUSDT SOLUSDT --timeframe=1h
 ```
+
+##### Backtesting Against Renko and Heiken-Ashi Data
+
+By default, backtests run against raw OHLCV data (`--data-type=ohlcv`). You can also backtest against derived data formats:
+
+| Data Type | Description | Required Option |
+|-----------|-------------|-----------------|
+| `ohlcv` | Raw OHLCV candles (default) | None |
+| `heikenashi` | Heiken-Ashi smoothed candles | None |
+| `renko` | Fixed-brick Renko bricks | `--brick-size=<size>` |
+| `atr_renko` | ATR-based dynamic Renko bricks | `--atr-period=<period>` |
+
+**Examples:**
+
+```bash
+# Backtest against Heiken-Ashi data
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=heikenashi
+
+# Backtest against fixed-brick Renko (brick size = 100)
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=renko --brick-size=100
+
+# Backtest against ATR-based Renko (ATR period = 14)
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=atr_renko --atr-period=14
+
+# Heiken-Ashi with dual-timeframe execution
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=heikenashi --timeframe=1h --execution-timeframe=1m
+```
+
+**Notes:**
+- The derived data file must already exist (use `alphaforge:renko`, `alphaforge:renkoAtr`, or `alphaforge:heikenashi` to generate it)
+- For `renko`, the `--brick-size` must match an existing file (e.g., `renko_100.stchx`)
+- For `atr_renko`, the `--atr-period` must match an existing file (e.g., `renko_atr_14.stchx`)
+- When using Renko data, the `--execution-timeframe` option is not supported because Renko bricks do not have consistent time intervals
 
 ##### Dual-Timeframe Execution (Signal TF + Execution TF)
 
