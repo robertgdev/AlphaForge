@@ -10,11 +10,12 @@ use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
+use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Helper\TableStyle;
 
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
-use function Laravel\Prompts\table;
 use function Laravel\Prompts\warning;
 use function Safe\json_encode;
 
@@ -353,7 +354,18 @@ class RunBacktestCommand extends Command
                 $this->line('<fg=yellow>Positions (Closed):</>');
                 $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital']);
 
-                table(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason'], $positionData);
+                $table = new Table($this->output);
+                $table->setHeaders(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason']);
+                $table->setRows($positionData);
+
+                // Right-align numeric columns: Duration(4), Entry Price(5), Exit Price(6), PnL(7), Balance(8)
+                $rightAlign = new TableStyle();
+                $rightAlign->setPadType(STR_PAD_LEFT);
+                foreach ([4, 5, 6, 7, 8] as $colIndex) {
+                    $table->setColumnStyle($colIndex, $rightAlign);
+                }
+
+                $table->render();
                 $this->newLine();
             }
         }
