@@ -35,6 +35,9 @@ class BacktestRun extends Model
         'error_message',
         'started_at',
         'completed_at',
+        'data_type',
+        'brick_size',
+        'atr_period',
     ];
 
     /**
@@ -51,6 +54,8 @@ class BacktestRun extends Model
         'end_date' => 'datetime',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'brick_size' => 'decimal:8',
+        'atr_period' => 'integer',
     ];
 
     /**

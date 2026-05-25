@@ -95,6 +95,9 @@ class Backtester
      * @param  Carbon|null  $endDate  Optional end date filter
      * @param  TimeframeEnum|null  $executionTimeframe  Lower timeframe for order/position execution
      * @param  callable|null  $progressCallback  Optional callback receiving (int $current, int $total, string $message)
+     * @param  string  $dataType  Market data type (ohlcv, heikenashi, renko, atr_renko)
+     * @param  float|null  $brickSize  Brick size for renko data type
+     * @param  int|null  $atrPeriod  ATR period for atr_renko data type
      * @return array Backtest results
      */
     public function run(
@@ -110,7 +113,10 @@ class Backtester
         ?Carbon $startDate = null,
         ?Carbon $endDate = null,
         ?TimeframeEnum $executionTimeframe = null,
-        ?callable $progressCallback = null
+        ?callable $progressCallback = null,
+        string $dataType = 'ohlcv',
+        ?float $brickSize = null,
+        ?int $atrPeriod = null,
     ): array {
         // Validate execution timeframe is lower than signal timeframe
         if ($executionTimeframe !== null && $executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
@@ -138,7 +144,7 @@ class Backtester
         $this->emitProgress(10, 100, 'Loading market data...');
 
         // Load market data
-        $this->loadMarketData($symbols, $timeframe, $exchange, $additionalTimeframes, $startDate, $endDate, $executionTimeframe);
+        $this->loadMarketData($symbols, $timeframe, $exchange, $additionalTimeframes, $startDate, $endDate, $executionTimeframe, $dataType, $brickSize, $atrPeriod);
 
         // Initialize strategy (pre-compute indicators)
         $this->emitProgress(20, 100, 'Computing indicators...');
@@ -214,11 +220,14 @@ class Backtester
         array $additionalTimeframes,
         ?Carbon $startDate,
         ?Carbon $endDate,
-        ?TimeframeEnum $executionTimeframe
+        ?TimeframeEnum $executionTimeframe,
+        string $dataType = 'ohlcv',
+        ?float $brickSize = null,
+        ?int $atrPeriod = null,
     ): void {
         // Load signal timeframe data
         foreach ($symbols as $symbol) {
-            $filePath = $this->getMarketDataPath($symbol, $timeframe, $exchange);
+            $filePath = $this->getMarketDataPath($symbol, $timeframe, $exchange, $dataType, $brickSize, $atrPeriod);
             $ohlcv = $this->loadOhlcvSeries($filePath);
 
             // Apply date filters
@@ -234,7 +243,7 @@ class Backtester
             $this->executionOhlcvData = new Map;
 
             foreach ($symbols as $symbol) {
-                $filePath = $this->getMarketDataPath($symbol, $executionTimeframe, $exchange);
+                $filePath = $this->getMarketDataPath($symbol, $executionTimeframe, $exchange, $dataType, $brickSize, $atrPeriod);
 
                 if (! file_exists($filePath)) {
                     throw new RuntimeException(
@@ -308,7 +317,15 @@ class Backtester
      */
     private function loadOhlcvSeries(string $filePath): OhlcvSeries
     {
+        if (! file_exists($filePath)) {
+            throw new RuntimeException("Market data file not found: {$filePath}. Download the data first using alphaforge:data:download.");
+        }
+
         $records = iterator_to_array($this->binaryStorage->readRecordsSequentially($filePath));
+
+        if (count($records) === 0) {
+            throw new RuntimeException("Market data file is empty: {$filePath}. Download the data again.");
+        }
 
         $timestamps = [];
         $opens = [];
@@ -341,15 +358,40 @@ class Backtester
     /**
      * Get the file path for market data.
      */
-    private function getMarketDataPath(string $symbol, TimeframeEnum $timeframe, string $exchange): string
-    {
-        return sprintf(
-            '%s/%s/%s/%s/ohlcv.stchx',
+    private function getMarketDataPath(
+        string $symbol,
+        TimeframeEnum $timeframe,
+        string $exchange,
+        string $dataType = 'ohlcv',
+        ?float $brickSize = null,
+        ?int $atrPeriod = null,
+    ): string {
+        $basePath = sprintf(
+            '%s/%s/%s/%s',
             $this->marketDataPath,
             $exchange,
             strtoupper($symbol),
             $timeframe->value
         );
+
+        return match ($dataType) {
+            'heikenashi' => $basePath . '/heikenashi.stchx',
+            'renko' => $basePath . '/renko_' . $this->formatBrickSize($brickSize ?? 10.0) . '.stchx',
+            'atr_renko' => $basePath . '/renko_atr_' . ($atrPeriod ?? 14) . '.stchx',
+            default => $basePath . '/ohlcv.stchx',
+        };
+    }
+
+    /**
+     * Format brick size for filename (avoiding special characters).
+     */
+    private function formatBrickSize(float $brickSize): string
+    {
+        if (floor($brickSize) === $brickSize) {
+            return (string) (int) $brickSize;
+        }
+
+        return str_replace('.', '_', (string) $brickSize);
     }
 
     /**

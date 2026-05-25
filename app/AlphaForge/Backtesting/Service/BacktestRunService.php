@@ -66,7 +66,7 @@ class BacktestRunService
      *     start_date?: string|null,
      *     end_date?: string|null
      * }  $data
-     * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
+     * @return array{backtest_run_id: string, strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
      */
     public function runSync(array $data, ?callable $progressCallback = null): array
     {
@@ -78,7 +78,7 @@ class BacktestRunService
     /**
      * Execute a queued backtest. Called by RunBacktestJob.
      *
-     * @return array{strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
+     * @return array{backtest_run_id: string, strategy: string, symbols: array, timeframe: string, execution_timeframe: string|null, exchange: string, initial_capital: string, final_capital: string, positions: array, statistics: array}
      */
     public function execute(BacktestRun $backtestRun, ?callable $progressCallback = null): array
     {
@@ -111,7 +111,10 @@ class BacktestRunService
                 startDate: $startDate,
                 endDate: $endDate,
                 executionTimeframe: $executionTimeframe,
-                progressCallback: $progressCallback
+                progressCallback: $progressCallback,
+                dataType: $backtestRun->data_type ?? 'ohlcv',
+                brickSize: $backtestRun->brick_size ?? null,
+                atrPeriod: $backtestRun->atr_period ?? null,
             );
 
             $this->broadcastProgress($backtestRun, 90, 'Calculating statistics...');
@@ -128,6 +131,8 @@ class BacktestRunService
                 'strategy' => $backtestRun->strategy_alias,
                 'final_capital' => $result['final_capital'],
             ]);
+
+            $result['backtest_run_id'] = $backtestRun->id;
 
             return $result;
 
@@ -160,7 +165,10 @@ class BacktestRunService
      *     strategy_inputs?: array,
      *     commission_config?: array,
      *     start_date?: string|null,
-     *     end_date?: string|null
+     *     end_date?: string|null,
+     *     data_type?: string,
+     *     brick_size?: float|null,
+     *     atr_period?: int|null
      * }  $data
      */
     private function createBacktestRun(array $data): BacktestRun
@@ -178,6 +186,9 @@ class BacktestRunService
             'commission_config' => $data['commission_config'] ?? [],
             'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
+            'data_type' => $data['data_type'] ?? 'ohlcv',
+            'brick_size' => $data['brick_size'] ?? null,
+            'atr_period' => $data['atr_period'] ?? null,
             'status' => 'pending',
         ]);
     }

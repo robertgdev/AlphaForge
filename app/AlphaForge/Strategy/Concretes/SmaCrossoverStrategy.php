@@ -105,6 +105,19 @@ class SmaCrossoverStrategy implements StrategyInterface
         $ohlcv = $data['ohlcv'];
         $this->ctx = new IndicatorContext($ohlcv);
 
+        $minBars = max($this->fastPeriod, $this->slowPeriod);
+        $totalBars = $ohlcv->getTimestamps()->count();
+
+        if ($totalBars < $minBars) {
+            throw new \RuntimeException(
+                sprintf(
+                    'Insufficient data for SMA crossover strategy. Need at least %d bars, got %d.',
+                    $minBars,
+                    $totalBars
+                )
+            );
+        }
+
         $fast = $this->ctx->sma($this->fastPeriod);
         $slow = $this->ctx->sma($this->slowPeriod);
 

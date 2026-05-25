@@ -15,11 +15,13 @@ use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\table;
+use function Laravel\Prompts\warning;
 use function Safe\json_encode;
 
 class RunBacktestCommand extends Command
 {
     use HasProgressBar;
+
     /**
      * The name and signature of the console command.
      *
@@ -31,6 +33,9 @@ class RunBacktestCommand extends Command
         {--exchange=binance : Exchange identifier}
         {--timeframe=1h : Timeframe (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M)}
         {--execution-timeframe= : Lower timeframe for order/position execution (e.g., 1m, 5m)}
+        {--data-type=ohlcv : Market data type to backtest against (ohlcv, heikenashi, renko, atr_renko)}
+        {--brick-size= : Brick size for renko data-type (e.g., 0.001, 10, 100)}
+        {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
         {--capital=10000 : Initial capital in quote currency}
         {--stake-currency=USDT : Stake currency}
         {--start-date= : Start date (Y-m-d or Y-m-d H:i:s)}
@@ -64,8 +69,11 @@ class RunBacktestCommand extends Command
         $stakeCurrency = $this->option('stake-currency');
         $startDate = $this->option('start-date');
         $endDate = $this->option('end-date');
-        $inputsJson = $this->option('inputs');
+        $dataTypeValue = $this->option('data-type');
+        $brickSize = $this->option('brick-size');
+        $atrPeriod = $this->option('atr-period');
         $async = $this->option('async');
+        $inputsJson = $this->option('inputs');
 
         // Validate strategy exists
         if (! $strategyRegistry->has($strategyAlias)) {
@@ -77,6 +85,36 @@ class RunBacktestCommand extends Command
             }
 
             return self::FAILURE;
+        }
+
+        // Validate data-type
+        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
+        if (! in_array($dataTypeValue, $validDataTypes, true)) {
+            error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+
+            return self::FAILURE;
+        }
+
+        // Validate brick-size for renko
+        if ($dataTypeValue === 'renko') {
+            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
+                error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
+
+                return self::FAILURE;
+            }
+        } elseif ($dataTypeValue === 'atr_renko') {
+            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
+                error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
+
+                return self::FAILURE;
+            }
+        } else {
+            if ($brickSize !== null) {
+                warning('--brick-size is ignored for data-type '.$dataTypeValue);
+            }
+            if ($atrPeriod !== null) {
+                warning('--atr-period is ignored for data-type '.$dataTypeValue);
+            }
         }
 
         // Parse timeframe
@@ -156,10 +194,13 @@ class RunBacktestCommand extends Command
             'strategy_inputs' => $inputs,
             'start_date' => $parsedStartDate?->format('Y-m-d H:i:s'),
             'end_date' => $parsedEndDate?->format('Y-m-d H:i:s'),
+            'data_type' => $dataTypeValue,
+            'brick_size' => $dataTypeValue === 'renko' ? (float) $brickSize : null,
+            'atr_period' => $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null,
         ];
 
         // Display backtest configuration
-        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs);
+        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeValue, $dataTypeValue === 'renko' ? (float) $brickSize : null, $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null);
 
         if ($async) {
             return $this->queueBacktest($backtestRunService, $data);
@@ -191,7 +232,9 @@ class RunBacktestCommand extends Command
         } catch (\Throwable $e) {
             $this->finishProgressBarOnError();
             error('Backtest failed: '.$e->getMessage());
-            dump($e->getTraceAsString());
+            if (! str_contains($e->getMessage(), 'Market data file not found')) {
+                dump($e->getTraceAsString());
+            }
 
             return self::FAILURE;
         }
@@ -232,7 +275,10 @@ class RunBacktestCommand extends Command
         ?TimeframeEnum $executionTimeframe,
         float $capital,
         string $stakeCurrency,
-        array $inputs
+        array $inputs,
+        string $dataType,
+        ?float $brickSize,
+        ?int $atrPeriod
     ): void {
         info('Backtest Configuration');
         $this->newLine();
@@ -241,6 +287,15 @@ class RunBacktestCommand extends Command
         $this->components->twoColumnDetail('Symbols', implode(', ', $symbols));
         $this->components->twoColumnDetail('Exchange', $exchange);
         $this->components->twoColumnDetail('Timeframe', $timeframe->value);
+        $this->components->twoColumnDetail('Data Type', $dataType);
+
+        if ($brickSize !== null) {
+            $this->components->twoColumnDetail('Brick Size', (string) $brickSize);
+        }
+
+        if ($atrPeriod !== null) {
+            $this->components->twoColumnDetail('ATR Period', (string) $atrPeriod);
+        }
 
         if ($executionTimeframe !== null) {
             $this->components->twoColumnDetail('Execution Timeframe', $executionTimeframe->value);
@@ -258,7 +313,7 @@ class RunBacktestCommand extends Command
     /**
      * Display the backtest results.
      *
-     * @param  array{final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
+     * @param  array{backtest_run_id?: string, final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
      */
     private function displayResults(array $result, BacktestResultFormatter $formatter): void
     {
@@ -303,7 +358,8 @@ class RunBacktestCommand extends Command
             }
         }
 
-        note('Full results saved to database with backtest run ID.');
+        $runId = $result['backtest_run_id'] ?? 'unknown';
+        note("Full results saved to database with backtest run ID: {$runId}.");
     }
 
     /**
