@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\RenkoConverter;
 use App\AlphaForge\Data\Exception\StorageException;
 use Illuminate\Console\Command;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 class RenkoCommand extends Command
 {
     use HasProgressBar;
+    use ParsesMarketDataArgs;
 
     /**
      * The name and signature of the console command.
@@ -38,9 +40,9 @@ class RenkoCommand extends Command
 
     public function handle(RenkoConverter $converter): int
     {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $brickSize = (float) $this->argument('brick_size');
         $force = $this->option('force');
         $update = $this->option('update');
@@ -99,13 +101,11 @@ class RenkoCommand extends Command
 
         info($update ? 'Starting Renko incremental conversion...' : 'Starting Renko conversion...');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('Brick Size', (string) $brickSize);
-        $this->components->twoColumnDetail('OHLC Records', number_format($ohlcvHeader['numRecords']));
-        $this->components->twoColumnDetail('Mode', $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'));
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'Brick Size' => (string) $brickSize,
+            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+        ]);
 
         try {
             $this->startProgressBar($update ? 'Incrementally converting OHLC to Renko...' : 'Converting OHLC to Renko...');

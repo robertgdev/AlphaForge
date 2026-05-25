@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Data\Exception\StorageException;
 use Illuminate\Console\Command;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 class AtrRenkoCommand extends Command
 {
     use HasProgressBar;
+    use ParsesMarketDataArgs;
 
     /**
      * The name and signature of the console command.
@@ -38,10 +40,9 @@ class AtrRenkoCommand extends Command
 
     public function handle(AtrRenkoConverter $converter): int
     {
-        // Validate trader extension availability upfront
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $atrPeriod = (int) $this->argument('atr_period');
         $force = $this->option('force');
         $update = $this->option('update');
@@ -100,13 +101,11 @@ class AtrRenkoCommand extends Command
 
         info($update ? 'Starting ATR-Renko incremental conversion...' : 'Starting ATR-Renko conversion...');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('ATR Period', (string) $atrPeriod);
-        $this->components->twoColumnDetail('OHLC Records', number_format($ohlcvHeader['numRecords']));
-        $this->components->twoColumnDetail('Mode', $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'));
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'ATR Period' => (string) $atrPeriod,
+            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+        ]);
 
         try {
             $this->startProgressBar($update ? 'Incrementally converting OHLC to ATR-Renko...' : 'Converting OHLC to ATR-Renko...');

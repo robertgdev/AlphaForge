@@ -3,7 +3,8 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\DateParsingService;
-use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Console\Concerns\HandlesDownloadProgress;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
 use App\AlphaForge\Conversion\RenkoConverter;
@@ -24,7 +25,8 @@ use function Laravel\Prompts\warning;
 
 class DataUpdateCommand extends Command
 {
-    use HasProgressBar;
+    use HandlesDownloadProgress;
+    use ParsesMarketDataArgs;
 
     protected $signature = 'alphaforge:data:update
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -35,8 +37,6 @@ class DataUpdateCommand extends Command
 
     protected $description = 'Update market data to the latest available';
 
-    protected int $totalDuration = 0;
-
     public function handle(
         OhlcvDownloader $downloader,
         MarketDataFileService $fileService,
@@ -45,9 +45,9 @@ class DataUpdateCommand extends Command
         DateParsingService $dateParsingService,
         Dispatcher $eventDispatcher
     ): int {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $withDependencies = $this->option('with-dependencies');
         $enddate = $this->argument('enddate');
 
@@ -86,7 +86,7 @@ class DataUpdateCommand extends Command
         $startCarbon = Carbon::createFromTimestamp($lastRecord['timestamp']);
 
         try {
-            $endCarbon = $enddate ? $dateParsingService->parseDate($enddate) : Carbon::now();
+            $endCarbon = $this->parseEndDate($enddate, $dateParsingService);
         } catch (\InvalidArgumentException $e) {
             error("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
 
@@ -108,12 +108,10 @@ class DataUpdateCommand extends Command
 
         info('Updating market data...');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('Existing Data Up To', $startCarbon->format('Y-m-d H:i:s'));
-        $this->components->twoColumnDetail('Updating To', $endCarbon->format('Y-m-d H:i:s'));
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'Existing Data Up To' => $startCarbon->format('Y-m-d H:i:s'),
+            'Updating To' => $endCarbon->format('Y-m-d H:i:s'),
+        ]);
 
         $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) {
             $this->handleProgressEvent($event);
@@ -154,24 +152,6 @@ class DataUpdateCommand extends Command
         } finally {
             $eventDispatcher->forget(DownloadProgress::class);
         }
-    }
-
-    private function handleProgressEvent(DownloadProgress $event): void
-    {
-        if ($this->progressBar === null) {
-            return;
-        }
-
-        $percentComplete = $this->totalDuration > 0
-            ? (int) round(($event->currentProgress / ($this->totalDuration * 1000)) * 100)
-            : 0;
-
-        $percentComplete = max(0, min(100, $percentComplete));
-
-        $this->progressBar->setProgress($percentComplete);
-
-        $dateStr = gmdate('Y-m-d H:i:s', $event->lastTimestamp);
-        $this->progressBar->setMessage("Fetching: {$dateStr} ({$event->recordsFetchedInBatch} records)");
     }
 
     private function updateDependencies(

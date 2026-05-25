@@ -3,7 +3,8 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\DateParsingService;
-use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Console\Concerns\HandlesDownloadProgress;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Events\DownloadProgress;
@@ -16,7 +17,8 @@ use function Laravel\Prompts\info;
 
 class DataImportCommand extends Command
 {
-    use HasProgressBar;
+    use HandlesDownloadProgress;
+    use ParsesMarketDataArgs;
 
     protected $signature = 'alphaforge:data:import
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -28,16 +30,14 @@ class DataImportCommand extends Command
 
     protected $description = 'Import market data from an exchange';
 
-    protected int $totalDuration = 0;
-
     public function handle(
         OhlcvDownloader $downloader,
         DateParsingService $dateParsingService,
         Dispatcher $eventDispatcher
     ): int {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $force = $this->option('force');
         $startdate = $this->argument('startdate');
         $enddate = $this->argument('enddate');
@@ -51,16 +51,14 @@ class DataImportCommand extends Command
         }
 
         try {
-            $endCarbon = $enddate ? $dateParsingService->parseDate($enddate) : Carbon::now();
+            $endCarbon = $this->parseEndDate($enddate, $dateParsingService);
         } catch (\InvalidArgumentException $e) {
             error("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
 
             return self::FAILURE;
         }
 
-        if ($startCarbon->greaterThanOrEqualTo($endCarbon)) {
-            error('Start date must be before end date.');
-
+        if (! $this->validateDateRange($startCarbon, $endCarbon)) {
             return self::FAILURE;
         }
 
@@ -68,13 +66,11 @@ class DataImportCommand extends Command
 
         info('Starting market data import...');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('Start Date', $startCarbon->format('Y-m-d H:i:s'));
-        $this->components->twoColumnDetail('End Date', $endCarbon->format('Y-m-d H:i:s'));
-        $this->components->twoColumnDetail('Force Overwrite', $force ? 'Yes' : 'No');
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'Start Date' => $startCarbon->format('Y-m-d H:i:s'),
+            'End Date' => $endCarbon->format('Y-m-d H:i:s'),
+            'Force Overwrite' => $force ? 'Yes' : 'No',
+        ]);
 
         $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) {
             $this->handleProgressEvent($event);
@@ -111,23 +107,5 @@ class DataImportCommand extends Command
         } finally {
             $eventDispatcher->forget(DownloadProgress::class);
         }
-    }
-
-    private function handleProgressEvent(DownloadProgress $event): void
-    {
-        if ($this->progressBar === null) {
-            return;
-        }
-
-        $percentComplete = $this->totalDuration > 0
-            ? (int) round(($event->currentProgress / ($this->totalDuration * 1000)) * 100)
-            : 0;
-
-        $percentComplete = max(0, min(100, $percentComplete));
-
-        $this->progressBar->setProgress($percentComplete);
-
-        $dateStr = gmdate('Y-m-d H:i:s', $event->lastTimestamp);
-        $this->progressBar->setMessage("Fetching: {$dateStr} ({$event->recordsFetchedInBatch} records)");
     }
 }

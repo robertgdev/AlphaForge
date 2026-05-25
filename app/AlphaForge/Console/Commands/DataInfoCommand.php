@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\FormattingService;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\DataInspectionService;
@@ -14,6 +15,8 @@ use function Laravel\Prompts\warning;
 
 class DataInfoCommand extends Command
 {
+    use ParsesMarketDataArgs;
+
     protected $signature = 'alphaforge:data:info
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
@@ -25,19 +28,16 @@ class DataInfoCommand extends Command
         DataInspectionService $inspectionService,
         FormattingService $formattingService
     ): int {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
 
         try {
             $data = $inspectionService->inspect($exchange, $market, $timeframe);
         } catch (DataFileNotFoundException $e) {
             warning("No market data found for {$exchange}/{$market}/{$timeframe}");
             $this->newLine();
-            $this->components->twoColumnDetail('Exchange', $exchange);
-            $this->components->twoColumnDetail('Market', $market);
-            $this->components->twoColumnDetail('Timeframe', $timeframe);
-            $this->newLine();
+            $this->displayMarketDataHeader($exchange, $market, $timeframe);
             info('Use the import command to download market data:');
             $this->line("  php artisan alphaforge:data:import {$exchange} {$market} {$timeframe} <startdate> [enddate]");
 
@@ -58,12 +58,9 @@ class DataInfoCommand extends Command
 
         info('Market Data Information');
         $this->newLine();
-
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('File Path', $data['filePath']);
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'File Path' => $data['filePath'],
+        ]);
 
         $this->components->twoColumnDetail('<fg=yellow>File Statistics</>', '');
         $this->components->twoColumnDetail('  File Size', $formattingService->formatFileSize($fileSize));

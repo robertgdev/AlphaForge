@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\FormattingService;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Services\MarketDataFileService;
 use Illuminate\Console\Command;
 
@@ -15,6 +16,8 @@ use function Safe\filesize;
 
 class DataDeleteCommand extends Command
 {
+    use ParsesMarketDataArgs;
+
     protected $signature = 'alphaforge:data:delete
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
@@ -27,9 +30,9 @@ class DataDeleteCommand extends Command
         MarketDataFileService $fileService,
         FormattingService $formattingService
     ): int {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $force = $this->option('force');
 
         $filePath = $fileService->generateFilePath($exchange, $market, $timeframe);
@@ -47,13 +50,11 @@ class DataDeleteCommand extends Command
 
         info('Market data file found:');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('File Path', $filePath);
-        $this->components->twoColumnDetail('File Size', $fileSizeFormatted);
-        $this->components->twoColumnDetail('Last Modified', $fileModified);
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'File Path' => $filePath,
+            'File Size' => $fileSizeFormatted,
+            'Last Modified' => $fileModified,
+        ]);
 
         if (! $force) {
             $confirmed = confirm(

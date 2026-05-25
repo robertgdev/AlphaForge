@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
 use App\AlphaForge\Data\Exception\StorageException;
 use Illuminate\Console\Command;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 class HeikenAshiCommand extends Command
 {
     use HasProgressBar;
+    use ParsesMarketDataArgs;
 
     /**
      * The name and signature of the console command.
@@ -37,9 +39,9 @@ class HeikenAshiCommand extends Command
 
     public function handle(HeikenAshiConverter $converter): int
     {
-        $exchange = strtolower($this->argument('exchange'));
-        $market = strtoupper($this->argument('market'));
-        $timeframe = $this->argument('timeframe');
+        $exchange = $this->parseExchange();
+        $market = $this->parseMarket();
+        $timeframe = $this->parseTimeframe();
         $force = $this->option('force');
         $update = $this->option('update');
 
@@ -90,12 +92,10 @@ class HeikenAshiCommand extends Command
 
         info($update ? 'Starting Heiken-Ashi incremental conversion...' : 'Starting Heiken-Ashi conversion...');
         $this->newLine();
-        $this->components->twoColumnDetail('Exchange', $exchange);
-        $this->components->twoColumnDetail('Market', $market);
-        $this->components->twoColumnDetail('Timeframe', $timeframe);
-        $this->components->twoColumnDetail('OHLC Records', number_format($ohlcvHeader['numRecords']));
-        $this->components->twoColumnDetail('Mode', $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'));
-        $this->newLine();
+        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+        ]);
 
         try {
             $this->startProgressBar($update ? 'Incrementally converting OHLC to Heiken-Ashi...' : 'Converting OHLC to Heiken-Ashi...');
