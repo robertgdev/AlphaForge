@@ -70,9 +70,9 @@ class BacktestResultFormatter
     /**
      * Format position objects for table display.
      *
-     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null}>  $positions
+     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null, entryTime?: \Carbon\Carbon|null, exitTime?: \Carbon\Carbon|null}>  $positions
      * @param  float  $initialCapital  Initial capital for running balance calculation
-     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string}>
+     * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string, 7: string, 8: string, 9: string}>
      */
     public function formatPositions(array $positions, float $initialCapital = 0.0): array
     {
@@ -87,6 +87,8 @@ class BacktestResultFormatter
                 $exitPrice = (float) ($position['exitPrice'] ?? 0);
                 $pnl = (float) ($position['realizedPnl'] ?? 0);
                 $exitTag = (string) ($position['exitTag'] ?? '-');
+                $entryTime = $position['entryTime'] ?? null;
+                $exitTime = $position['exitTime'] ?? null;
             } else {
                 /** @var string $symbol */
                 $symbol = $position->symbol ?? '?';
@@ -100,13 +102,39 @@ class BacktestResultFormatter
                 $pnl = $position->realizedPnl ?? 0;
                 /** @var string|null $exitTag */
                 $exitTag = $position->exitTag ?? '-';
+                /** @var \Carbon\Carbon|null $entryTime */
+                $entryTime = $position->entryTime ?? null;
+                /** @var \Carbon\Carbon|null $exitTime */
+                $exitTime = $position->exitTime ?? null;
             }
 
             $runningBalance += $pnl;
 
+            $duration = '-';
+            if ($entryTime instanceof \Carbon\Carbon && $exitTime instanceof \Carbon\Carbon) {
+                $diff = $entryTime->diff($exitTime);
+                $parts = [];
+                if ($diff->d > 0) {
+                    $parts[] = $diff->d . 'd';
+                }
+                if ($diff->h > 0) {
+                    $parts[] = $diff->h . 'h';
+                }
+                if ($diff->i > 0) {
+                    $parts[] = $diff->i . 'm';
+                }
+                if (empty($parts)) {
+                    $parts[] = $diff->s . 's';
+                }
+                $duration = implode(' ', $parts);
+            }
+
             $result[] = [
                 $symbol,
                 $direction,
+                $entryTime instanceof \Carbon\Carbon ? $entryTime->format('Y-m-d H:i:s') : '-',
+                $exitTime instanceof \Carbon\Carbon ? $exitTime->format('Y-m-d H:i:s') : '-',
+                $duration,
                 number_format($entryPrice, 2),
                 number_format($exitPrice, 2),
                 number_format($pnl, 2),

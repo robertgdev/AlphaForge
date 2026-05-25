@@ -353,7 +353,7 @@ class RunBacktestCommand extends Command
                 $this->line('<fg=yellow>Positions (Closed):</>');
                 $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital']);
 
-                table(['Symbol', 'Direction', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason'], $positionData);
+                table(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason'], $positionData);
                 $this->newLine();
             }
         }

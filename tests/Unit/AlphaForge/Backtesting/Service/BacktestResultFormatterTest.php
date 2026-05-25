@@ -145,6 +145,8 @@ describe('BacktestResultFormatter', function () {
                     'entryPrice' => 50000,
                     'exitPrice' => 55000,
                     'realizedPnl' => 1000,
+                    'entryTime' => null,
+                    'exitTime' => null,
                 ],
             ];
 
@@ -153,10 +155,14 @@ describe('BacktestResultFormatter', function () {
             expect($result)->toHaveCount(1)
                 ->and($result[0][0])->toBe('BTC/USDT')
                 ->and($result[0][1])->toBe('long')
-                ->and($result[0][2])->toBe('50,000.00')
-                ->and($result[0][3])->toBe('55,000.00')
-                ->and($result[0][4])->toBe('1,000.00')
-                ->and($result[0][5])->toBe('11,000.00');
+                ->and($result[0][2])->toBe('-')
+                ->and($result[0][3])->toBe('-')
+                ->and($result[0][4])->toBe('-')
+                ->and($result[0][5])->toBe('50,000.00')
+                ->and($result[0][6])->toBe('55,000.00')
+                ->and($result[0][7])->toBe('1,000.00')
+                ->and($result[0][8])->toBe('11,000.00')
+                ->and($result[0][9])->toBe('-');
         });
 
         it('formats object positions', function () {
@@ -166,14 +172,16 @@ describe('BacktestResultFormatter', function () {
             $position->entryPrice = 3000;
             $position->exitPrice = 2800;
             $position->realizedPnl = -200;
+            $position->entryTime = null;
+            $position->exitTime = null;
 
             $result = $this->formatter->formatPositions([$position], 10000);
 
             expect($result)->toHaveCount(1)
                 ->and($result[0][0])->toBe('ETH/USDT')
                 ->and($result[0][1])->toBe('short')
-                ->and($result[0][4])->toBe('-200.00')
-                ->and($result[0][5])->toBe('9,800.00');
+                ->and($result[0][7])->toBe('-200.00')
+                ->and($result[0][8])->toBe('9,800.00');
         });
 
         it('handles missing fields with defaults', function () {
@@ -185,10 +193,14 @@ describe('BacktestResultFormatter', function () {
 
             expect($result[0][0])->toBe('BTC/USDT')
                 ->and($result[0][1])->toBe('unknown')
-                ->and($result[0][2])->toBe('0.00')
-                ->and($result[0][3])->toBe('0.00')
-                ->and($result[0][4])->toBe('0.00')
-                ->and($result[0][5])->toBe('10,000.00');
+                ->and($result[0][2])->toBe('-')
+                ->and($result[0][3])->toBe('-')
+                ->and($result[0][4])->toBe('-')
+                ->and($result[0][5])->toBe('0.00')
+                ->and($result[0][6])->toBe('0.00')
+                ->and($result[0][7])->toBe('0.00')
+                ->and($result[0][8])->toBe('10,000.00')
+                ->and($result[0][9])->toBe('-');
         });
 
         it('handles missing symbol with question mark', function () {
@@ -235,9 +247,9 @@ describe('BacktestResultFormatter', function () {
             $result = $this->formatter->formatPositions($positions, 10000);
 
             expect($result)->toHaveCount(3)
-                ->and($result[0][5])->toBe('11,000.00')  // 10000 + 1000
-                ->and($result[1][5])->toBe('10,500.00')  // 11000 - 500
-                ->and($result[2][5])->toBe('10,700.00');  // 10500 + 200
+                ->and($result[0][8])->toBe('11,000.00')  // 10000 + 1000
+                ->and($result[1][8])->toBe('10,500.00')  // 11000 - 500
+                ->and($result[2][8])->toBe('10,700.00');  // 10500 + 200
         });
 
         it('works without initial capital parameter', function () {
@@ -253,7 +265,25 @@ describe('BacktestResultFormatter', function () {
 
             $result = $this->formatter->formatPositions($positions);
 
-            expect($result[0][5])->toBe('1,000.00');
+            expect($result[0][7])->toBe('1,000.00');
+        });
+
+        it('calculates duration for positions with datetime', function () {
+            $positions = [
+                [
+                    'symbol' => 'BTC/USDT',
+                    'direction' => 'long',
+                    'entryPrice' => 50000,
+                    'exitPrice' => 55000,
+                    'realizedPnl' => 1000,
+                    'entryTime' => \Carbon\Carbon::parse('2024-01-01 10:00:00'),
+                    'exitTime' => \Carbon\Carbon::parse('2024-01-03 14:30:45'),
+                ],
+            ];
+
+            $result = $this->formatter->formatPositions($positions, 10000);
+
+            expect($result[0][4])->toBe('2d 4h 30m');
         });
     });
 });
