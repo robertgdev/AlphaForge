@@ -32,6 +32,12 @@ class WalkForwardConfiguration
 
     public ?int $minTrades = null;
 
+    public ?string $dataType = 'ohlcv';
+
+    public ?float $brickSize = null;
+
+    public ?int $atrPeriod = null;
+
     /** @var array<string, mixed>|null */
     public ?array $parameterOverrides = null;
 
@@ -109,6 +115,10 @@ class WalkForwardConfiguration
         }
 
         $config->minTrades = $data['min_trades'] ?? $data['minTrades'] ?? null;
+
+        $config->dataType = $data['data_type'] ?? $data['dataType'] ?? 'ohlcv';
+        $config->brickSize = $data['brick_size'] ?? $data['brickSize'] ?? null;
+        $config->atrPeriod = $data['atr_period'] ?? $data['atrPeriod'] ?? null;
 
         return $config;
     }

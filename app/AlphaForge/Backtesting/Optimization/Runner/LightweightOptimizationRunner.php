@@ -27,6 +27,9 @@ class LightweightOptimizationRunner implements OptimizationRunnerInterface
             startDate: $config->startDate ? Carbon::instance($config->startDate) : null,
             endDate: $config->endDate ? Carbon::instance($config->endDate) : null,
             executionTimeframe: $config->executionTimeframe,
+            dataType: $config->dataType ?? 'ohlcv',
+            brickSize: $config->brickSize,
+            atrPeriod: $config->atrPeriod,
         );
     }
 

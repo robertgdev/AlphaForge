@@ -49,6 +49,12 @@ class OptimizationConfig
 
     public ?TimeframeEnum $executionTimeframe = null;
 
+    public ?string $dataType = 'ohlcv';
+
+    public ?float $brickSize = null;
+
+    public ?int $atrPeriod = null;
+
     public static function fromArray(array $data): self
     {
         $config = new self;
@@ -99,6 +105,10 @@ class OptimizationConfig
                 ? $etf
                 : ($etf !== null ? TimeframeEnum::from($etf) : null);
         }
+
+        $config->dataType = $data['data_type'] ?? $data['dataType'] ?? 'ohlcv';
+        $config->brickSize = $data['brick_size'] ?? $data['brickSize'] ?? null;
+        $config->atrPeriod = $data['atr_period'] ?? $data['atrPeriod'] ?? null;
 
         return $config;
     }

@@ -23,6 +23,9 @@ class BacktestConfiguration
         public array $commissionConfig = ['type' => 'percentage', 'rate' => 0.001],
         public ?\DateTimeImmutable $startDate = null,
         public ?\DateTimeImmutable $endDate = null,
-        public ?TimeframeEnum $executionTimeframe = null
+        public ?TimeframeEnum $executionTimeframe = null,
+        public string $dataType = 'ohlcv',
+        public ?float $brickSize = null,
+        public ?int $atrPeriod = null,
     ) {}
 }

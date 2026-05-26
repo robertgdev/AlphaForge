@@ -40,6 +40,9 @@ class WalkForwardCommand extends Command
         {--use-strategy-ranges : Use strategy\'s defined min/max ranges}
         {--min-trades=0 : Minimum OOS trade count for statistical reliability}
         {--min-oos-days=0 : Warn if OOS period has fewer days than this (recommended: 90)}
+        {--data-type=ohlcv : Market data type (ohlcv, heikenashi, renko, atr_renko)}
+        {--brick-size= : Brick size for renko data-type (e.g., 0.001, 10, 100)}
+        {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
         {--force : Skip data range warnings}
         {--format=table : Output format (table, csv, json)}
         {--output= : Write output to file instead of stdout}';
@@ -69,6 +72,9 @@ class WalkForwardCommand extends Command
         $useStrategyRanges = $this->option('use-strategy-ranges');
         $minTrades = (int) $this->option('min-trades');
         $minOosDays = (int) $this->option('min-oos-days');
+        $dataTypeValue = $this->option('data-type');
+        $brickSize = $this->option('brick-size');
+        $atrPeriod = $this->option('atr-period');
         $force = $this->option('force');
         $format = $this->option('format');
         $outputPath = $this->option('output');
@@ -115,6 +121,34 @@ class WalkForwardCommand extends Command
             return 1;
         }
 
+        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
+        if (! in_array($dataTypeValue, $validDataTypes, true)) {
+            $this->error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+
+            return 1;
+        }
+
+        if ($dataTypeValue === 'renko') {
+            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
+                $this->error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
+
+                return 1;
+            }
+        } elseif ($dataTypeValue === 'atr_renko') {
+            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
+                $this->error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
+
+                return 1;
+            }
+        } else {
+            if ($brickSize !== null) {
+                $this->warn('--brick-size is ignored for data-type '.$dataTypeValue);
+            }
+            if ($atrPeriod !== null) {
+                $this->warn('--atr-period is ignored for data-type '.$dataTypeValue);
+            }
+        }
+
         $startDate = $startDateOption ? Carbon::parse($startDateOption) : null;
         $endDate = $endDateOption ? Carbon::parse($endDateOption) : null;
 
@@ -151,6 +185,13 @@ class WalkForwardCommand extends Command
         $this->line("  Method: {$method->value}");
         $this->line("  Objective: $objective");
         $this->line("  Top-N: $topN");
+        $this->line("  Data Type: $dataTypeValue");
+        if ($brickSize !== null) {
+            $this->line("  Brick Size: $brickSize");
+        }
+        if ($atrPeriod !== null) {
+            $this->line("  ATR Period: $atrPeriod");
+        }
         $this->line('  Split: '.($splitRatio * 100).'% in-sample / '.((1 - $splitRatio) * 100).'% out-of-sample');
 
         if ($minTrades > 0) {
@@ -186,6 +227,12 @@ class WalkForwardCommand extends Command
         $config->endDate = $endDate ? new DateTimeImmutable($endDate->toIso8601String()) : null;
         $config->executionTimeframe = $executionTimeframe;
         $config->minTrades = $minTrades > 0 ? $minTrades : null;
+        $config->dataType = $dataTypeValue;
+        $config->brickSize = $dataTypeValue === 'renko' ? (float) $brickSize : null;
+        $config->atrPeriod = $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null;
+        $config->dataType = $dataTypeValue;
+        $config->brickSize = $dataTypeValue === 'renko' ? (float) $brickSize : null;
+        $config->atrPeriod = $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null;
 
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);

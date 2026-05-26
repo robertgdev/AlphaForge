@@ -203,11 +203,17 @@ describe('Console Command Signatures', function () {
             expect(is_a(AggregateDataCommand::class, Command::class, true))->toBeTrue();
         });
 
-        it('has signature with alphaforge prefix', function () {
+        it('has correct command signature', function () {
             $ref = new ReflectionClass(AggregateDataCommand::class);
             $defaultProps = $ref->getDefaultProperties();
 
-            expect($defaultProps['signature'])->toContain('alphaforge:');
+            expect($defaultProps['signature'])->toContain('alphaforge:data:aggregate')
+                ->and($defaultProps['signature'])->toContain('{exchange')
+                ->and($defaultProps['signature'])->toContain('{market')
+                ->and($defaultProps['signature'])->toContain('{source_timeframe')
+                ->and($defaultProps['signature'])->toContain('{target_timeframe')
+                ->and($defaultProps['signature'])->toContain('--force')
+                ->and($defaultProps['signature'])->toContain('--update');
         });
     });
 

@@ -79,6 +79,9 @@ class Optimizer
                     startDate: $config->startDate,
                     endDate: $config->endDate,
                     executionTimeframe: $config->executionTimeframe,
+                    dataType: $config->dataType ?? 'ohlcv',
+                    brickSize: $config->brickSize,
+                    atrPeriod: $config->atrPeriod,
                 );
 
                 $result = $this->runner->runSingle($backtestConfig);

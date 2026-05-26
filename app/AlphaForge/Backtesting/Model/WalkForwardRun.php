@@ -38,6 +38,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array<string, mixed>|null $best_oos_statistics
  * @property \DateTimeInterface|null $started_at
  * @property \DateTimeInterface|null $completed_at
+ * @property string|null $data_type
+ * @property float|null $brick_size
+ * @property int|null $atr_period
  */
 class WalkForwardRun extends Model
 {
@@ -66,6 +69,9 @@ class WalkForwardRun extends Model
         'completed_combinations',
         'execution_timeframe',
         'min_trades_threshold',
+        'data_type',
+        'brick_size',
+        'atr_period',
         'status',
         'error_message',
         'best_parameters',
@@ -88,6 +94,12 @@ class WalkForwardRun extends Model
         'total_combinations' => 'integer',
         'completed_combinations' => 'integer',
         'min_trades_threshold' => 'integer',
+        'data_type' => 'string',
+        'brick_size' => 'decimal:8',
+        'atr_period' => 'integer',
+        'data_type' => 'string',
+        'brick_size' => 'decimal:8',
+        'atr_period' => 'integer',
         'is_start_date' => 'datetime',
         'is_end_date' => 'datetime',
         'oos_start_date' => 'datetime',

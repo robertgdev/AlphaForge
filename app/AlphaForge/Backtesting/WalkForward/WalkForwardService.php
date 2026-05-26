@@ -48,6 +48,9 @@ class WalkForwardService
             'status' => 'pending',
             'execution_timeframe' => $config->executionTimeframe?->value,
             'min_trades_threshold' => $config->minTrades,
+            'data_type' => $config->dataType ?? 'ohlcv',
+            'brick_size' => $config->brickSize,
+            'atr_period' => $config->atrPeriod,
         ]);
 
         try {
@@ -146,6 +149,12 @@ class WalkForwardService
         $optimizationConfig->startDate = new DateTimeImmutable($isStart->toIso8601String());
         $optimizationConfig->endDate = new DateTimeImmutable($isEnd->toIso8601String());
         $optimizationConfig->executionTimeframe = $config->executionTimeframe;
+        $optimizationConfig->dataType = $config->dataType ?? 'ohlcv';
+        $optimizationConfig->brickSize = $config->brickSize;
+        $optimizationConfig->atrPeriod = $config->atrPeriod;
+        $optimizationConfig->dataType = $config->dataType ?? 'ohlcv';
+        $optimizationConfig->brickSize = $config->brickSize;
+        $optimizationConfig->atrPeriod = $config->atrPeriod;
 
         return $this->optimizer->optimize($optimizationConfig);
     }
@@ -195,6 +204,9 @@ class WalkForwardService
                 startDate: $oosStart,
                 endDate: $oosEnd,
                 executionTimeframe: $config->executionTimeframe,
+                dataType: $config->dataType ?? 'ohlcv',
+                brickSize: $config->brickSize,
+                atrPeriod: $config->atrPeriod,
             );
 
             $oosScore = $objective->score($oosResult['statistics']);

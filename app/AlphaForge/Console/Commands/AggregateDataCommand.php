@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Services\AggregateDataService;
 use App\AlphaForge\Services\MarketDataFileService;
 use Illuminate\Console\Command;
@@ -13,9 +14,11 @@ use function Laravel\Prompts\warning;
 
 class AggregateDataCommand extends Command
 {
+    use ParsesMarketDataArgs;
+
     protected $signature = 'alphaforge:data:aggregate
         {exchange : The exchange identifier (e.g., binance, kraken)}
-        {symbol : The trading pair symbol (e.g., BTC/USDT)}
+        {market : The trading pair symbol (e.g., BTC/USDT)}
         {source_timeframe : The source timeframe to aggregate from (e.g., 1m, 5m, 15m)}
         {target_timeframe : The target timeframe to aggregate to (e.g., 1h, 4h, 1d)}
         {--force : Force overwrite if target file already exists}
@@ -27,8 +30,8 @@ class AggregateDataCommand extends Command
         AggregateDataService $aggregateDataService,
         MarketDataFileService $fileService
     ): int {
-        $exchange = strtolower($this->argument('exchange'));
-        $symbol = strtoupper($this->argument('symbol'));
+        $exchange = $this->parseExchange();
+        $symbol = $this->parseMarket();
         $sourceTimeframeValue = $this->argument('source_timeframe');
         $targetTimeframeValue = $this->argument('target_timeframe');
         $force = $this->option('force');

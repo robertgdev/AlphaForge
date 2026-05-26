@@ -201,78 +201,167 @@ AlphaForge provides comprehensive CLI commands for all operations. All commands 
 
 ### Data Management
 
-#### `alphaforge:data` - Market Data Operations
+#### `alphaforge:data:import` - Import Market Data
 
-Import, export, delete, update, or inspect market data from exchanges.
+Download and store OHLCV market data from an exchange.
 
 ```bash
-php artisan alphaforge:data <action> [arguments] [options]
+php artisan alphaforge:data:import <exchange> <market> <timeframe> <startdate> [enddate] [options]
 ```
 
 **Arguments:**
 
-| Argument | Description                                                                        | Required For |
-|---------|------------------------------------------------------------------------------------|--------------|
-| `action` | Action to perform: `import`, `export`, `update`, `delete`, `info`, `list` | All actions |
-| `exchange` | Exchange identifier (e.g., `binance`, `kraken`)                                    | `import`, `delete`, `info`, `update` |
-| `market` | Trading pair symbol (e.g., `BTC/USDT`)                                             | `import`, `delete`, `info`, `update` |
-| `timeframe` | Timeframe (e.g., `1m`, `5m`, `1h`, `1d`)                                           | `import`, `delete`, `info`, `update` |
-| `startdate` | Start date for import (Y-m-d or Y-m-d H:i:s)                                       | `import` only |
-| `enddate` | End date for import/update (Y-m-d or Y-m-d H:i:s, defaults to now)                 | `import`, `update` |
-
-**Usage by Action:**
-
-- `import`: `alphaforge:data import <exchange> <market> <timeframe> <startdate> [enddate]`
-- `update`: `alphaforge:data update <exchange> <market> <timeframe> [enddate] [--with-dependencies]`
-- `delete`: `alphaforge:data delete <exchange> <market> <timeframe>`
-- `info`: `alphaforge:data info <exchange> <market> <timeframe>`
-- `list`: `alphaforge:data list [options]`
-- `export`: `alphaforge:data export` (not yet implemented)
+| Argument | Description | Required |
+|---------|-------------|----------|
+| `exchange` | Exchange identifier (e.g., `binance`, `kraken`) | Yes |
+| `market` | Trading pair symbol (e.g., `BTC/USDT`) | Yes |
+| `timeframe` | Timeframe (e.g., `1m`, `5m`, `1h`, `1d`) | Yes |
+| `startdate` | Start date (Y-m-d or Y-m-d H:i:s) | Yes |
+| `enddate` | End date (Y-m-d or Y-m-d H:i:s, defaults to now) | No |
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--force` | Force overwrite existing data (for import) or skip confirmation (for delete) |
-| `--with-dependencies` | When updating, also update all derived data files (Renko, Heiken-Ashi, etc.) |
-| `--exchange-filter=` | Filter by exchange for list action |
-| `--symbol-filter=` | Filter by symbol for list action |
+| `--force` | Force overwrite existing data |
+
+**Example:**
+
+```bash
+# Download market data
+php artisan alphaforge:data:import binance BTC/USDT 1h 2023-01-01 2024-01-01
+```
+
+---
+
+#### `alphaforge:data:update` - Update Market Data
+
+Update existing market data to the latest available data.
+
+```bash
+php artisan alphaforge:data:update <exchange> <market> <timeframe> [enddate] [options]
+```
+
+**Arguments:**
+
+| Argument | Description | Required |
+|---------|-------------|----------|
+| `exchange` | Exchange identifier | Yes |
+| `market` | Trading pair symbol | Yes |
+| `timeframe` | Timeframe | Yes |
+| `enddate` | End date (Y-m-d or Y-m-d H:i:s, defaults to now) | No |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--with-dependencies` | Also update all derived data files (Renko, Heiken-Ashi, etc.) |
 
 **Examples:**
 
 ```bash
-# Download market data
-php artisan alphaforge:data import binance BTC/USDT 1h 2023-01-01 2024-01-01
-
 # Update existing data to latest
-php artisan alphaforge:data update binance BTC/USDT 1h
+php artisan alphaforge:data:update binance BTC/USDT 1h
 
 # Update existing data up to a specific date
-php artisan alphaforge:data update binance BTC/USDT 1h 2024-06-01
+php artisan alphaforge:data:update binance BTC/USDT 1h 2024-06-01
 
-# List all stored data
-php artisan alphaforge:data list
-
-# List data for specific exchange
-php artisan alphaforge:data list --exchange-filter=binance
-
-# Inspect stored data
-php artisan alphaforge:data info binance BTC/USDT 1h
-
-# Delete market data
-php artisan alphaforge:data delete binance BTC/USDT 1h --force
+# Update OHLCV data and cascade the update to all derived files
+php artisan alphaforge:data:update binance BTC/USDT 1h --with-dependencies
 ```
 
-**Cascading Updates with `--with-dependencies`:**
+---
 
-When OHLCV data is updated, any derived data files (Renko, ATR-Renko, Heiken-Ashi) that were generated from it become stale. The `--with-dependencies` flag automatically detects and incrementally updates all derived files after the OHLCV update completes.
+#### `alphaforge:data:delete` - Delete Market Data
+
+Delete stored market data files.
 
 ```bash
-# Update OHLCV data and cascade the update to all derived files
-php artisan alphaforge:data update binance BTC/USDT 1h --with-dependencies
+php artisan alphaforge:data:delete <exchange> <market> <timeframe> [options]
 ```
 
-Each dependent file gets its own progress bar during the incremental conversion. After all dependencies are processed, a summary table shows the result for each (Updated / Up to Date / Full Conversion / Failed).
+**Arguments:**
+
+| Argument | Description | Required |
+|---------|-------------|----------|
+| `exchange` | Exchange identifier | Yes |
+| `market` | Trading pair symbol | Yes |
+| `timeframe` | Timeframe | Yes |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Skip confirmation prompt |
+
+**Example:**
+
+```bash
+php artisan alphaforge:data:delete binance BTC/USDT 1h --force
+```
+
+---
+
+#### `alphaforge:data:info` - Inspect Market Data
+
+Display metadata and statistics for stored market data.
+
+```bash
+php artisan alphaforge:data:info <exchange> <market> <timeframe>
+```
+
+**Arguments:**
+
+| Argument | Description | Required |
+|---------|-------------|----------|
+| `exchange` | Exchange identifier | Yes |
+| `market` | Trading pair symbol | Yes |
+| `timeframe` | Timeframe | Yes |
+
+**Example:**
+
+```bash
+php artisan alphaforge:data:info binance BTC/USDT 1h
+```
+
+---
+
+#### `alphaforge:data:list` - List Stored Data
+
+List all stored market data files with optional filtering.
+
+```bash
+php artisan alphaforge:data:list [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--exchange-filter=` | Filter by exchange |
+| `--symbol-filter=` | Filter by symbol |
+
+**Examples:**
+
+```bash
+# List all stored data
+php artisan alphaforge:data:list
+
+# List data for specific exchange
+php artisan alphaforge:data:list --exchange-filter=binance
+```
+
+---
+
+#### `alphaforge:data:export` - Export Market Data
+
+Export stored market data (not yet implemented).
+
+```bash
+php artisan alphaforge:data:export
+```
+
+---
 
 #### `alphaforge:data:repair` - Repair Corrupted Data Files
 
@@ -308,7 +397,7 @@ php artisan alphaforge:data:repair --exchange-filter=binance
 Aggregate OHLCV data from a lower timeframe to a higher timeframe (e.g., 1m → 1h).
 
 ```bash
-php artisan alphaforge:data:aggregate <exchange> <symbol> <source_timeframe> <target_timeframe> [options]
+php artisan alphaforge:data:aggregate <exchange> <market> <source_timeframe> <target_timeframe> [options]
 ```
 
 **Arguments:**
@@ -316,7 +405,7 @@ php artisan alphaforge:data:aggregate <exchange> <symbol> <source_timeframe> <ta
 | Argument | Description | Example |
 |---------|-------------|---------|
 | `exchange` | Exchange identifier | `binance` |
-| `symbol` | Trading pair symbol | `BTC/USDT` |
+| `market` | Trading pair symbol | `BTC/USDT` |
 | `source_timeframe` | Source timeframe to aggregate from | `1m`, `5m`, `15m` |
 | `target_timeframe` | Target timeframe to aggregate to | `1h`, `4h`, `1d` |
 
