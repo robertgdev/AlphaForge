@@ -842,6 +842,9 @@ php artisan alphaforge:walk-forward <strategy> <symbol> [options]
 | `--use-strategy-ranges` | Use strategy's defined min/max/step ranges | - |
 | `--min-trades=` | Minimum OOS trade count for statistical reliability | `0` |
 | `--min-oos-days=` | Warn if OOS period has fewer days than this (recommended: 90) | `0` |
+| `--data-type=` | Market data type for both phases: `ohlcv`, `heikenashi`, `renko`, `atr_renko` | `ohlcv` |
+| `--brick-size=` | Brick size for renko data-type (e.g., 0.001, 10, 100) | - |
+| `--atr-period=` | ATR period for atr_renko data-type (e.g., 14) | - |
 | `--force` | Skip data range warnings | - |
 | `--format=` | Output format: `table`, `csv`, `json` | `table` |
 | `--output=` | Write output to file instead of stdout | - |
@@ -907,6 +910,21 @@ php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
     --use-strategy-ranges --min-trades=10 --min-oos-days=90
 
+# With Renko data type (both phases use Renko candles)
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --data-type=renko --brick-size=100
+
+# With ATR Renko data type
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --data-type=atr_renko --atr-period=14
+
+# With Heiken-Ashi data type
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
+    --start-date=2024-01-01 --end-date=2026-01-01 \
+    --use-strategy-ranges --data-type=heikenashi
+
 # Export results as JSON
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
@@ -937,6 +955,15 @@ The `--execution-timeframe` option applies dual-timeframe execution to **both ph
 - **Phase 2 (Forward Testing)**: Each OOS backtest also uses the execution timeframe
 
 This ensures consistency — if your live strategy will use `--execution-timeframe=1m`, your walk-forward validation should too.
+
+##### Data Type in Walk-Forward
+
+The `--data-type` option applies to **both phases** of the walk-forward analysis:
+
+- **Phase 1 (Optimization)**: The data type, brick size, and ATR period are passed through to the optimizer, so each in-sample backtest uses the specified market data type
+- **Phase 2 (Forward Testing)**: Each OOS backtest also uses the same data type
+
+This ensures consistency — if your live strategy will use `--data-type=renko --brick-size=100`, your walk-forward validation should too. The `--brick-size` option is required when `--data-type=renko`, and `--atr-period` is required when `--data-type=atr_renko`.
 
 ##### Minimum Trade Count Filtering
 
@@ -2042,6 +2069,9 @@ $config = WalkForwardConfiguration::fromArray([
     'end_date' => '2026-01-01',
     'execution_timeframe' => '1m',   // optional: dual-TF execution in both phases
     'min_trades' => 10,              // optional: minimum OOS trade count for reliability
+    'data_type' => 'ohlcv',          // optional: market data type for both phases (ohlcv, heikenashi, renko, atr_renko)
+    'brick_size' => null,            // required when data_type=renko
+    'atr_period' => null,            // required when data_type=atr_renko
 ]);
 
 $wfRun = $service->run($config);
@@ -2055,6 +2085,9 @@ Key walk-forward-specific properties:
 | `oosStartDate` | `?string` | Explicit OOS start date — overrides `splitRatio` when set |
 | `executionTimeframe` | `?TimeframeEnum` | Lower timeframe for order/position execution in both IS and OOS phases |
 | `minTrades` | `?int` | Minimum OOS trade count for statistical reliability filtering |
+| `dataType` | `?string` | Market data type for both IS and OOS phases (default `ohlcv`) |
+| `brickSize` | `?float` | Brick size for renko data type |
+| `atrPeriod` | `?int` | ATR period for atr_renko data type |
 | `topN` | `int` | Both the optimization persistence count **and** the forward-test count (default `50`) |
 
 All other properties (`method`, `iterations`, `populationSize`, `generations`, `objective`, `parameterOverrides`) are passed through to the `Optimizer` unchanged.
@@ -2073,9 +2106,9 @@ When `startDate`/`endDate` are not provided, defaults to 2 years ago → now.
 
 The orchestrator that coordinates both phases:
 
-1. **Creates a `WalkForwardRun`** record with status `pending`, storing `execution_timeframe` and `min_trades_threshold`
-2. **Phase 1**: Builds an `OptimizationConfig` from the IS date range (including `executionTimeframe`), delegates to `Optimizer::optimize()`, stores the `optimization_run_id`
-3. **Phase 2**: Loads the top-N `BacktestRun` results from the optimization, runs each through `Backtester::run()` on the OOS date range (with `executionTimeframe`), scores with the same `ObjectiveFunction`, computes score degradation, and persists `WalkForwardResult` records. A `$progressCallback` is called after each forward test for progress reporting.
+1. **Creates a `WalkForwardRun`** record with status `pending`, storing `execution_timeframe`, `min_trades_threshold`, `data_type`, `brick_size`, and `atr_period`
+2. **Phase 1**: Builds an `OptimizationConfig` from the IS date range (including `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`), delegates to `Optimizer::optimize()`, stores the `optimization_run_id`
+3. **Phase 2**: Loads the top-N `BacktestRun` results from the optimization, runs each through `Backtester::run()` on the OOS date range (with `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`), scores with the same `ObjectiveFunction`, computes score degradation, and persists `WalkForwardResult` records. A `$progressCallback` is called after each forward test for progress reporting.
 4. **Finalize**: Selects the best OOS result (highest OOS score), stores it as the run's `best_parameters`, and marks the run as `completed`
 
 Score degradation is computed as:

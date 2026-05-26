@@ -152,9 +152,6 @@ class WalkForwardService
         $optimizationConfig->dataType = $config->dataType ?? 'ohlcv';
         $optimizationConfig->brickSize = $config->brickSize;
         $optimizationConfig->atrPeriod = $config->atrPeriod;
-        $optimizationConfig->dataType = $config->dataType ?? 'ohlcv';
-        $optimizationConfig->brickSize = $config->brickSize;
-        $optimizationConfig->atrPeriod = $config->atrPeriod;
 
         return $this->optimizer->optimize($optimizationConfig);
     }

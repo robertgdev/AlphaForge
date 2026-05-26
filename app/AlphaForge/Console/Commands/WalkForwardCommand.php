@@ -230,9 +230,6 @@ class WalkForwardCommand extends Command
         $config->dataType = $dataTypeValue;
         $config->brickSize = $dataTypeValue === 'renko' ? (float) $brickSize : null;
         $config->atrPeriod = $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null;
-        $config->dataType = $dataTypeValue;
-        $config->brickSize = $dataTypeValue === 'renko' ? (float) $brickSize : null;
-        $config->atrPeriod = $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null;
 
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);
