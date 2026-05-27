@@ -1685,78 +1685,130 @@ use App\AlphaForge\Strategy\StrategyInterface;
 #[AsStrategy(
     alias: 'sma_crossover',
     name: 'SMA Crossover',
-    description: 'Simple Moving Average crossover strategy',
+    description: 'Simple Moving Average crossover strategy. Buys when fast SMA crosses above slow SMA, sells when it crosses below.',
     timeframe: TimeframeEnum::H1,
     requiredMarketData: [TimeframeEnum::H1]
 )]
 class SmaCrossoverStrategy implements StrategyInterface
 {
     use DefaultExitRules;
-    #[Input(description: 'Fast SMA period', min: 5, max: 50, step: 5)]
+
+    #[Input(description: 'Fast SMA period (shorter timeframe)', min: 5, max: 50, step: 5)]
     private int $fastPeriod = 10;
 
-    #[Input(description: 'Slow SMA period', min: 20, max: 200, step: 10)]
+    #[Input(description: 'Slow SMA period (longer timeframe)', min: 20, max: 200, step: 10)]
     private int $slowPeriod = 50;
 
-    #[Input(description: 'Stop loss %', min: 0.5, max: 20.0, step: 0.5)]
+    #[Input(description: 'Stop loss percentage from entry price', min: 0.5, max: 20.0, step: 0.5)]
     private float $stopLossPercent = 5.0;
 
-    #[Input(description: 'Take profit %', min: 1.0, max: 50.0, step: 2.0)]
+    #[Input(description: 'Take profit percentage from entry price', min: 1.0, max: 50.0, step: 2.0)]
     private float $takeProfitPercent = 10.0;
 
-    #[Input(description: 'Stake amount', min: 10, max: 100000, step: 1000)]
+    #[Input(description: 'Stake amount per trade (in quote currency)', min: 10, max: 100000, step: 1000)]
     private string $stakeAmount = '1000';
 
     private ?IndicatorContext $ctx = null;
+
+    private ?ConditionInterface $entryCondition = null;
+
+    private ?ConditionInterface $exitCondition = null;
+
+    /** @var array<int, bool> */
     private array $entrySignals = [];
+
+    /** @var array<int, bool> */
     private array $exitSignals = [];
 
-    public function configure(array $inputs): void { /* assign inputs to properties */ }
+    /** @var array<int, float> */
+    private array $closePrices = [];
+
+    private int $totalBars = 0;
+
+    public function configure(array $inputs): void
+    {
+        if (isset($inputs['fastPeriod'])) {
+            $this->fastPeriod = (int) $inputs['fastPeriod'];
+        }
+        if (isset($inputs['slowPeriod'])) {
+            $this->slowPeriod = (int) $inputs['slowPeriod'];
+        }
+        if (isset($inputs['stopLossPercent'])) {
+            $this->stopLossPercent = (float) $inputs['stopLossPercent'];
+        }
+        if (isset($inputs['takeProfitPercent'])) {
+            $this->takeProfitPercent = (float) $inputs['takeProfitPercent'];
+        }
+        if (isset($inputs['stakeAmount'])) {
+            $this->stakeAmount = (string) $inputs['stakeAmount'];
+        }
+    }
 
     public function initialize(array $data): void
     {
         $ohlcv = $data['ohlcv'];
         $this->ctx = new IndicatorContext($ohlcv);
 
+        $minBars = max($this->fastPeriod, $this->slowPeriod);
+        $totalBars = $ohlcv->getTimestamps()->count();
+
+        if ($totalBars < $minBars) {
+            throw new \RuntimeException(
+                sprintf(
+                    'Insufficient data for SMA crossover strategy. Need at least %d bars, got %d.',
+                    $minBars,
+                    $totalBars
+                )
+            );
+        }
+
         // Compute indicators once (cached by IndicatorContext)
         $fast = $this->ctx->sma($this->fastPeriod);
         $slow = $this->ctx->sma($this->slowPeriod);
 
         // Define conditions declaratively
-        $entryCondition = $fast->crossesAbove($slow);
-        $exitCondition = $fast->crossesBelow($slow);
+        $this->entryCondition = $fast->crossesAbove($slow);
+        $this->exitCondition = $fast->crossesBelow($slow);
 
         // Pre-evaluate all bars in bulk (O(n))
-        $totalBars = $ohlcv->getTimestamps()->count();
-        $this->entrySignals = $entryCondition->evaluateAll($totalBars);
-        $this->exitSignals = $exitCondition->evaluateAll($totalBars);
+        $this->totalBars = $ohlcv->getTimestamps()->count();
+        $this->entrySignals = $this->entryCondition->evaluateAll($this->totalBars);
+        $this->exitSignals = $this->exitCondition->evaluateAll($this->totalBars);
+        $this->closePrices = $ohlcv->getCloses()->getVector()->toArray();
     }
 
     public function onBar(array $data): array
     {
         $signals = [];
-        $i = $data['cursor']->currentIndex;
-        $openPosition = $data['portfolio']->getOpenPosition($data['symbol']);
+        $currentIndex = $data['cursor']->currentIndex;
+        $portfolio = $data['portfolio'];
+        $symbol = $data['symbol'];
+
+        $currentPrice = (string) $this->closePrices[$currentIndex];
+        $openPosition = $portfolio->getOpenPosition($symbol);
 
         // O(1) array lookup — no per-bar indicator computation
-        if ($this->entrySignals[$i] ?? false && $openPosition === null) {
-            $price = (string) $data['ohlcv']->getCloses()->getVector()->get($i);
+        if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
+            $stopLoss = bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent), '100', 6), 6);
+            $takeProfit = bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent), '100', 6), 6);
+
             $signals[] = new OrderSignal(
-                symbol: $data['symbol'],
+                symbol: $symbol,
                 direction: DirectionEnum::LONG,
                 orderType: OrderTypeEnum::Market,
                 stakeAmount: $this->stakeAmount,
-                stopLoss: bcmul($price, bcdiv((string)(100 - $this->stopLossPercent), '100', 6), 6),
-                takeProfit: bcmul($price, bcdiv((string)(100 + $this->takeProfitPercent), '100', 6), 6),
+                stopLoss: $stopLoss,
+                takeProfit: $takeProfit,
             );
         }
 
-        if ($this->exitSignals[$i] ?? false && $openPosition !== null) {
+        if (($this->exitSignals[$currentIndex] ?? false) && $openPosition !== null) {
             $signals[] = new OrderSignal(
-                symbol: $data['symbol'],
+                symbol: $symbol,
                 direction: DirectionEnum::SHORT,
                 orderType: OrderTypeEnum::Market,
                 quantity: (string) $openPosition->quantity,
+                exitTags: ['strategy_signal'],
             );
         }
 
