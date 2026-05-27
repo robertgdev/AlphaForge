@@ -802,11 +802,15 @@ php artisan alphaforge:optimizations:result 019d5725-3226-732b-9941-4e47a3350f93
 
 Run a combined optimization + forward-validation in a single operation. The system optimizes strategy parameters on an in-sample (IS) period, then validates the top-N parameter sets on an out-of-sample (OOS) period. This detects overfitting by proving parameter robustness on unseen data.
 
-**How it works:**
+**How it works — end-to-end pipeline:**
 
-1. **Phase 1 (Optimization)**: Runs parameter optimization on the in-sample date range using the specified method and objective function. The top-N results are persisted.
-2. **Phase 2 (Forward Validation)**: Each of the top-N parameter sets is backtested on the out-of-sample date range. The OOS score, IS score, and score degradation are recorded for comparison.
-3. **Analysis**: Walk-Forward Efficiency (WFE), robustness ratio, and degradation statistics are computed and displayed.
+The command runs the entire walk-forward analysis pipeline in a single invocation: **optimization → forward validation → analysis**. The same `Backtester::run()` engine used by `alphaforge:backtest:run` is called in both phases — the difference is the data range and parameter sets being tested.
+
+1. **Phase 1 (Optimization — many backtests on IS data)**: Runs parameter optimization on the in-sample date range using the specified method (grid, random, or genetic) and objective function. Each candidate parameter set is backtested against the IS period. The top-N results (ranked by objective score) are persisted.
+2. **Phase 2 (Forward Validation — backtests on OOS data)**: Each of the top-N parameter sets is backtested on the out-of-sample date range — data the optimizer **never saw**. The OOS score, IS score, and score degradation are recorded for comparison. This is where overfitting is detected: a parameter set that scored well in-sample but collapses out-of-sample is likely overfit.
+3. **Phase 3 (Analysis — pure computation, no backtests)**: Walk-Forward Efficiency (WFE), robustness ratio, degradation statistics, and Spearman rank correlation are computed from the Phase 1 + Phase 2 results and displayed.
+
+**Key insight:** Backtesting happens in **both** phases. Phase 1 runs many backtests to find the best parameters (optimizing). Phase 2 runs fewer backtests to validate whether those parameters generalize (proving). If the #1 in-sample parameter set collapses out-of-sample, you know it was overfit.
 
 ```bash
 php artisan alphaforge:walk-forward <strategy> <symbol> [options]
@@ -1999,16 +2003,18 @@ $optimizationRun = $optimizer->optimize($config);
 The walk-forward system is built on top of the optimization infrastructure, adding an out-of-sample validation phase. It comprises four decoupled components:
 
 ```
-WalkForwardService (orchestrator)
- ├── Optimizer              (inherited — runs IS optimization unchanged)
- ├── Backtester             (inherited — runs each top-N on OOS data)
- ├── WalkForwardAnalyzer    (computes WFE, degradation, robustness)
- └── WalkForwardAnalysis    (readonly result DTO)
+WalkForwardService (orchestrator — runs optimization + forward validation)
+  ├── Optimizer              (inherited — runs IS optimization unchanged, each candidate = one backtest)
+  ├── Backtester             (inherited — runs each top-N on OOS data)
+  ├── WalkForwardAnalyzer    (computes WFE, degradation, robustness — pure computation, no backtests)
+  └── WalkForwardAnalysis    (readonly result DTO)
 ```
 
-The key design principle is **zero modification** to the existing `Optimizer` — walk-forward wraps it as-is for the in-sample phase, then independently validates the top-N results on unseen data.
+The key design principle is **zero modification** to the existing `Optimizer` — walk-forward wraps it as-is for the in-sample phase, then independently validates the top-N results on unseen data. The same `Backtester::run()` engine is used in both phases; the difference is the data range and parameter sets being tested.
 
 #### Two-Phase Execution Flow
+
+> **Note:** Backtesting occurs in **both** phases. Phase 1 runs many backtests (one per candidate parameter set) on IS data to find the best parameters. Phase 2 runs fewer backtests (one per top-N set) on OOS data to validate whether those parameters generalize. Both phases call `Backtester::run()` — the same engine used by `alphaforge:backtest:run`.
 
 ```mermaid
 sequenceDiagram
@@ -2023,14 +2029,15 @@ sequenceDiagram
     Note over WalkForwardService: IS: start → split point<br/>OOS: split point → end
 
     rect rgb(230, 245, 255)
-        Note over WalkForwardService,Optimizer: Phase 1 — In-Sample Optimization
+        Note over WalkForwardService,Optimizer: Phase 1 — In-Sample Optimization (many backtests)
         WalkForwardService->>WalkForwardRun: markAsOptimizing()
         WalkForwardService->>Optimizer: optimize(isConfig)
+        Note over Optimizer,Backtester: Each candidate: Backtester::run() on IS data
         Optimizer-->>WalkForwardService: OptimizationRun (with top-N BacktestRuns)
     end
 
     rect rgb(255, 245, 230)
-        Note over WalkForwardService,Backtester: Phase 2 — Out-of-Sample Validation
+        Note over WalkForwardService,Backtester: Phase 2 — Out-of-Sample Validation (top-N backtests)
         WalkForwardService->>WalkForwardRun: markAsForwardTesting()
         loop For each top-N result
             WalkForwardService->>Backtester: run(strategy, params, oosStart, oosEnd)
@@ -2043,8 +2050,11 @@ sequenceDiagram
     WalkForwardService->>WalkForwardRun: markAsCompleted(bestOosParams, IS/OOS stats)
     WalkForwardService-->>Command: WalkForwardRun
 
-    Command->>WalkForwardAnalyzer: analyze(wfRun)
-    WalkForwardAnalyzer-->>Command: WalkForwardAnalysis (WFE, robustness, degradation)
+    rect rgb(240, 255, 240)
+        Note over Command,WalkForwardAnalyzer: Phase 3 — Analysis (no backtests, pure computation)
+        Command->>WalkForwardAnalyzer: analyze(wfRun)
+        WalkForwardAnalyzer-->>Command: WalkForwardAnalysis (WFE, robustness, degradation)
+    end
 ```
 
 #### WalkForwardConfiguration
@@ -2104,12 +2114,14 @@ When `startDate`/`endDate` are not provided, defaults to 2 years ago → now.
 
 #### WalkForwardService
 
-The orchestrator that coordinates both phases:
+The orchestrator that coordinates all three phases of the pipeline. Backtesting occurs in both Phase 1 and Phase 2 via the same `Backtester::run()` engine:
 
 1. **Creates a `WalkForwardRun`** record with status `pending`, storing `execution_timeframe`, `min_trades_threshold`, `data_type`, `brick_size`, and `atr_period`
-2. **Phase 1**: Builds an `OptimizationConfig` from the IS date range (including `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`), delegates to `Optimizer::optimize()`, stores the `optimization_run_id`
-3. **Phase 2**: Loads the top-N `BacktestRun` results from the optimization, runs each through `Backtester::run()` on the OOS date range (with `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`), scores with the same `ObjectiveFunction`, computes score degradation, and persists `WalkForwardResult` records. A `$progressCallback` is called after each forward test for progress reporting.
+2. **Phase 1 (Optimization — many backtests)**: Builds an `OptimizationConfig` from the IS date range (including `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`), delegates to `Optimizer::optimize()`, which runs a backtest for each candidate parameter set against IS data. Stores the `optimization_run_id`.
+3. **Phase 2 (Forward Validation — top-N backtests)**: Loads the top-N `BacktestRun` results from the optimization, runs each through `Backtester::run()` on the OOS date range (with `executionTimeframe`, `dataType`, `brickSize`, `atrPeriod`) — data the optimizer never saw. Scores with the same `ObjectiveFunction`, computes score degradation, and persists `WalkForwardResult` records. A `$progressCallback` is called after each forward test for progress reporting.
 4. **Finalize**: Selects the best OOS result (highest OOS score), stores it as the run's `best_parameters`, and marks the run as `completed`
+
+Phase 3 (Analysis) is performed separately by `WalkForwardAnalyzer` after the service returns.
 
 Score degradation is computed as:
 
