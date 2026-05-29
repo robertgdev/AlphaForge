@@ -518,7 +518,7 @@ php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=heikenashi
 - The derived data file must already exist (use `alphaforge:renko`, `alphaforge:renkoAtr`, or `alphaforge:heikenashi` to generate it)
 - For `renko`, the `--brick-size` must match an existing file (e.g., `renko_100.stchx`)
 - For `atr_renko`, the `--atr-period` must match an existing file (e.g., `renko_atr_14.stchx`)
-- When using Renko data, the `--execution-timeframe` option is not supported because Renko bricks do not have consistent time intervals
+- When using Renko data types with `--execution-timeframe`, the execution data is always loaded as raw OHLCV — Renko bricks drive strategy signals, but order execution (fills, SL/TP) is processed against the specified OHLCV timeframe candles
 
 ##### Dual-Timeframe Execution (Signal TF + Execution TF)
 
@@ -622,6 +622,10 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 | `--generations=` | Number of generations for genetic algorithm | `20` |
 | `--objective=` | Objective function or metric name | `sharpe_ratio` |
 | `--top-n=` | Number of top results to persist | `50` |
+| `--execution-timeframe=` | Lower timeframe for order/position execution (e.g., `1m`, `5m`) | - |
+| `--data-type=` | Market data type to backtest against: `ohlcv`, `heikenashi`, `renko`, `atr_renko` | `ohlcv` |
+| `--brick-size=` | Brick size for `renko` data type (e.g., `0.001`, `10`, `100`) | - |
+| `--atr-period=` | ATR period for `atr_renko` data type (e.g., `14`) | - |
 
 **Parameter JSON Format:**
 
@@ -676,6 +680,39 @@ Composite objectives avoid degenerate solutions — a single metric like `win_ra
 
 Only the top-N results (default: 50) are persisted as `BacktestRun` database records. This is a significant performance improvement over the previous behavior, which created a database record for every parameter combination. All combinations are still evaluated and scored, but only the best are stored for later inspection.
 
+##### Optimizing Against Renko and Heiken-Ashi Data
+
+By default, optimization backtests run against raw OHLCV data (`--data-type=ohlcv`). You can also optimize against derived data formats:
+
+| Data Type | Description | Required Option |
+|-----------|-------------|-----------------|
+| `ohlcv` | Raw OHLCV candles (default) | None |
+| `heikenashi` | Heiken-Ashi smoothed candles | None |
+| `renko` | Fixed-brick Renko bricks | `--brick-size=<size>` |
+| `atr_renko` | ATR-based dynamic Renko bricks | `--atr-period=<period>` |
+
+**Notes:**
+- The derived data file must already exist (use `alphaforge:renko`, `alphaforge:renkoAtr`, or `alphaforge:heikenashi` to generate it)
+- For `renko`, the `--brick-size` must match an existing file (e.g., `renko_100.stchx`)
+- For `atr_renko`, the `--atr-period` must match an existing file (e.g., `renko_atr_14.stchx`)
+- When using Renko data types with `--execution-timeframe`, the execution data is always loaded as raw OHLCV — Renko bricks drive strategy signals, but order execution (fills, SL/TP) is processed against the specified OHLCV timeframe candles
+
+##### Dual-Timeframe Execution in Optimization
+
+The `--execution-timeframe` option applies dual-timeframe execution to every backtest run during optimization:
+
+- **Signal timeframe** (`--timeframe`): The strategy's `onBar()` is called once per signal bar (e.g., every H1 candle)
+- **Execution timeframe** (`--execution-timeframe`): Pending orders and SL/TP exits are processed on every execution bar (e.g., every M1 candle)
+
+This ensures your optimized parameters reflect the same execution fidelity as will be used in live trading. Without it, all order execution happens at signal-bar granularity, which can mask stop-loss/profit-target interactions that would occur on finer timeframes.
+
+**Example:**
+```bash
+# Optimize with H1 signals but M1 order execution for accuracy
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --timeframe=1h --execution-timeframe=1m
+```
+
 **Examples:**
 
 ```bash
@@ -700,6 +737,33 @@ php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
 
 # Optimize for a single metric
 php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --objective=profit_factor
+
+# Optimize against Heiken-Ashi data
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --data-type=heikenashi
+
+# Optimize against fixed-brick Renko data (brick size = 100)
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --data-type=renko --brick-size=100
+
+# Optimize against ATR-based Renko (ATR period = 14)
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --data-type=atr_renko --atr-period=14
+
+# Dual-timeframe optimization: H4 signals, M1 execution
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --timeframe=4h --execution-timeframe=1m
+
+# Renko optimization with genetic algorithm and custom objective
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --method=genetic --population=80 --generations=25 \
+    --data-type=renko --brick-size=100 --objective=balanced
+
+# Dual-TF ATR Renko: Renko bricks for signals, 1m OHLCV for order execution
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --timeframe=1h --execution-timeframe=1m \
+    --data-type=atr_renko --atr-period=14 \
+    --start-date="2024-01-01" --end-date="2024-09-01"
 ```
 
 #### `alphaforge:optimizations:list` - List Past Optimizations
@@ -876,68 +940,65 @@ Alternatively, `--oos-start` sets an exact OOS start date, useful when you know 
 **Examples:**
 
 ```bash
-# Basic walk-forward with default 75/25 split
+# Simplest invocation: 75/25 split with strategy-defined parameter ranges
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --use-strategy-ranges
+    --split=0.75 --use-strategy-ranges
 
-# 80/20 split with random search and top-25 results
+# 80/20 split with random search, balanced objective, and top-25 results
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
     --split=0.80 --method=random --iterations=1000 \
     --objective=balanced --top-n=25
 
-# Explicit OOS start date (regime boundary known)
+# Explicit OOS start date (useful when you know a regime change point)
 php artisan alphaforge:walk-forward rsi_ema BTCUSDT \
     --start-date=2023-01-01 --end-date=2026-01-01 \
     --oos-start=2025-07-01 --use-strategy-ranges
 
-# Genetic algorithm with conservative objective
+# 70/30 split with genetic algorithm and conservative objective
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --method=genetic --population=100 --generations=30 \
+    --split=0.70 --method=genetic --population=100 --generations=30 \
     --objective=conservative --use-strategy-ranges
 
-# With explicit parameter ranges
+# Explicit date range with custom parameter ranges (grid search)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
+    --method=grid \
     --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}'
 
-# With execution timeframe (dual-TF: H1 signals, M1 execution)
+# 75/25 split with dual-timeframe execution (H1 signals, M1 execution)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --timeframe=1h --execution-timeframe=1m \
+    --split=0.75 --timeframe=1h --execution-timeframe=1m \
     --use-strategy-ranges
 
 # With minimum trade count and OOS data range validation
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --use-strategy-ranges --min-trades=10 --min-oos-days=90
+    --split=0.75 --use-strategy-ranges \
+    --min-trades=10 --min-oos-days=90
 
-# With Renko data type (both phases use Renko candles)
+# Renko data type with 75/25 split (both phases use Renko candles)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --use-strategy-ranges --data-type=renko --brick-size=100
+    --split=0.75 --use-strategy-ranges \
+    --data-type=renko --brick-size=100
 
-# With ATR Renko data type
+# ATR Renko with explicit date range (both phases use ATR Renko)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
     --use-strategy-ranges --data-type=atr_renko --atr-period=14
 
-# With Heiken-Ashi data type
+# Heiken-Ashi with 75/25 split and random search
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --use-strategy-ranges --data-type=heikenashi
+    --split=0.75 --use-strategy-ranges \
+    --data-type=heikenashi
 
-# Export results as JSON
+# Export results as JSON (explicit date range)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
     --start-date=2024-01-01 --end-date=2026-01-01 \
     --use-strategy-ranges --format=json --output=wf-results.json
 
-# Export results as CSV
+# Export results as CSV (75/25 split)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT \
-    --start-date=2024-01-01 --end-date=2026-01-01 \
-    --use-strategy-ranges --format=csv --output=wf-results.csv
+    --split=0.75 --use-strategy-ranges \
+    --format=csv --output=wf-results.csv
 ```
 
 **Interpreting Results:**
