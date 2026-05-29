@@ -243,7 +243,7 @@ class Backtester
             $this->executionOhlcvData = new Map;
 
             foreach ($symbols as $symbol) {
-                $filePath = $this->getMarketDataPath($symbol, $executionTimeframe, $exchange, $dataType, $brickSize, $atrPeriod);
+                $filePath = $this->getMarketDataPath($symbol, $executionTimeframe, $exchange, 'ohlcv');
 
                 if (! file_exists($filePath)) {
                     throw new RuntimeException(
