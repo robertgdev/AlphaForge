@@ -174,4 +174,67 @@ describe('OptimizationConfig', function () {
             ->and($config->method)->toBe(OptimizationMethod::RANDOM)
             ->and($config->iterations)->toBe(500);
     });
+
+    it('defaults dataType to ohlcv', function () {
+        $config = new OptimizationConfig;
+
+        expect($config->dataType)->toBe('ohlcv');
+    });
+
+    it('defaults brickSize to null', function () {
+        $config = new OptimizationConfig;
+
+        expect($config->brickSize)->toBeNull();
+    });
+
+    it('defaults atrPeriod to null', function () {
+        $config = new OptimizationConfig;
+
+        expect($config->atrPeriod)->toBeNull();
+    });
+
+    it('parses data_type fields from snake_case keys', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'data_type' => 'renko',
+            'brick_size' => 0.001,
+            'atr_period' => 14,
+        ]);
+
+        expect($config->dataType)->toBe('renko')
+            ->and($config->brickSize)->toBe(0.001)
+            ->and($config->atrPeriod)->toBe(14);
+    });
+
+    it('parses data_type fields from camelCase keys', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+            'dataType' => 'atr_renko',
+            'brickSize' => 10.0,
+            'atrPeriod' => 20,
+        ]);
+
+        expect($config->dataType)->toBe('atr_renko')
+            ->and($config->brickSize)->toBe(10.0)
+            ->and($config->atrPeriod)->toBe(20);
+    });
+
+    it('defaults data_type to ohlcv when not provided in fromArray', function () {
+        $config = OptimizationConfig::fromArray([
+            'strategy_alias' => 'sma_crossover',
+            'symbols' => ['BTCUSDT'],
+            'timeframe' => TimeframeEnum::H1,
+            'exchange' => 'binance',
+        ]);
+
+        expect($config->dataType)->toBe('ohlcv')
+            ->and($config->brickSize)->toBeNull()
+            ->and($config->atrPeriod)->toBeNull();
+    });
 });

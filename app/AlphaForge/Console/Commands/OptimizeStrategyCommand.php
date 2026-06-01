@@ -29,7 +29,10 @@ class OptimizeStrategyCommand extends Command
         {--population=50 : Population size for genetic algorithm}
         {--generations=20 : Number of generations for genetic algorithm}
         {--objective=sharpe_ratio : Objective (sharpe_ratio, balanced, conservative, sharpe_focused, aggressive, or any metric name)}
-        {--top-n=50 : Number of top results to persist}';
+        {--top-n=50 : Number of top results to persist}
+        {--data-type=ohlcv : Market data type to backtest against (ohlcv, heikenashi, renko, atr_renko)}
+        {--brick-size= : Brick size for renko data-type (e.g., 0.001, 10, 100)}
+        {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}';
 
     protected $description = 'Run strategy parameter optimization';
 
@@ -51,6 +54,38 @@ class OptimizeStrategyCommand extends Command
         $generations = (int) $this->option('generations');
         $objective = $this->option('objective');
         $topN = (int) $this->option('top-n');
+
+        $dataTypeValue = $this->option('data-type');
+        $brickSize = $this->option('brick-size');
+        $atrPeriod = $this->option('atr-period');
+
+        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
+        if (! in_array($dataTypeValue, $validDataTypes, true)) {
+            $this->error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+
+            return 1;
+        }
+
+        if ($dataTypeValue === 'renko') {
+            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
+                $this->error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
+
+                return 1;
+            }
+        } elseif ($dataTypeValue === 'atr_renko') {
+            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
+                $this->error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
+
+                return 1;
+            }
+        } else {
+            if ($brickSize !== null) {
+                $this->warn('--brick-size is ignored for data-type '.$dataTypeValue);
+            }
+            if ($atrPeriod !== null) {
+                $this->warn('--atr-period is ignored for data-type '.$dataTypeValue);
+            }
+        }
 
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
         if (! $timeframe) {
@@ -130,6 +165,9 @@ class OptimizeStrategyCommand extends Command
         $config->parameterOverrides = $parameterOverrides;
         $config->startDate = $startDate ? new DateTimeImmutable($startDate->toIso8601String()) : null;
         $config->endDate = $endDate ? new DateTimeImmutable($endDate->toIso8601String()) : null;
+        $config->dataType = $dataTypeValue;
+        $config->brickSize = $brickSize !== null ? (float) $brickSize : null;
+        $config->atrPeriod = $atrPeriod !== null ? (int) $atrPeriod : null;
 
         $optimizationRun = $optimizer->optimize($config);
 
