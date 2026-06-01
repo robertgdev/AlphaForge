@@ -206,7 +206,7 @@ describe('OptimizationConfig', function () {
 
         expect($config->dataType)->toBe('renko')
             ->and($config->brickSize)->toBe(0.001)
-            ->and($config->atrPeriod)->toBe(14);
+            ->and($config->atrPeriod)->toBeNull();
     });
 
     it('parses data_type fields from camelCase keys', function () {
@@ -221,7 +221,7 @@ describe('OptimizationConfig', function () {
         ]);
 
         expect($config->dataType)->toBe('atr_renko')
-            ->and($config->brickSize)->toBe(10.0)
+            ->and($config->brickSize)->toBeNull()
             ->and($config->atrPeriod)->toBe(20);
     });
 

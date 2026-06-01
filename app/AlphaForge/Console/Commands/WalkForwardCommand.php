@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Dto\WalkForwardConfiguration;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
@@ -121,33 +122,21 @@ class WalkForwardCommand extends Command
             return 1;
         }
 
-        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
-        if (! in_array($dataTypeValue, $validDataTypes, true)) {
-            $this->error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+        try {
+            $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
 
             return 1;
         }
 
-        if ($dataTypeValue === 'renko') {
-            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
-                $this->error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
-
-                return 1;
-            }
-        } elseif ($dataTypeValue === 'atr_renko') {
-            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
-                $this->error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
-
-                return 1;
-            }
-        } else {
-            if ($brickSize !== null) {
-                $this->warn('--brick-size is ignored for data-type '.$dataTypeValue);
-            }
-            if ($atrPeriod !== null) {
-                $this->warn('--atr-period is ignored for data-type '.$dataTypeValue);
-            }
+        foreach ($dataTypeConfig->warnings as $warning) {
+            $this->warn($warning);
         }
+
+        $dataTypeValue = $dataTypeConfig->dataType;
+        $brickSize = $dataTypeConfig->brickSize;
+        $atrPeriod = $dataTypeConfig->atrPeriod;
 
         $startDate = $startDateOption ? Carbon::parse($startDateOption) : null;
         $endDate = $endDateOption ? Carbon::parse($endDateOption) : null;
@@ -227,9 +216,9 @@ class WalkForwardCommand extends Command
         $config->endDate = $endDate ? new DateTimeImmutable($endDate->toIso8601String()) : null;
         $config->executionTimeframe = $executionTimeframe;
         $config->minTrades = $minTrades > 0 ? $minTrades : null;
-        $config->dataType = $dataTypeValue;
-        $config->brickSize = $dataTypeValue === 'renko' ? (float) $brickSize : null;
-        $config->atrPeriod = $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null;
+        $config->dataType = $dataTypeConfig->dataType;
+        $config->brickSize = $dataTypeConfig->brickSize;
+        $config->atrPeriod = $dataTypeConfig->atrPeriod;
 
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);

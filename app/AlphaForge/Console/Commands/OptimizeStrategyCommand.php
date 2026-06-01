@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
@@ -55,42 +56,20 @@ class OptimizeStrategyCommand extends Command
         $objective = $this->option('objective');
         $topN = (int) $this->option('top-n');
 
-        $dataTypeValue = $this->option('data-type');
-        $brickSize = $this->option('brick-size');
-        $atrPeriod = $this->option('atr-period');
-
-        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
-        if (! in_array($dataTypeValue, $validDataTypes, true)) {
-            $this->error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+        try {
+            $dataTypeConfig = DataTypeConfig::fromOptions(
+                $this->option('data-type'),
+                $this->option('brick-size'),
+                $this->option('atr-period'),
+            );
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
 
             return 1;
         }
 
-        if ($dataTypeValue === 'renko' && $atrPeriod !== null
-            && ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0)) {
-            $dataTypeValue = 'atr_renko';
-            $this->warn('Auto-upgraded data-type from renko to atr_renko based on --atr-period being set.');
-        }
-
-        if ($dataTypeValue === 'renko') {
-            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
-                $this->error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
-
-                return 1;
-            }
-        } elseif ($dataTypeValue === 'atr_renko') {
-            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
-                $this->error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
-
-                return 1;
-            }
-        } else {
-            if ($brickSize !== null) {
-                $this->warn('--brick-size is ignored for data-type '.$dataTypeValue);
-            }
-            if ($atrPeriod !== null) {
-                $this->warn('--atr-period is ignored for data-type '.$dataTypeValue);
-            }
+        foreach ($dataTypeConfig->warnings as $warning) {
+            $this->warn($warning);
         }
 
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
@@ -171,9 +150,9 @@ class OptimizeStrategyCommand extends Command
         $config->parameterOverrides = $parameterOverrides;
         $config->startDate = $startDate ? new DateTimeImmutable($startDate->toIso8601String()) : null;
         $config->endDate = $endDate ? new DateTimeImmutable($endDate->toIso8601String()) : null;
-        $config->dataType = $dataTypeValue;
-        $config->brickSize = $brickSize !== null ? (float) $brickSize : null;
-        $config->atrPeriod = $atrPeriod !== null ? (int) $atrPeriod : null;
+        $config->dataType = $dataTypeConfig->dataType;
+        $config->brickSize = $dataTypeConfig->brickSize;
+        $config->atrPeriod = $dataTypeConfig->atrPeriod;
 
         $optimizationRun = $optimizer->optimize($config);
 

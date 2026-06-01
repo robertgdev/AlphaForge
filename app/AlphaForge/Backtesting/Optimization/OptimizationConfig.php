@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Backtesting\Optimization;
 
+use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFunctionInterface;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Safe\DateTimeImmutable;
@@ -106,9 +107,10 @@ class OptimizationConfig
                 : ($etf !== null ? TimeframeEnum::from($etf) : null);
         }
 
-        $config->dataType = $data['data_type'] ?? $data['dataType'] ?? 'ohlcv';
-        $config->brickSize = $data['brick_size'] ?? $data['brickSize'] ?? null;
-        $config->atrPeriod = $data['atr_period'] ?? $data['atrPeriod'] ?? null;
+        $dataTypeConfig = DataTypeConfig::fromArray($data);
+        $config->dataType = $dataTypeConfig->dataType;
+        $config->brickSize = $dataTypeConfig->brickSize;
+        $config->atrPeriod = $dataTypeConfig->atrPeriod;
 
         return $config;
     }

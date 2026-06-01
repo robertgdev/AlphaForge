@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
@@ -92,34 +93,19 @@ class RunBacktestCommand extends Command
         }
 
         // Validate data-type
-        $validDataTypes = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
-        if (! in_array($dataTypeValue, $validDataTypes, true)) {
-            error("Invalid data-type '{$dataTypeValue}'. Valid values: ".implode(', ', $validDataTypes));
+        try {
+            $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
+        } catch (\InvalidArgumentException $e) {
+            error($e->getMessage());
 
             return self::FAILURE;
         }
 
-        // Validate brick-size for renko
-        if ($dataTypeValue === 'renko') {
-            if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
-                error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
-
-                return self::FAILURE;
-            }
-        } elseif ($dataTypeValue === 'atr_renko') {
-            if ($atrPeriod === null || ! is_numeric($atrPeriod) || (int) $atrPeriod <= 0) {
-                error('data-type=atr_renko requires --atr-period with a positive integer value (e.g., 14).');
-
-                return self::FAILURE;
-            }
-        } else {
-            if ($brickSize !== null) {
-                warning('--brick-size is ignored for data-type '.$dataTypeValue);
-            }
-            if ($atrPeriod !== null) {
-                warning('--atr-period is ignored for data-type '.$dataTypeValue);
-            }
+        foreach ($dataTypeConfig->warnings as $warning) {
+            warning($warning);
         }
+
+        $dataTypeValue = $dataTypeConfig->dataType;
 
         // Parse timeframe
         $timeframe = $this->parseTimeframe($timeframeValue);
@@ -198,9 +184,9 @@ class RunBacktestCommand extends Command
             'strategy_inputs' => $inputs,
             'start_date' => $parsedStartDate?->format('Y-m-d H:i:s'),
             'end_date' => $parsedEndDate?->format('Y-m-d H:i:s'),
-            'data_type' => $dataTypeValue,
-            'brick_size' => $dataTypeValue === 'renko' ? (float) $brickSize : null,
-            'atr_period' => $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null,
+            'data_type' => $dataTypeConfig->dataType,
+            'brick_size' => $dataTypeConfig->brickSize,
+            'atr_period' => $dataTypeConfig->atrPeriod,
         ];
 
         $force = $this->option('force');
@@ -219,7 +205,7 @@ class RunBacktestCommand extends Command
         }
 
         // Display backtest configuration
-        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeValue, $dataTypeValue === 'renko' ? (float) $brickSize : null, $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null);
+        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeConfig->dataType, $dataTypeConfig->brickSize, $dataTypeConfig->atrPeriod);
 
         if ($async) {
             return $this->queueBacktest($backtestRunService, $data);
