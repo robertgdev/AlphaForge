@@ -632,6 +632,7 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 | `--data-type=` | Market data type to backtest against: `ohlcv`, `heikenashi`, `renko`, `atr_renko` | `ohlcv` |
 | `--brick-size=` | Brick size for `renko` data type (e.g., `0.001`, `10`, `100`) | - |
 | `--atr-period=` | ATR period for `atr_renko` data type (e.g., `14`) | - |
+| `--progress=` | Progress verbosity: `0`=silent, `1`=progress bar, `2`=dots per run, `3`=detailed per-run stats | `1` |
 
 **Parameter JSON Format:**
 
@@ -717,6 +718,38 @@ This ensures your optimized parameters reflect the same execution fidelity as wi
 # Optimize with H1 signals but M1 order execution for accuracy
 php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
     --timeframe=1h --execution-timeframe=1m
+```
+
+##### Progress Reporting
+
+The `--progress` flag controls how optimization progress is displayed during execution:
+
+| Level | Behavior | Best For |
+|-------|----------|----------|
+| `0` | No output during optimization | CI pipelines, scripting, piping to files |
+| `1` (default) | Symfony progress bar: `500/1000 [████████████████] 50%` | Interactive terminal, short-to-medium runs |
+| `2` | One dot per completed backtest, newline every 80 | Compact view of mid-length runs |
+| `3` | Per-run detailed line with params, score, sharpe, drawdown %, and balance | Debugging, inspecting which parameter regions are being explored |
+
+Level 3 output format:
+```
+[   15/  500] fast=10, slow=30               │ score=  1.2345 │ sharpe=  1.85 │ dd= -12.34% │ bal=  10,234.56
+```
+
+**Progress Examples:**
+
+```bash
+# Default progress bar (level 1)
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges
+
+# Silent — no progress output
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --progress=0
+
+# Dots per iteration
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --progress=2
+
+# Detailed per-run output
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --progress=3
 ```
 
 **Examples:**
