@@ -198,7 +198,8 @@ describe('Console Command Signatures', function () {
                 ->and($defaultProps['signature'])->toContain('--use-strategy-ranges')
                 ->and($defaultProps['signature'])->toContain('--data-type=')
                 ->and($defaultProps['signature'])->toContain('--brick-size=')
-                ->and($defaultProps['signature'])->toContain('--atr-period=');
+                ->and($defaultProps['signature'])->toContain('--atr-period=')
+                ->and($defaultProps['signature'])->toContain('--progress=');
         });
     });
 

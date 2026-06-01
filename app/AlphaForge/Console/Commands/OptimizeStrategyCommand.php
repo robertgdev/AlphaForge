@@ -5,6 +5,7 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
+use App\AlphaForge\Backtesting\Optimization\OptimizationProgress;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
@@ -33,7 +34,8 @@ class OptimizeStrategyCommand extends Command
         {--top-n=50 : Number of top results to persist}
         {--data-type=ohlcv : Market data type to backtest against (ohlcv, heikenashi, renko, atr_renko)}
         {--brick-size= : Brick size for renko data-type (e.g., 0.001, 10, 100)}
-        {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}';
+        {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
+        {--progress=1 : Progress verbosity (0=none, 1=bar, 2=dots, 3=detailed)}';
 
     protected $description = 'Run strategy parameter optimization';
 
@@ -154,7 +156,59 @@ class OptimizeStrategyCommand extends Command
         $config->brickSize = $dataTypeConfig->brickSize;
         $config->atrPeriod = $dataTypeConfig->atrPeriod;
 
-        $optimizationRun = $optimizer->optimize($config);
+        $progressLevel = (int) $this->option('progress');
+        $progressBar = null;
+        $dotCount = 0;
+
+        $progressCallback = match ($progressLevel) {
+            0 => null,
+            1 => function (OptimizationProgress $p) use (&$progressBar) {
+                if ($progressBar === null && $p->total > 0) {
+                    $progressBar = $this->output->createProgressBar($p->total);
+                    $progressBar->setFormat('  %current%/%max% [%bar%] %percent:3s%%');
+                    $progressBar->start();
+                }
+                $progressBar?->setProgress($p->completed);
+            },
+            2 => function (OptimizationProgress $p) use (&$dotCount) {
+                $this->output->write('.');
+                $dotCount++;
+                if ($dotCount % 80 === 0) {
+                    $this->output->write(sprintf(" %d/%d\n", $p->completed, $p->total));
+                }
+            },
+            3 => function (OptimizationProgress $p) {
+                $iterWidth = max(2, strlen((string) $p->total));
+                $paramsStr = implode(', ', array_map(
+                    fn ($k, $v) => $k.'='.(is_float($v) ? number_format($v, 4) : (is_int($v) ? (string) $v : $v)),
+                    array_keys($p->parameters),
+                    $p->parameters,
+                ));
+                $sharpe = number_format((float) ($p->statistics['sharpe_ratio'] ?? 0), 2);
+                $ddPct = (float) ($p->statistics['max_drawdown_percent'] ?? 0) * 100;
+                $ddStr = sprintf('%.2f%%', $ddPct);
+                $balance = number_format((float) ($p->statistics['final_capital'] ?? 0), 2);
+
+                $this->line(sprintf(
+                    '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ score= %8.4f │ sharpe= %6s │ dd= %8s │ bal= %12s',
+                    $p->completed,
+                    $p->total,
+                    mb_strimwidth($paramsStr, 0, 35, '…'),
+                    $p->score,
+                    $sharpe,
+                    $ddStr,
+                    $balance,
+                ));
+            },
+            default => null,
+        };
+
+        $optimizationRun = $optimizer->optimize($config, $progressCallback);
+
+        $progressBar?->finish();
+        if ($progressLevel === 2 && $dotCount > 0 && $dotCount % 80 !== 0) {
+            $this->newLine();
+        }
 
         $this->newLine();
         $this->info('Optimization completed!');

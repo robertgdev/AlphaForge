@@ -22,7 +22,7 @@ class Optimizer
         private readonly OptimizationRunnerInterface $runner,
     ) {}
 
-    public function optimize(OptimizationConfig $config): OptimizationRun
+    public function optimize(OptimizationConfig $config, ?callable $progressCallback = null): OptimizationRun
     {
         $space = $config->parameterOverrides
             ? ParameterSpace::fromArray($config->parameterOverrides)
@@ -92,6 +92,16 @@ class Optimizer
                 $completed++;
 
                 $optimizationRun->incrementProgress();
+
+                if ($progressCallback !== null) {
+                    $progressCallback(new OptimizationProgress(
+                        completed: $completed,
+                        total: $totalIterations,
+                        parameters: $params,
+                        statistics: $result['statistics'],
+                        score: $score,
+                    ));
+                }
 
                 if ($completed % 50 === 0) {
                     Log::debug('Optimization progress', [
