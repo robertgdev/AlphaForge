@@ -43,7 +43,8 @@ class RunBacktestCommand extends Command
         {--end-date= : End date (Y-m-d or Y-m-d H:i:s)}
         {--inputs= : Strategy inputs as JSON string (e.g., \'{"fastPeriod":10,"slowPeriod":50}\')}
         {--no-color : Disable colored output in the positions table}
-        {--async : Queue the backtest instead of running synchronously}';
+        {--async : Queue the backtest instead of running synchronously}
+        {--force : Overwrite existing completed backtest with same parameters}';
 
     /**
      * The console command description.
@@ -201,6 +202,21 @@ class RunBacktestCommand extends Command
             'brick_size' => $dataTypeValue === 'renko' ? (float) $brickSize : null,
             'atr_period' => $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null,
         ];
+
+        $force = $this->option('force');
+
+        $existing = $backtestRunService->findCompletedDuplicate($data);
+        if ($existing !== null) {
+            if (! $force) {
+                warning("A completed backtest with the same parameters already exists (ID: {$existing->id}).");
+                note('Use --force to overwrite it and run a new backtest.');
+
+                return self::FAILURE;
+            }
+
+            info("Overwriting existing completed backtest (ID: {$existing->id})...");
+            $existing->delete();
+        }
 
         // Display backtest configuration
         $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeValue, $dataTypeValue === 'renko' ? (float) $brickSize : null, $dataTypeValue === 'atr_renko' ? (int) $atrPeriod : null);

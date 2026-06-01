@@ -464,6 +464,7 @@ php artisan alphaforge:backtest:run <strategy> <symbols*> [options]
 | `--end-date=` | End date (Y-m-d or Y-m-d H:i:s) | - |
 | `--inputs=` | Strategy inputs as JSON string | `'{"fastPeriod":10}'` |
 | `--async` | Queue the backtest instead of running synchronously | - |
+| `--force` | Overwrite and re-run if a completed backtest with the same parameters already exists | - |
 
 **Examples:**
 
@@ -485,6 +486,11 @@ php artisan alphaforge:backtest:run sma_crossover BTCUSDT --async
 
 # Backtest multiple symbols at once
 php artisan alphaforge:backtest:run sma_crossover BTCUSDT ETHUSDT SOLUSDT --timeframe=1h
+# Force re-run: overwrite existing completed backtest with same parameters
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --timeframe=1h --force
+
+# Force multiple symbols re-run
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT ETHUSDT SOLUSDT --timeframe=1h --force
 ```
 
 ##### Backtesting Against Renko and Heiken-Ashi Data

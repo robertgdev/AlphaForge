@@ -25,7 +25,8 @@ describe('Console Command Signatures', function () {
                 ->and($defaultProps['signature'])->toContain('--exchange=')
                 ->and($defaultProps['signature'])->toContain('--timeframe=')
                 ->and($defaultProps['signature'])->toContain('--capital=')
-                ->and($defaultProps['signature'])->toContain('--async');
+                ->and($defaultProps['signature'])->toContain('--async')
+                ->and($defaultProps['signature'])->toContain('--force');
         });
 
         it('has description', function () {

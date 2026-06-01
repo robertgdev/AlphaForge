@@ -31,5 +31,11 @@ describe('RunBacktestCommand Data Type Options', function () {
 
             expect($defaultProps['signature'])->toContain('--no-color');
         });
+        it('has --force option', function () {
+            $ref = new ReflectionClass(RunBacktestCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('--force');
+        });
     });
 });

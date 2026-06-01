@@ -50,6 +50,57 @@ class BacktestRunService
     }
 
     /**
+     * Find a completed backtest run with the same parameters.
+     *
+     * @param  array{
+     *     strategy: string,
+     *     symbols: array<string>,
+     *     timeframe: string,
+     *     execution_timeframe?: string|null,
+     *     exchange: string,
+     *     initial_capital: float,
+     *     stake_currency?: string,
+     *     strategy_inputs?: array,
+     *     start_date?: string|null,
+     *     end_date?: string|null,
+     *     data_type?: string,
+     *     brick_size?: float|null,
+     *     atr_period?: int|null
+     * }  $data
+     */
+    public function findCompletedDuplicate(array $data): ?BacktestRun
+    {
+        $symbols = $data['symbols'];
+        sort($symbols);
+
+        $inputs = $data['strategy_inputs'] ?? [];
+        ksort($inputs);
+
+        $query = BacktestRun::where('status', 'completed')
+            ->where('strategy_alias', $data['strategy'])
+            ->where('symbols', json_encode($symbols))
+            ->where('timeframe', $data['timeframe'])
+            ->where('exchange', $data['exchange'])
+            ->where('initial_capital', number_format((float) $data['initial_capital'], 8, '.', ''))
+            ->where('stake_currency', $data['stake_currency'] ?? 'USDT')
+            ->where('strategy_inputs', json_encode($inputs))
+            ->where('data_type', $data['data_type'] ?? 'ohlcv');
+
+        foreach (['execution_timeframe', 'brick_size', 'atr_period', 'start_date', 'end_date'] as $nullableField) {
+            $value = $data[$nullableField] ?? null;
+            if ($value === null) {
+                $query->whereNull($nullableField);
+            } elseif ($nullableField === 'brick_size') {
+                $query->where($nullableField, number_format((float) $value, 8, '.', ''));
+            } else {
+                $query->where($nullableField, $value);
+            }
+        }
+
+        return $query->first();
+    }
+
+    /**
      * Run a backtest synchronously (for CLI/scripts).
      *
      * @param  array{
@@ -173,6 +224,9 @@ class BacktestRunService
      */
     private function createBacktestRun(array $data): BacktestRun
     {
+        $inputs = $data['strategy_inputs'] ?? [];
+        ksort($inputs);
+
         return BacktestRun::create([
             'user_id' => $data['user_id'] ?? null,
             'strategy_alias' => $data['strategy'],
@@ -182,7 +236,7 @@ class BacktestRunService
             'exchange' => $data['exchange'],
             'initial_capital' => $data['initial_capital'],
             'stake_currency' => $data['stake_currency'] ?? 'USDT',
-            'strategy_inputs' => $data['strategy_inputs'] ?? [],
+            'strategy_inputs' => $inputs,
             'commission_config' => $data['commission_config'] ?? [],
             'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
