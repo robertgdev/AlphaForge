@@ -66,6 +66,12 @@ class OptimizeStrategyCommand extends Command
             return 1;
         }
 
+        if ($dataTypeValue === 'renko' && $atrPeriod !== null
+            && ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0)) {
+            $dataTypeValue = 'atr_renko';
+            $this->warn('Auto-upgraded data-type from renko to atr_renko based on --atr-period being set.');
+        }
+
         if ($dataTypeValue === 'renko') {
             if ($brickSize === null || ! is_numeric($brickSize) || (float) $brickSize <= 0) {
                 $this->error('data-type=renko requires --brick-size with a positive numeric value (e.g., 0.001, 10, 100).');
