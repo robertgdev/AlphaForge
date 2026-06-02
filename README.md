@@ -21,6 +21,8 @@ AlphaForge is a Laravel port of the stochastix trading backtesting system. It ma
 - **Binary Storage**: Efficient binary format (.stchx) for market data storage
 - **Data Conversion**: Convert OHLCV data to Heiken-Ashi, fixed-brick Renko, and ATR-based Renko formats
 - **Parameter Optimization**: Multi-method parameter optimization (grid search, random search, genetic algorithm) with composite objective functions
+- **Parallel Execution**: Fork-based parallelism (`--runner=fork --workers=8`) with automatic CPU core detection and copy-on-write memory sharing for near-linear speedup
+- **Market Data Preloading**: OHLCV data loaded once and shared across all backtest evaluations in an optimization run
 - **Walk-Forward Analysis**: Unified backtest + forward-test command that optimizes on in-sample data and validates on out-of-sample data to detect overfitting
 - **Robustness Classification**: Automatic classification (robust / marginal / likely_overfit) with human-readable interpretation
 - **Spearman Rank Correlation**: IS-OOS rank stability metric to assess whether optimization ranking predicts OOS performance
@@ -39,11 +41,16 @@ app/AlphaForge/
 |   |   `-- WalkForwardResult.php    # Eloquent model for walk-forward results (IS/OOS pairs)
 |   |-- Service/
 |   |   |-- Backtester.php          # Main backtesting engine (single & dual-timeframe)
-|   |   |-- ParameterOptimizerService.php  # Legacy parameter optimization (backward compat)
+|   |   `-- ParameterOptimizerService.php  # Legacy parameter optimization (backward compat)
 |   |-- Optimization/
 |   |   |-- Optimizer.php           # Main optimization orchestrator
 |   |   |-- OptimizationConfig.php  # Optimization configuration DTO
 |   |   |-- OptimizationMethod.php  # Enum: grid, random, genetic
+|   |   |-- OptimizationProgress.php # Progress event value object
+|   |   |-- MarketDataLoader.php    # Preloads OHLCV data once before optimization
+|   |   |-- MarketDataSnapshot.php  # Immutable DTO holding preloaded raw OHLCV arrays
+|   |   |-- ParallelRunnerMode.php  # Enum: sync, fork, queue
+|   |   |-- ForkParallelRunner.php  # pcntl_fork-based parallel backtest executor
 |   |   |-- ParameterSpace.php      # Parameter space built from #[Input] attributes
 |   |   |-- ParameterDimension.php  # Single parameter axis with values/clamp/random
 |   |   |-- ScoredResult.php        # Scored parameter set value object
@@ -633,6 +640,8 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 | `--brick-size=` | Brick size for `renko` data type (e.g., `0.001`, `10`, `100`) | - |
 | `--atr-period=` | ATR period for `atr_renko` data type (e.g., `14`) | - |
 | `--progress=` | Progress verbosity: `0`=silent, `1`=progress bar, `2`=dots per run, `3`=detailed per-run stats | `1` |
+| `--runner=` | Parallel runner mode: `sync`, `fork`, `queue` | `fork` |
+| `--workers=` | Number of parallel workers (`auto` = CPU core count) | `auto` |
 
 **Parameter JSON Format:**
 
@@ -751,6 +760,66 @@ php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --pr
 # Detailed per-run output
 php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --progress=3
 ```
+
+##### Parallel Execution
+
+The `--runner` and `--workers` flags control how backtest evaluations are distributed across CPU cores. By default, AlphaForge uses **fork-based parallelism** (`--runner=fork`) with **auto-detected CPU cores** (`--workers=auto`).
+
+**Runner Modes:**
+
+| Mode | Behavior | Best For |
+|------|----------|----------|
+| `fork` (default) | Forks N child processes via `pcntl_fork()` to evaluate parameter combinations concurrently. Market data is loaded once in the parent and shared via copy-on-write memory. | Interactive CLI usage; single-machine parallelism; all optimization methods |
+| `sync` | Sequential, single-process evaluation. | Debugging; environments without `ext-pcntl` (e.g., Windows); very small parameter spaces |
+| `queue` | Dispatches parameter combinations as Laravel queue jobs. Workers must run separately. | Production deployments; horizontal scaling across multiple machines (not yet implemented — falls back to `fork`) |
+
+**Fork Mode Details:**
+
+- **Market data reuse:** OHLCV data is loaded from disk **once** before optimization begins, then shared across all worker processes via Linux copy-on-write memory — zero extra I/O and minimal extra RAM.
+- **Per-generation parallelism (genetic):** For the genetic algorithm, each generation's individuals are evaluated in parallel. After all individuals in a generation are scored, evolution occurs and the next generation is forked.
+- **Result aggregation:** Each worker writes `ScoredResult` objects as JSON-lines to `storage/tmp/`. The parent process reads and merges them into the final `TopNResults`.
+- **DB safety:** Each child process reconnects to the database to avoid connection-sharing corruption.
+- **Progress reporting:** Results stream incrementally from children as they complete. The `--progress` flag (bar, dots, or detailed) updates in real-time — no need to wait for all workers to finish.
+
+**Fallback behavior:** If `ext-pcntl` is not loaded or the platform is Windows, `--runner=fork` silently falls back to `--runner=sync` with a warning. Use `--runner=sync` explicitly to suppress the warning.
+
+**Worker resolution (`--workers`):**
+
+| Value | Behavior |
+|-------|----------|
+| `auto` (default) | Detects CPU core count via `nproc` (Linux), `sysctl -n hw.ncpu` (macOS), capped at 80% by default. Falls back to 4 if detection fails. Configure the cap via `alphaforge.optimization.cpu_ratio` or env var `ALPHAFORGE_OPT_CPU_RATIO`. |
+| Integer (e.g., `8`) | Uses exactly that many worker processes |
+| Value > parameter count | Capped to the number of parameter combinations (no idle workers) |
+
+**Parallel execution examples:**
+
+```bash
+# Default: fork mode with auto-detected CPU cores
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges
+
+# Explicit 8 workers for a grid search
+php artisan alphaforge:optimize sma_crossover BTCUSDT \
+    --method=grid --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}' \
+    --runner=fork --workers=8
+
+# Sequential mode (debugging, environments without pcntl)
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --runner=sync
+
+# Genetic algorithm with parallel generation evaluation (16 workers)
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --method=genetic --population=128 --generations=30 \
+    --runner=fork --workers=16
+
+# Walk-forward with parallel optimization phase
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT --use-strategy-ranges \
+    --runner=fork --workers=8
+
+# Single-core (no parallelism) for consistent benchmarking
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
+    --runner=fork --workers=1
+```
+
+**Expected speedup:** With `--runner=fork` on an 8-core machine (6 workers after 80% cap), expect **~5× speedup** over sequential mode. Near-linear scaling with ~10-15% overhead from fork/aggregation. Override the cap with `ALPHAFORGE_OPT_CPU_RATIO=1.0` to use all cores. Genetic algorithm speedup is per-generation and depends on population size vs worker count.
 
 **Examples:**
 
@@ -955,6 +1024,8 @@ php artisan alphaforge:walk-forward <strategy> <symbol> [options]
 | `--force` | Skip data range warnings | - |
 | `--format=` | Output format: `table`, `csv`, `json` | `table` |
 | `--output=` | Write output to file instead of stdout | - |
+| `--runner=` | Parallel runner mode for optimization phase: `sync`, `fork`, `queue` | `fork` |
+| `--workers=` | Number of parallel workers (`auto` = CPU core count) | `auto` |
 
 **Data Split:**
 
