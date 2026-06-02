@@ -20,6 +20,7 @@ return [
         'default_initial_capital' => env('ALPHAFORGE_DEFAULT_CAPITAL', 10000),
         'default_stake_currency' => env('ALPHAFORGE_STAKE_CURRENCY', 'USDT'),
         'max_concurrent_backtests' => env('ALPHAFORGE_MAX_CONCURRENT_BACKTESTS', 5),
+        'risk_free_rate' => env('ALPHAFORGE_RISK_FREE_RATE', 0.02),
     ],
 
     'data' => [

@@ -9,7 +9,6 @@ AlphaForge is a Laravel port of the stochastix trading backtesting system. It ma
 ## Features
 
 - **High-Performance Backtesting**: Uses the `ds` extension's `Ds\Vector` and `Ds\Map` for memory-efficient time series data
-- **BCMath Precision**: All financial calculations use arbitrary precision arithmetic
 - **Dual-Timeframe Execution**: Generate signals on a higher timeframe (e.g., H1) while processing orders and SL/TP at a lower timeframe (e.g., M1) for improved accuracy
 - **Multi-Timeframe Support**: Strategies can access multiple timeframes simultaneously
 - **Comprehensive Statistics**: 30+ metrics including Sharpe Ratio, Sortino Ratio, CAGR, Max Drawdown, etc.
@@ -27,6 +26,29 @@ AlphaForge is a Laravel port of the stochastix trading backtesting system. It ma
 - **Robustness Classification**: Automatic classification (robust / marginal / likely_overfit) with human-readable interpretation
 - **Spearman Rank Correlation**: IS-OOS rank stability metric to assess whether optimization ranking predicts OOS performance
 - **Walk-Forward Export**: Export analysis results to CSV or JSON for external analysis
+
+## BCMath Decimal Convention
+
+All financial values in AlphaForge (capital, P&L, returns, ratios) are stored and passed as **PHP strings**, using **bcmath** arbitrary-precision functions for all arithmetic. This applies to:
+
+- **Service methods**: `$initialCapital`, `$finalCapital`, `$riskFreeRate`, `$totalReturn` and every financial metric are strings
+- **DTO properties**: `PositionDto::$realizedPnl`, `OrderSignal::$stakeAmount`, `PendingOrder::$quantity` are strings
+- **Internal computations**: `StatisticsService`, `PortfolioManager`, and all order execution use `bcadd()`, `bcsub()`, `bcmul()`, `bcdiv()` in place of native PHP arithmetic
+- **Returned statistics**: The `calculate()` result array contains financial values as strings (e.g., `'sharpe_ratio' => '1.234567'`)
+
+**Why strings instead of floats?** PHP floats (IEEE 754 double-precision) have ~15-17 significant digits and are susceptible to rounding errors with decimal values:
+
+```php
+var_dump(0.1 + 0.2);        // float(0.30000000000000004)  — not exactly 0.3
+var_dump(bcadd('0.1', '0.2', 12)); // string("0.300000000000") — exact
+```
+
+bcmath uses **decimal** arithmetic at an application-wide scale of 12 decimal places (configurable via `ALPHAFORGE_BC_SCALE`), ensuring:
+- **No floating-point rounding errors** in trade P&L, account balances, or risk metrics
+- **Deterministic results** across platforms and PHP versions
+- **Accurate comparison** of financial values using `bccomp()` instead of `==` or `>`
+
+**When casting is OK:** Strings can be safely cast to `int` (for counts like `total_trades`) or `float` (for display/display formatting only). Never use `float` or `int` for intermediate financial computations — keep values as strings through the bcmath chain and only convert at the final display boundary.
 
 ## Directory Structure
 

@@ -22,7 +22,7 @@ interface StatisticsServiceInterface
         Vector $positions,
         string $initialCapital,
         string $finalCapital,
-        string $riskFreeRate = '0.02',
+        ?string $riskFreeRate = null,
         int $tradingDaysPerYear = 252,
         ?Vector $barEquityCurve = null,
     ): array;

@@ -199,10 +199,12 @@ class Backtester
         // Calculate statistics
         $this->emitProgress(90, 100, 'Calculating statistics...');
         $barsPerYear = $this->computeBarsPerYear();
+        $riskFreeRate = (string) config('alphaforge.backtesting.risk_free_rate', '0.02');
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
             $this->currentCapital,
+            riskFreeRate: $riskFreeRate,
             tradingDaysPerYear: $barsPerYear,
             barEquityCurve: $this->barEquityCurve,
         );
@@ -271,10 +273,12 @@ class Backtester
 
         $this->emitProgress(90, 100, 'Calculating statistics...');
         $barsPerYear = $this->computeBarsPerYear();
+        $riskFreeRate = (string) config('alphaforge.backtesting.risk_free_rate', '0.02');
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
             $this->currentCapital,
+            riskFreeRate: $riskFreeRate,
             tradingDaysPerYear: $barsPerYear,
             barEquityCurve: $this->barEquityCurve,
         );

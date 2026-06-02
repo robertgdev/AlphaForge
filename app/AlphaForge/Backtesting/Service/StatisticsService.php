@@ -25,10 +25,11 @@ readonly class StatisticsService implements StatisticsServiceInterface
         Vector $positions,
         string $initialCapital,
         string $finalCapital,
-        string $riskFreeRate = '0.02',
+        ?string $riskFreeRate = null,
         int $tradingDaysPerYear = 252,
         ?Vector $barEquityCurve = null,
     ): array {
+        $riskFreeRate ??= '0.02';
         $closedPositions = $positions->filter(fn (PositionDto $p) => $p->exitTime !== null);
 
         if ($closedPositions->isEmpty()) {
