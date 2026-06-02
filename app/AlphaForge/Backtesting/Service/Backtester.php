@@ -198,7 +198,7 @@ class Backtester
 
         // Calculate statistics
         $this->emitProgress(90, 100, 'Calculating statistics...');
-        $barsPerYear = $this->computeBarsPerYear($symbols[0]);
+        $barsPerYear = $this->computeBarsPerYear();
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
@@ -270,7 +270,7 @@ class Backtester
         $this->runBacktestLoop($symbols);
 
         $this->emitProgress(90, 100, 'Calculating statistics...');
-        $barsPerYear = $this->computeBarsPerYear($symbols[0]);
+        $barsPerYear = $this->computeBarsPerYear();
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
@@ -1278,26 +1278,20 @@ class Backtester
     }
 
     /**
-     * Compute annualized bar count from the OHLCV data's timestamp range.
+     * Compute periods per year from the signal timeframe duration.
+     *
+     * Uses the theoretical period count derived from the timeframe (e.g., 525,600 for 1m,
+     * 8,760 for 1h, 365 for 1d) rather than raw bar count, which is unreliable for
+     * non-time-synced data types like renko.
      */
-    private function computeBarsPerYear(string $symbol): int
+    private function computeBarsPerYear(): int
     {
-        $ohlcv = $this->ohlcvData->get($symbol);
-        $timestamps = $ohlcv->getTimestamps()->getVector();
-
-        if ($timestamps->count() < 2) {
+        if ($this->signalTimeframe === null) {
             return 252;
         }
 
-        $first = (int) $timestamps->get(0);
-        $last = (int) $timestamps->get($timestamps->count() - 1);
-        $secondsSpan = max(1, $last - $first);
-        $years = $secondsSpan / 31536000.0;
+        $secondsPerYear = 31536000;
 
-        if ($years < 0.01) {
-            return 252;
-        }
-
-        return max(1, (int) round($timestamps->count() / $years));
+        return max(1, (int) round($secondsPerYear / $this->signalTimeframe->toSeconds()));
     }
 }
