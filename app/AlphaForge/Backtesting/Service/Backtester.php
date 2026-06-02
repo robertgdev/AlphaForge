@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Backtesting\Service;
 
 use App\AlphaForge\Backtesting\Model\BacktestCursor;
+use App\AlphaForge\Backtesting\Optimization\MarketDataSnapshot;
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Model\MultiTimeframeOhlcvSeries;
@@ -178,6 +179,74 @@ class Backtester
     }
 
     /**
+     * Run a backtest using preloaded market data (avoids redundant file I/O).
+     *
+     * @param  MarketDataSnapshot  $data  Preloaded OHLCV data
+     * @return array Backtest results
+     */
+    public function runWithPreloadedData(
+        string $strategyAlias,
+        array $symbols,
+        TimeframeEnum $timeframe,
+        string $initialCapital,
+        string $stakeCurrency,
+        array $strategyInputs,
+        array $commissionConfig,
+        array $additionalTimeframes,
+        MarketDataSnapshot $data,
+        ?TimeframeEnum $executionTimeframe = null,
+        ?callable $progressCallback = null,
+    ): array {
+        if ($executionTimeframe !== null && $executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
+            throw new RuntimeException(
+                "Execution timeframe ({$executionTimeframe->value}) must be lower (finer) than the signal timeframe ({$timeframe->value})."
+            );
+        }
+
+        $this->initialize($initialCapital, $commissionConfig);
+
+        $this->progressCallback = $progressCallback;
+
+        $this->emitProgress(0, 100, 'Initializing...');
+
+        $this->strategy = $this->strategyRegistry->get($strategyAlias);
+        $this->configureStrategy($strategyInputs);
+
+        $this->signalTimeframe = $timeframe;
+        $this->executionTimeframe = $executionTimeframe;
+
+        $this->emitProgress(5, 100, 'Using preloaded market data...');
+
+        $this->loadMarketDataFromSnapshot($symbols, $additionalTimeframes, $timeframe, $data);
+
+        $this->emitProgress(20, 100, 'Computing indicators...');
+        $this->initializeStrategy($symbols[0], $this->ohlcvData->get($symbols[0]));
+
+        $this->emitProgress(30, 100, 'Running backtest...');
+        $this->runBacktestLoop($symbols);
+
+        $this->emitProgress(90, 100, 'Calculating statistics...');
+        $statistics = $this->statisticsService->calculate(
+            $this->positions,
+            $this->initialCapital,
+            $this->currentCapital
+        );
+
+        $this->emitProgress(100, 100, 'Backtest completed');
+
+        return [
+            'strategy' => $strategyAlias,
+            'symbols' => $symbols,
+            'timeframe' => $timeframe->value,
+            'execution_timeframe' => $executionTimeframe?->value,
+            'initial_capital' => $this->initialCapital,
+            'final_capital' => $this->currentCapital,
+            'positions' => $this->positions->toArray(),
+            'statistics' => $statistics,
+        ];
+    }
+
+    /**
      * Initialize the backtester state.
      */
     private function initialize(string $initialCapital, array $commissionConfig): void
@@ -273,6 +342,50 @@ class Backtester
         }
 
         // Handle multi-timeframe data
+        if (! empty($additionalTimeframes)) {
+            $baseOhlcv = $this->ohlcvData->first()->value;
+            $aggregated = $this->multiTimeframeDataService->aggregate($baseOhlcv, $additionalTimeframes);
+            $this->multiTimeframeData = new MultiTimeframeOhlcvSeries(
+                $baseOhlcv,
+                new Map($aggregated),
+                $this->cursor
+            );
+        }
+    }
+
+    /**
+     * Load market data from a preloaded snapshot instead of reading binary files.
+     */
+    private function loadMarketDataFromSnapshot(
+        array $symbols,
+        array $additionalTimeframes,
+        TimeframeEnum $timeframe,
+        MarketDataSnapshot $snapshot,
+    ): void {
+        foreach ($symbols as $symbol) {
+            if (! isset($snapshot->signalData[$symbol])) {
+                throw new RuntimeException("Symbol {$symbol} not found in preloaded market data snapshot.");
+            }
+
+            $entry = $snapshot->signalData[$symbol];
+            $ohlcv = new OhlcvSeries($entry['data'], $this->cursor, $entry['symbol'], $entry['timeframe']);
+            $this->ohlcvData->put($symbol, $ohlcv);
+        }
+
+        if ($snapshot->executionData !== null) {
+            $this->executionOhlcvData = new Map;
+
+            foreach ($symbols as $symbol) {
+                if (! isset($snapshot->executionData[$symbol])) {
+                    throw new RuntimeException("Execution data for {$symbol} not found in preloaded market data snapshot.");
+                }
+
+                $entry = $snapshot->executionData[$symbol];
+                $ohlcv = new OhlcvSeries($entry['data'], $this->cursor, $entry['symbol'], $entry['timeframe']);
+                $this->executionOhlcvData->put($symbol, $ohlcv);
+            }
+        }
+
         if (! empty($additionalTimeframes)) {
             $baseOhlcv = $this->ohlcvData->first()->value;
             $aggregated = $this->multiTimeframeDataService->aggregate($baseOhlcv, $additionalTimeframes);

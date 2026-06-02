@@ -5,11 +5,13 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Dto\WalkForwardConfiguration;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
+use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -19,6 +21,7 @@ use function Safe\file_put_contents;
 
 class WalkForwardCommand extends Command
 {
+    use ResolvesParallelRunner;
     protected $signature = 'alphaforge:walk-forward
         {strategy : The strategy alias}
         {symbol : Trading symbol}
@@ -46,7 +49,9 @@ class WalkForwardCommand extends Command
         {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
         {--force : Skip data range warnings}
         {--format=table : Output format (table, csv, json)}
-        {--output= : Write output to file instead of stdout}';
+        {--output= : Write output to file instead of stdout}
+        {--runner=fork : Parallel runner mode for optimization phase (sync, fork, queue)}
+        {--workers=auto : Number of parallel workers (auto = CPU core count)}';
 
     protected $description = 'Run walk-forward analysis: optimize on in-sample data, validate on out-of-sample data';
 
@@ -194,6 +199,10 @@ class WalkForwardCommand extends Command
             $this->line("  Generations: $generations");
         }
 
+        $runnerMode = $this->resolveRunnerMode($this->option('runner'));
+        $workerCount = $this->resolveWorkerCount($this->option('workers'));
+
+        $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
         $this->newLine();
 
         $config = new WalkForwardConfiguration;
@@ -219,6 +228,8 @@ class WalkForwardCommand extends Command
         $config->dataType = $dataTypeConfig->dataType;
         $config->brickSize = $dataTypeConfig->brickSize;
         $config->atrPeriod = $dataTypeConfig->atrPeriod;
+        $config->runnerMode = $runnerMode;
+        $config->workerCount = $workerCount;
 
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);

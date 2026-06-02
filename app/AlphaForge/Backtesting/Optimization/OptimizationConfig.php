@@ -56,6 +56,10 @@ class OptimizationConfig
 
     public ?int $atrPeriod = null;
 
+    public ParallelRunnerMode $runnerMode = ParallelRunnerMode::FORK;
+
+    public int $workerCount = 0;
+
     public static function fromArray(array $data): self
     {
         $config = new self;
@@ -95,6 +99,14 @@ class OptimizationConfig
         $config->generations = $data['generations'] ?? null;
         $config->mutationRate = $data['mutation_rate'] ?? $data['mutationRate'] ?? null;
         $config->crossoverRate = $data['crossover_rate'] ?? $data['crossoverRate'] ?? null;
+
+        if (isset($data['runner_mode']) || isset($data['runnerMode'])) {
+            $rm = $data['runner_mode'] ?? $data['runnerMode'];
+            $config->runnerMode = $rm instanceof ParallelRunnerMode
+                ? $rm
+                : ParallelRunnerMode::from($rm);
+        }
+        $config->workerCount = (int) ($data['worker_count'] ?? $data['workerCount'] ?? 0);
 
         $config->objective = $data['objective'] ?? 'sharpe_ratio';
         $config->topN = $data['top_n'] ?? $data['topN'] ?? 50;

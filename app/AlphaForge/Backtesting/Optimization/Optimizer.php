@@ -10,16 +10,20 @@ use App\AlphaForge\Backtesting\Optimization\Generator\GridGenerator;
 use App\AlphaForge\Backtesting\Optimization\Generator\ParameterGeneratorInterface;
 use App\AlphaForge\Backtesting\Optimization\Generator\RandomGenerator;
 use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFactory;
+use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFunctionInterface;
 use App\AlphaForge\Backtesting\Optimization\Runner\OptimizationRunnerInterface;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+
+use function Safe\shell_exec;
 
 class Optimizer
 {
     public function __construct(
         private readonly StrategyRegistryInterface $strategyRegistry,
         private readonly OptimizationRunnerInterface $runner,
+        private readonly MarketDataLoader $marketDataLoader,
     ) {}
 
     public function optimize(OptimizationConfig $config, ?callable $progressCallback = null): OptimizationRun
@@ -33,6 +37,9 @@ class Optimizer
 
         $totalIterations = $generator->totalIterations() ?? 0;
 
+        $startDate = $config->startDate ? Carbon::instance($config->startDate) : null;
+        $endDate = $config->endDate ? Carbon::instance($config->endDate) : null;
+
         $optimizationRun = OptimizationRun::create([
             'strategy_alias' => $config->strategyAlias,
             'symbols' => $config->symbols,
@@ -41,8 +48,8 @@ class Optimizer
             'initial_capital' => $config->initialCapital,
             'stake_currency' => $config->stakeCurrency,
             'commission_config' => $config->commissionConfig,
-            'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
-            'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
             'parameter_ranges' => $space->toArray(),
             'optimization_method' => $config->method->value,
             'optimization_objective' => $objective->label(),
@@ -58,52 +65,64 @@ class Optimizer
         Log::info('Starting optimization', [
             'optimization_id' => $optimizationRun->id,
             'method' => $config->method->value,
+            'runner' => $config->runnerMode->value,
             'total_iterations' => $totalIterations,
             'objective' => $objective->label(),
         ]);
 
         $topResults = new TopNResults($config->topN, $objective);
-        $completed = 0;
 
         try {
-            while ($params = $generator->next()) {
-                $backtestConfig = new BacktestConfiguration(
-                    strategyAlias: $config->strategyAlias,
-                    symbols: $config->symbols,
-                    timeframe: $config->timeframe,
-                    dataSourceExchangeId: $config->exchange,
-                    initialCapital: $config->initialCapital,
-                    stakeCurrency: $config->stakeCurrency,
-                    strategyInputs: $params,
-                    commissionConfig: $config->commissionConfig,
-                    startDate: $config->startDate,
-                    endDate: $config->endDate,
-                    executionTimeframe: $config->executionTimeframe,
-                    dataType: $config->dataType ?? 'ohlcv',
-                    brickSize: $config->brickSize,
-                    atrPeriod: $config->atrPeriod,
-                );
+            $data = $this->marketDataLoader->load(
+                symbols: $config->symbols,
+                timeframe: $config->timeframe,
+                exchange: $config->exchange,
+                startDate: $startDate,
+                endDate: $endDate,
+                executionTimeframe: $config->executionTimeframe,
+                dataType: $config->dataType ?? 'ohlcv',
+                brickSize: $config->brickSize,
+                atrPeriod: $config->atrPeriod,
+            );
 
-                $result = $this->runner->runSingle($backtestConfig);
-                $score = $objective->score($result['statistics']);
+            $completed = 0;
 
-                $generator->inform($params, $score);
-                $topResults->consider($params, $result['statistics'], $score);
-                $completed++;
+            while (true) {
+                $generationConfigs = $this->collectGeneration($config, $generator);
 
-                $optimizationRun->incrementProgress();
-
-                if ($progressCallback !== null) {
-                    $progressCallback(new OptimizationProgress(
-                        completed: $completed,
-                        total: $totalIterations,
-                        parameters: $params,
-                        statistics: $result['statistics'],
-                        score: $score,
-                    ));
+                if (empty($generationConfigs)) {
+                    break;
                 }
 
-                if ($completed % 50 === 0) {
+                if ($config->runnerMode === ParallelRunnerMode::FORK) {
+                    $results = $this->runGenerationFork($generationConfigs, $data);
+                } else {
+                    $results = $this->runGenerationSync($generationConfigs, $data);
+                }
+
+                foreach ($results as $result) {
+                    $params = $result['params'];
+                    $statistics = $result['statistics'];
+                    $score = $objective->score($statistics);
+
+                    $generator->inform($params, $score);
+                    $topResults->consider($params, $statistics, $score);
+                    $completed++;
+
+                    $optimizationRun->incrementProgress();
+
+                    if ($progressCallback !== null) {
+                        $progressCallback(new OptimizationProgress(
+                            completed: $completed,
+                            total: $totalIterations,
+                            parameters: $params,
+                            statistics: $statistics,
+                            score: $score,
+                        ));
+                    }
+                }
+
+                if ($completed % 100 === 0 || $completed === $totalIterations) {
                     Log::debug('Optimization progress', [
                         'optimization_id' => $optimizationRun->id,
                         'completed' => $completed,
@@ -125,8 +144,8 @@ class Optimizer
                     'stake_currency' => $config->stakeCurrency,
                     'strategy_inputs' => $r->parameters,
                     'commission_config' => $config->commissionConfig,
-                    'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
-                    'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                     'status' => 'completed',
                     'final_capital' => $r->statistics['final_capital'] ?? $config->initialCapital,
                     'statistics' => array_merge($r->statistics, ['optimization_score' => (string) $r->score]),
@@ -163,6 +182,101 @@ class Optimizer
         $space = ParameterSpace::fromStrategy($strategyAlias, $this->strategyRegistry);
 
         return $space->toArray();
+    }
+
+    /**
+     * @return BacktestConfiguration[]
+     */
+    private function collectGeneration(OptimizationConfig $config, ParameterGeneratorInterface $generator): array
+    {
+        $generationConfigs = [];
+
+        while ($params = $generator->next()) {
+            $generationConfigs[] = new BacktestConfiguration(
+                strategyAlias: $config->strategyAlias,
+                symbols: $config->symbols,
+                timeframe: $config->timeframe,
+                dataSourceExchangeId: $config->exchange,
+                initialCapital: $config->initialCapital,
+                stakeCurrency: $config->stakeCurrency,
+                strategyInputs: $params,
+                commissionConfig: $config->commissionConfig,
+                startDate: $config->startDate,
+                endDate: $config->endDate,
+                executionTimeframe: $config->executionTimeframe,
+                dataType: $config->dataType ?? 'ohlcv',
+                brickSize: $config->brickSize,
+                atrPeriod: $config->atrPeriod,
+            );
+        }
+
+        return $generationConfigs;
+    }
+
+    /**
+     * @param  BacktestConfiguration[]  $configs
+     * @return array<int, array{params: array, statistics: array, final_capital: string}>
+     */
+    private function runGenerationSync(array $configs, MarketDataSnapshot $data): array
+    {
+        return array_map(
+            fn (BacktestConfiguration $c) => $this->runner->runSingle($c, $data),
+            $configs
+        );
+    }
+
+    /**
+     * @param  BacktestConfiguration[]  $configs
+     * @return array<int, array{params: array, statistics: array, final_capital: string}>
+     */
+    private function runGenerationFork(array $configs, MarketDataSnapshot $data): array
+    {
+        $workerCount = $this->resolveWorkerCount(count($configs));
+        $forkRunner = new ForkParallelRunner($workerCount, storage_path('tmp'));
+
+        return $forkRunner->run(
+            $configs,
+            $data,
+            fn (BacktestConfiguration $c, MarketDataSnapshot $d) => $this->runner->runSingle($c, $d),
+        );
+    }
+
+    private function resolveWorkerCount(int $totalConfigs): int
+    {
+        $cpuCores = $this->detectCpuCores();
+
+        return min(max(1, $cpuCores), $totalConfigs);
+    }
+
+    private function detectCpuCores(): int
+    {
+        $cores = $this->rawCpuCores();
+        $ratio = (float) config('alphaforge.optimization.cpu_ratio', 0.8);
+
+        return max(1, (int) round($cores * $ratio));
+    }
+
+    private function rawCpuCores(): int
+    {
+        if (function_exists('swoole_cpu_num')) {
+            $count = swoole_cpu_num();
+
+            return $count > 0 ? $count : 4;
+        }
+
+        $nproc = (int) trim(shell_exec('nproc 2>/dev/null') ?: '');
+        if ($nproc > 0) {
+            return $nproc;
+        }
+
+        if (PHP_OS_FAMILY === 'Darwin') {
+            $sysctl = (int) trim(shell_exec('sysctl -n hw.ncpu 2>/dev/null') ?: '');
+            if ($sysctl > 0) {
+                return $sysctl;
+            }
+        }
+
+        return 4;
     }
 
     private function createGenerator(OptimizationConfig $config, ParameterSpace $space): ParameterGeneratorInterface

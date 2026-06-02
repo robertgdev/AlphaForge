@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\AlphaForge\Backtesting\Optimization\MarketDataLoader;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Optimization\Runner\LightweightOptimizationRunner;
 use App\AlphaForge\Backtesting\Optimization\Runner\OptimizationRunnerInterface;
@@ -123,6 +124,12 @@ class AlphaForgeServiceProvider extends ServiceProvider
 
         // Bind Optimization runner and Optimizer
         $this->app->singleton(OptimizationRunnerInterface::class, LightweightOptimizationRunner::class);
+        $this->app->singleton(MarketDataLoader::class, function ($app) {
+            return new MarketDataLoader(
+                $app->make(BinaryStorageInterface::class),
+                config('alphaforge.storage.market_data_path', storage_path('app/market')),
+            );
+        });
         $this->app->singleton(Optimizer::class);
 
         $this->app->singleton(WalkForwardService::class);
@@ -214,6 +221,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
             config('alphaforge.storage.market_data_path', storage_path('app/market')),
             config('alphaforge.storage.backtest_results_path', storage_path('app/backtests')),
             config('alphaforge.storage.cache_path', storage_path('app/cache/alphaforge')),
+            storage_path('tmp'),
         ];
 
         foreach ($directories as $directory) {

@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Backtesting\Dto;
 
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
+use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Safe\DateTimeImmutable;
 
@@ -37,6 +38,10 @@ class WalkForwardConfiguration
     public ?float $brickSize = null;
 
     public ?int $atrPeriod = null;
+
+    public ParallelRunnerMode $runnerMode = ParallelRunnerMode::FORK;
+
+    public int $workerCount = 0;
 
     /** @var array<string, mixed>|null */
     public ?array $parameterOverrides = null;
@@ -115,6 +120,14 @@ class WalkForwardConfiguration
         }
 
         $config->minTrades = $data['min_trades'] ?? $data['minTrades'] ?? null;
+
+        if (isset($data['runner_mode']) || isset($data['runnerMode'])) {
+            $rm = $data['runner_mode'] ?? $data['runnerMode'];
+            $config->runnerMode = $rm instanceof ParallelRunnerMode
+                ? $rm
+                : ParallelRunnerMode::from($rm);
+        }
+        $config->workerCount = (int) ($data['worker_count'] ?? $data['workerCount'] ?? 0);
 
         $dataTypeConfig = DataTypeConfig::fromArray($data);
         $config->dataType = $dataTypeConfig->dataType;

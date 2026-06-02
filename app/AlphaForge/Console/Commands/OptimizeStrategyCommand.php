@@ -7,7 +7,9 @@ use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Backtesting\Optimization\OptimizationProgress;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
+use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -15,6 +17,7 @@ use Safe\DateTimeImmutable;
 
 class OptimizeStrategyCommand extends Command
 {
+    use ResolvesParallelRunner;
     protected $signature = 'alphaforge:optimize
         {strategy : The strategy alias}
         {symbol : Trading symbol}
@@ -35,7 +38,9 @@ class OptimizeStrategyCommand extends Command
         {--data-type=ohlcv : Market data type to backtest against (ohlcv, heikenashi, renko, atr_renko)}
         {--brick-size= : Brick size for renko data-type (e.g., 0.001, 10, 100)}
         {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
-        {--progress=1 : Progress verbosity (0=none, 1=bar, 2=dots, 3=detailed)}';
+        {--progress=1 : Progress verbosity (0=none, 1=bar, 2=dots, 3=detailed)}
+        {--runner=fork : Parallel runner mode (sync, fork, queue)}
+        {--workers=auto : Number of parallel workers (auto = CPU core count)}';
 
     protected $description = 'Run strategy parameter optimization';
 
@@ -127,6 +132,12 @@ class OptimizeStrategyCommand extends Command
         $this->line("  Method: {$method->value}");
         $this->line("  Objective: $objective");
 
+        $runnerValue = $this->option('runner');
+        $runnerMode = $this->resolveRunnerMode($runnerValue);
+        $workerCount = $this->resolveWorkerCount($this->option('workers'));
+
+        $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
+
         if ($method === OptimizationMethod::RANDOM) {
             $this->line("  Iterations: $iterations");
         } elseif ($method === OptimizationMethod::GENETIC) {
@@ -155,6 +166,8 @@ class OptimizeStrategyCommand extends Command
         $config->dataType = $dataTypeConfig->dataType;
         $config->brickSize = $dataTypeConfig->brickSize;
         $config->atrPeriod = $dataTypeConfig->atrPeriod;
+        $config->runnerMode = $runnerMode;
+        $config->workerCount = $workerCount;
 
         $progressLevel = (int) $this->option('progress');
         $progressBar = null;

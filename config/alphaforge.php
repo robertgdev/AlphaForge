@@ -36,6 +36,10 @@ return [
         'cache_discovery' => ! env('APP_DEBUG', false),
     ],
 
+    'optimization' => [
+        'cpu_ratio' => env('ALPHAFORGE_OPT_CPU_RATIO', 0.8),
+    ],
+
     'queues' => [
         'backtests' => env('ALPHAFORGE_BACKTESTS_QUEUE', 'backtests'),
         'downloads' => env('ALPHAFORGE_DOWNLOADS_QUEUE', 'downloads'),

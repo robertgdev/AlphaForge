@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Backtesting\Optimization\Runner;
 
 use App\AlphaForge\Backtesting\Dto\BacktestConfiguration;
+use App\AlphaForge\Backtesting\Optimization\MarketDataSnapshot;
 use App\AlphaForge\Backtesting\Service\Backtester;
 use Carbon\Carbon;
 
@@ -12,29 +13,24 @@ class LightweightOptimizationRunner implements OptimizationRunnerInterface
         private readonly Backtester $backtester,
     ) {}
 
-    public function runSingle(BacktestConfiguration $config): array
+    public function runSingle(BacktestConfiguration $config, MarketDataSnapshot $data): array
     {
-        return $this->backtester->run(
+        return $this->backtester->runWithPreloadedData(
             strategyAlias: $config->strategyAlias,
             symbols: $config->symbols,
             timeframe: $config->timeframe,
-            exchange: $config->dataSourceExchangeId,
             initialCapital: (string) $config->initialCapital,
             stakeCurrency: $config->stakeCurrency,
             strategyInputs: $config->strategyInputs,
             commissionConfig: $config->commissionConfig,
             additionalTimeframes: [],
-            startDate: $config->startDate ? Carbon::instance($config->startDate) : null,
-            endDate: $config->endDate ? Carbon::instance($config->endDate) : null,
+            data: $data,
             executionTimeframe: $config->executionTimeframe,
-            dataType: $config->dataType,
-            brickSize: $config->brickSize,
-            atrPeriod: $config->atrPeriod,
         );
     }
 
-    public function runBatch(array $configs): array
+    public function runBatch(array $configs, MarketDataSnapshot $data): array
     {
-        return array_map(fn (BacktestConfiguration $c) => $this->runSingle($c), $configs);
+        return array_map(fn (BacktestConfiguration $c) => $this->runSingle($c, $data), $configs);
     }
 }
