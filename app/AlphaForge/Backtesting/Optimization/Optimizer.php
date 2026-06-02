@@ -94,13 +94,15 @@ class Optimizer
                     break;
                 }
 
-                if ($config->runnerMode === ParallelRunnerMode::FORK) {
-                    $results = $this->runGenerationFork($generationConfigs, $data);
-                } else {
-                    $results = $this->runGenerationSync($generationConfigs, $data);
-                }
-
-                foreach ($results as $result) {
+                $onResult = function (array $result) use (
+                    $objective,
+                    $generator,
+                    $topResults,
+                    &$completed,
+                    $totalIterations,
+                    $optimizationRun,
+                    $progressCallback,
+                ): void {
                     $params = $result['params'];
                     $statistics = $result['statistics'];
                     $score = $objective->score($statistics);
@@ -119,6 +121,15 @@ class Optimizer
                             statistics: $statistics,
                             score: $score,
                         ));
+                    }
+                };
+
+                if ($config->runnerMode === ParallelRunnerMode::FORK) {
+                    $this->runGenerationFork($generationConfigs, $data, $onResult);
+                } else {
+                    $results = $this->runGenerationSync($generationConfigs, $data);
+                    foreach ($results as $result) {
+                        $onResult($result);
                     }
                 }
 
@@ -227,17 +238,18 @@ class Optimizer
 
     /**
      * @param  BacktestConfiguration[]  $configs
-     * @return array<int, array{params: array, statistics: array, final_capital: string}>
+     * @param  callable(array): void|null  $onResult
      */
-    private function runGenerationFork(array $configs, MarketDataSnapshot $data): array
+    private function runGenerationFork(array $configs, MarketDataSnapshot $data, ?callable $onResult = null): void
     {
         $workerCount = $this->resolveWorkerCount(count($configs));
         $forkRunner = new ForkParallelRunner($workerCount, storage_path('tmp'));
 
-        return $forkRunner->run(
+        $forkRunner->run(
             $configs,
             $data,
             fn (BacktestConfiguration $c, MarketDataSnapshot $d) => $this->runner->runSingle($c, $d),
+            $onResult,
         );
     }
 
