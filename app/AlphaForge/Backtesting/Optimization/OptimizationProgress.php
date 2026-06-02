@@ -10,5 +10,7 @@ readonly class OptimizationProgress
         public array $parameters,
         public array $statistics,
         public float $score,
+        public ?string $error = null,
+        public string $finalCapitalRaw = '0',
     ) {}
 }

@@ -56,13 +56,12 @@ class SmaCrossoverStrategy implements StrategyInterface
     )]
     private float $takeProfitPercent = 10.0;
 
-    #[Input(
-        description: 'Stake amount per trade (in quote currency)',
-        min: 10,
-        max: 100000,
-        step: 1000
-    )]
-    private string $stakeAmount = '1000';
+    /**
+     * Position size as a percentage of initial capital (fixed, not in parameter space).
+     */
+    private float $positionSizePercent = 1.0;
+
+    private float $initialCapital = 10000.0;
 
     private ?IndicatorContext $ctx = null;
 
@@ -95,8 +94,8 @@ class SmaCrossoverStrategy implements StrategyInterface
         if (isset($inputs['takeProfitPercent'])) {
             $this->takeProfitPercent = (float) $inputs['takeProfitPercent'];
         }
-        if (isset($inputs['stakeAmount'])) {
-            $this->stakeAmount = (string) $inputs['stakeAmount'];
+        if (isset($inputs['positionSizePercent'])) {
+            $this->positionSizePercent = (float) $inputs['positionSizePercent'];
         }
     }
 
@@ -104,6 +103,8 @@ class SmaCrossoverStrategy implements StrategyInterface
     {
         $ohlcv = $data['ohlcv'];
         $this->ctx = new IndicatorContext($ohlcv);
+
+        $this->initialCapital = (float) ($data['initial_capital'] ?? '10000');
 
         $minBars = max($this->fastPeriod, $this->slowPeriod);
         $totalBars = $ohlcv->getTimestamps()->count();
@@ -148,7 +149,7 @@ class SmaCrossoverStrategy implements StrategyInterface
                 symbol: $symbol,
                 direction: DirectionEnum::LONG,
                 orderType: OrderTypeEnum::Market,
-                stakeAmount: $this->stakeAmount,
+                stakeAmount: (string) ($this->initialCapital * $this->positionSizePercent / 100.0),
                 stopLoss: $stopLoss,
                 takeProfit: $takeProfit,
             );

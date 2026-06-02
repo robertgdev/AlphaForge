@@ -197,13 +197,31 @@ class OptimizeStrategyCommand extends Command
                     array_keys($p->parameters),
                     $p->parameters,
                 ));
+
+                if ($p->error !== null) {
+                    $this->line(sprintf(
+                        '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ ERROR │ %s',
+                        $p->completed,
+                        $p->total,
+                        mb_strimwidth($paramsStr, 0, 35, '…'),
+                        mb_strimwidth($p->error, 0, 90, '…'),
+                    ));
+
+                    return;
+                }
+
                 $sharpe = number_format((float) ($p->statistics['sharpe_ratio'] ?? 0), 2);
                 $ddPct = (float) ($p->statistics['max_drawdown_percent'] ?? 0) * 100;
                 $ddStr = sprintf('%.2f%%', $ddPct);
                 $balance = number_format((float) ($p->statistics['final_capital'] ?? 0), 2);
+                $balanceRaw = number_format((float) $p->finalCapitalRaw, 2);
+                $trades = (int) ($p->statistics['total_trades'] ?? 0);
+                $winPct = (float) ($p->statistics['win_rate'] ?? 0) * 100;
+                $retPct = (float) ($p->statistics['total_return_percent'] ?? 0) * 100;
+                $vol = number_format((float) ($p->statistics['volatility'] ?? 0), 4);
 
                 $this->line(sprintf(
-                    '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ score= %8.4f │ sharpe= %6s │ dd= %8s │ bal= %12s',
+                    '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ score= %8.4f │ sharpe= %6s │ dd= %8s │ bal= %12s │ fcap= %12s │ #trd= %4d │ win= %5.1f%% │ ret= %6.1f%% │ vol= %7s',
                     $p->completed,
                     $p->total,
                     mb_strimwidth($paramsStr, 0, 35, '…'),
@@ -211,6 +229,11 @@ class OptimizeStrategyCommand extends Command
                     $sharpe,
                     $ddStr,
                     $balance,
+                    $balanceRaw,
+                    $trades,
+                    $winPct,
+                    $retPct,
+                    $vol,
                 ));
             },
             default => null,

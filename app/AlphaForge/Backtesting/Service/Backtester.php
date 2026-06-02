@@ -1146,6 +1146,7 @@ class Backtester
             'symbol' => $symbol,
             'ohlcv' => $ohlcv,
             'multi_timeframe' => $this->multiTimeframeData,
+            'initial_capital' => $this->initialCapital,
         ];
 
         $this->strategy->initialize($data);

@@ -116,10 +116,15 @@ class Optimizer
                 ): void {
                     $params = $result['params'];
                     $statistics = $result['statistics'];
-                    $score = $objective->score($statistics);
+                    $error = $result['error'] ?? null;
+                    $finalCapitalRaw = (string) ($result['final_capital'] ?? '0');
+                    $score = $error !== null ? 0.0 : $objective->score($statistics);
 
-                    $generator->inform($params, $score);
-                    $topResults->consider($params, $statistics, $score);
+                    if ($error === null) {
+                        $generator->inform($params, $score);
+                        $topResults->consider($params, $statistics, $score);
+                    }
+
                     $completed++;
 
                     $optimizationRun->incrementProgress();
@@ -131,6 +136,8 @@ class Optimizer
                             parameters: $params,
                             statistics: $statistics,
                             score: $score,
+                            error: $error,
+                            finalCapitalRaw: $finalCapitalRaw,
                         ));
                     }
                 };
