@@ -771,7 +771,7 @@ The `--runner` and `--workers` flags control how backtest evaluations are distri
 |------|----------|----------|
 | `fork` (default) | Forks N child processes via `pcntl_fork()` to evaluate parameter combinations concurrently. Market data is loaded once in the parent and shared via copy-on-write memory. | Interactive CLI usage; single-machine parallelism; all optimization methods |
 | `sync` | Sequential, single-process evaluation. | Debugging; environments without `ext-pcntl` (e.g., Windows); very small parameter spaces |
-| `queue` | Dispatches parameter combinations as Laravel queue jobs. Workers must run separately. | Production deployments; horizontal scaling across multiple machines (not yet implemented — falls back to `fork`) |
+| `queue` | Dispatches parameter combinations as Laravel queue jobs via `Bus::batch()`. Results aggregated asynchronously by `AggregateTopResultsJob`. Requires running `php artisan queue:work`. | Production deployments; horizontal scaling across multiple machines |
 
 **Fork Mode Details:**
 
@@ -781,6 +781,26 @@ The `--runner` and `--workers` flags control how backtest evaluations are distri
 - **DB safety:** Each child process reconnects to the database to avoid connection-sharing corruption.
 - **Progress reporting:** Results stream incrementally from children as they complete. The `--progress` flag (bar, dots, or detailed) updates in real-time — no need to wait for all workers to finish.
 
+**Queue Mode Details:**
+
+- **Snapshot persistence:** Market data is loaded once, serialized to `storage/tmp/optimization_{id}.snapshot`, and passed to each queue job via the file path (not in the payload). Each worker deserializes the snapshot on first access.
+- **Batch dispatch:** All parameter combinations are dispatched as individual `OptimizeParameterJob` instances in a single `Bus::batch()`.
+- **Async completion:** The `alphaforge:optimize` command returns immediately with an optimization ID. Results are aggregated asynchronously by `AggregateTopResultsJob` after the batch completes.
+- **Fault tolerance:** Each backtest is a retryable job. Failed backtests are recorded with error messages in the database. The aggregation job only counts successfully completed backtests.
+- **Worker count:** The `--workers` flag controls how many `queue:work` processes you should run. Run `php artisan queue:work --queue=backtests` in N separate terminals or use a process manager like Supervisor.
+
+**Queue examples:**
+
+```bash
+# Start 4 queue workers (in separate terminals)
+php artisan queue:work --queue=backtests
+
+# Dispatch optimization to queue
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --runner=queue --workers=4
+
+# Walk-forward with queue (optimization phase only)
+php artisan alphaforge:walk-forward sma_crossover BTCUSDT --use-strategy-ranges --runner=queue
+```
 **Fallback behavior:** If `ext-pcntl` is not loaded or the platform is Windows, `--runner=fork` silently falls back to `--runner=sync` with a warning. Use `--runner=sync` explicitly to suppress the warning.
 
 **Worker resolution (`--workers`):**

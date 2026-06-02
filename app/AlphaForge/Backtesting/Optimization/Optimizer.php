@@ -12,9 +12,14 @@ use App\AlphaForge\Backtesting\Optimization\Generator\RandomGenerator;
 use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFactory;
 use App\AlphaForge\Backtesting\Optimization\Objective\ObjectiveFunctionInterface;
 use App\AlphaForge\Backtesting\Optimization\Runner\OptimizationRunnerInterface;
+use App\AlphaForge\Jobs\AggregateTopResultsJob;
+use App\AlphaForge\Jobs\OptimizeParameterJob;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Carbon\Carbon;
+use Illuminate\Bus\Batch;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 use function Safe\shell_exec;
 
@@ -84,6 +89,12 @@ class Optimizer
                 brickSize: $config->brickSize,
                 atrPeriod: $config->atrPeriod,
             );
+
+            if ($config->runnerMode === ParallelRunnerMode::QUEUE) {
+                $this->runGenerationQueue($config, $data, $objective, $generator, $optimizationRun);
+
+                return $optimizationRun;
+            }
 
             $completed = 0;
 
@@ -289,6 +300,77 @@ class Optimizer
         }
 
         return 4;
+    }
+
+    /**
+     * Dispatch all parameter combinations as queue jobs.
+     */
+    private function runGenerationQueue(
+        OptimizationConfig $config,
+        MarketDataSnapshot $data,
+        ObjectiveFunctionInterface $objective,
+        ParameterGeneratorInterface $generator,
+        OptimizationRun $optimizationRun,
+    ): void {
+        $snapshotPath = storage_path('tmp/optimization_'.$optimizationRun->id.'.snapshot');
+        $data->saveToFile($snapshotPath);
+
+        $jobs = [];
+
+        while ($params = $generator->next()) {
+            $backtestConfig = new BacktestConfiguration(
+                strategyAlias: $config->strategyAlias,
+                symbols: $config->symbols,
+                timeframe: $config->timeframe,
+                dataSourceExchangeId: $config->exchange,
+                initialCapital: $config->initialCapital,
+                stakeCurrency: $config->stakeCurrency,
+                strategyInputs: $params,
+                commissionConfig: $config->commissionConfig,
+                startDate: $config->startDate,
+                endDate: $config->endDate,
+                executionTimeframe: $config->executionTimeframe,
+                dataType: $config->dataType ?? 'ohlcv',
+                brickSize: $config->brickSize,
+                atrPeriod: $config->atrPeriod,
+            );
+
+            $jobs[] = new OptimizeParameterJob(
+                $optimizationRun->id,
+                $snapshotPath,
+                $backtestConfig->toArray(),
+            );
+        }
+
+        if (empty($jobs)) {
+            Log::warning('Queue optimization: no parameter combinations generated', ['optimization_id' => $optimizationRun->id]);
+
+            return;
+        }
+
+        Bus::batch($jobs)
+            ->name('Optimization '.$optimizationRun->id)
+            ->then(function (Batch $batch) use ($optimizationRun, $objective, $config, $snapshotPath) {
+                AggregateTopResultsJob::dispatch(
+                    $optimizationRun->id,
+                    $objective->label(),
+                    $config->topN,
+                    $snapshotPath,
+                );
+            })
+            ->catch(function (Batch $batch, Throwable $e) use ($optimizationRun) {
+                Log::error('Queue optimization batch failed', [
+                    'optimization_id' => $optimizationRun->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $optimizationRun->markAsFailed('Batch error: '.$e->getMessage());
+            })
+            ->dispatch();
+
+        Log::info('Queue optimization dispatched', [
+            'optimization_id' => $optimizationRun->id,
+            'total_jobs' => count($jobs),
+        ]);
     }
 
     private function createGenerator(OptimizationConfig $config, ParameterSpace $space): ParameterGeneratorInterface

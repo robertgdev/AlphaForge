@@ -26,14 +26,6 @@ trait ResolvesParallelRunner
             return ParallelRunnerMode::SYNC;
         }
 
-        if ($mode === ParallelRunnerMode::QUEUE) {
-            $this->warn('--runner=queue is not yet implemented. Falling back to --runner=fork.');
-            if (! function_exists('pcntl_fork')) {
-                return ParallelRunnerMode::SYNC;
-            }
-
-            return ParallelRunnerMode::FORK;
-        }
 
         return $mode;
     }

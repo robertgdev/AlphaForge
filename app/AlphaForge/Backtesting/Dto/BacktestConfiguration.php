@@ -28,4 +28,27 @@ class BacktestConfiguration
         public ?float $brickSize = null,
         public ?int $atrPeriod = null,
     ) {}
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'strategyAlias' => $this->strategyAlias,
+            'symbols' => $this->symbols,
+            'timeframe' => $this->timeframe,
+            'dataSourceExchangeId' => $this->dataSourceExchangeId,
+            'initialCapital' => $this->initialCapital,
+            'stakeCurrency' => $this->stakeCurrency,
+            'strategyInputs' => $this->strategyInputs,
+            'commissionConfig' => $this->commissionConfig,
+            'startDate' => $this->startDate,
+            'endDate' => $this->endDate,
+            'executionTimeframe' => $this->executionTimeframe,
+            'dataType' => $this->dataType,
+            'brickSize' => $this->brickSize,
+            'atrPeriod' => $this->atrPeriod,
+        ];
+    }
 }
