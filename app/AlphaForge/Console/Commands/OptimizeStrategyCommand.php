@@ -224,23 +224,34 @@ class OptimizeStrategyCommand extends Command
         }
 
         $this->newLine();
-        $this->info('Optimization completed!');
-        $this->line("  Optimization ID: {$optimizationRun->id}");
-        $this->line("  Status: {$optimizationRun->status}");
 
-        if ($optimizationRun->isCompleted()) {
-            $this->newLine();
-            $this->info('Best parameters:');
-            foreach ($optimizationRun->best_parameters as $param => $value) {
-                $this->line("  - $param: $value");
+        if ($runnerMode === ParallelRunnerMode::QUEUE) {
+            $this->info('Optimization dispatched to queue!');
+            $this->line("  Optimization ID: {$optimizationRun->id}");
+            $this->line("  Status: {$optimizationRun->status} (queued)");
+            $this->line('  Monitor progress with:');
+            $this->line("    php artisan alphaforge:optimizations:show {$optimizationRun->id}");
+            $this->line('  Or check the queue worker logs.');
+            $this->line("  Results will be persisted to the database upon completion.");
+        } else {
+            $this->info('Optimization completed!');
+            $this->line("  Optimization ID: {$optimizationRun->id}");
+            $this->line("  Status: {$optimizationRun->status}");
+
+            if ($optimizationRun->isCompleted()) {
+                $this->newLine();
+                $this->info('Best parameters:');
+                foreach ($optimizationRun->best_parameters as $param => $value) {
+                    $this->line("  - $param: $value");
+                }
+                $this->newLine();
+                $this->info('Best statistics:');
+                $stats = $optimizationRun->best_statistics;
+                $this->line('  - Net Profit: '.number_format((float) ($stats['total_return_percent'] ?? 0), 2).'%');
+                $this->line('  - Win Rate: '.number_format((float) ($stats['win_rate'] ?? 0) * 100, 2).'%');
+                $this->line('  - Sharpe Ratio: '.number_format((float) ($stats['sharpe_ratio'] ?? 0), 2));
+                $this->line('  - Max Drawdown: '.number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2).'%');
             }
-            $this->newLine();
-            $this->info('Best statistics:');
-            $stats = $optimizationRun->best_statistics;
-            $this->line('  - Net Profit: '.number_format((float) ($stats['total_return_percent'] ?? 0), 2).'%');
-            $this->line('  - Win Rate: '.number_format((float) ($stats['win_rate'] ?? 0) * 100, 2).'%');
-            $this->line('  - Sharpe Ratio: '.number_format((float) ($stats['sharpe_ratio'] ?? 0), 2));
-            $this->line('  - Max Drawdown: '.number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2).'%');
         }
 
         return 0;

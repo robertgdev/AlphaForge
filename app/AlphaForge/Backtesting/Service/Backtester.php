@@ -71,6 +71,9 @@ class Backtester
     /** @var array<string, int> */
     private array $barsInPositionTracker = [];
 
+    /** @var Vector<string> Bar-level equity curve for periodic risk metrics */
+    private Vector $barEquityCurve;
+
     public function __construct(
         private readonly StrategyRegistryInterface $strategyRegistry,
         private readonly BinaryStorageInterface $binaryStorage,
@@ -157,10 +160,13 @@ class Backtester
 
         // Calculate statistics
         $this->emitProgress(90, 100, 'Calculating statistics...');
+        $barsPerYear = $this->computeBarsPerYear($symbols[0]);
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
-            $this->currentCapital
+            $this->currentCapital,
+            tradingDaysPerYear: $barsPerYear,
+            barEquityCurve: $this->barEquityCurve,
         );
 
         $this->emitProgress(100, 100, 'Backtest completed');
@@ -226,10 +232,13 @@ class Backtester
         $this->runBacktestLoop($symbols);
 
         $this->emitProgress(90, 100, 'Calculating statistics...');
+        $barsPerYear = $this->computeBarsPerYear($symbols[0]);
         $statistics = $this->statisticsService->calculate(
             $this->positions,
             $this->initialCapital,
-            $this->currentCapital
+            $this->currentCapital,
+            tradingDaysPerYear: $barsPerYear,
+            barEquityCurve: $this->barEquityCurve,
         );
 
         $this->emitProgress(100, 100, 'Backtest completed');
@@ -266,6 +275,7 @@ class Backtester
         $this->highWaterMarks = [];
         $this->lowWaterMarks = [];
         $this->barsInPositionTracker = [];
+        $this->barEquityCurve = new Vector;
         $this->progressCallback = null;
     }
 
@@ -595,6 +605,9 @@ class Backtester
 
             // Process signals
             $this->processSignals($signals, $currentBar, $primarySymbol);
+
+            // Record bar-level equity
+            $this->recordBarEquity($currentBar, $primarySymbol);
         }
     }
 
@@ -677,6 +690,9 @@ class Backtester
                 // Update high/low water marks for trailing stop support
                 $this->updatePositionWaterMarks($execBar);
 
+                // Record bar-level equity at execution granularity
+                $this->recordBarEquity($execBar, $symbol);
+
                 $execIndex++;
             }
 
@@ -702,6 +718,8 @@ class Backtester
             $this->processPendingOrders($execBar);
             $this->checkPositionExits($execBar);
             $this->updatePositionWaterMarks($execBar);
+
+            $this->recordBarEquity($execBar, $symbol);
 
             $execIndex++;
         }
@@ -1032,6 +1050,15 @@ class Backtester
     }
 
     /**
+     * Record total equity (cash + mark-to-market open positions) at each bar.
+     */
+    private function recordBarEquity(array $bar, string $symbol): void
+    {
+        $equity = $this->portfolioManager->getTotalEquity([$symbol => (string) $bar['close']]);
+        $this->barEquityCurve->push($equity);
+    }
+
+    /**
      * Call the strategy's initialize() hook before the backtest loop.
      */
     private function initializeStrategy(string $symbol, OhlcvSeries $ohlcv): void
@@ -1172,5 +1199,29 @@ class Backtester
         if ($this->progressCallback !== null) {
             ($this->progressCallback)($current, $total, $message);
         }
+    }
+
+    /**
+     * Compute annualized bar count from the OHLCV data's timestamp range.
+     */
+    private function computeBarsPerYear(string $symbol): int
+    {
+        $ohlcv = $this->ohlcvData->get($symbol);
+        $timestamps = $ohlcv->getTimestamps()->getVector();
+
+        if ($timestamps->count() < 2) {
+            return 252;
+        }
+
+        $first = (int) $timestamps->get(0);
+        $last = (int) $timestamps->get($timestamps->count() - 1);
+        $secondsSpan = max(1, $last - $first);
+        $years = $secondsSpan / 31536000.0;
+
+        if ($years < 0.01) {
+            return 252;
+        }
+
+        return max(1, (int) round($timestamps->count() / $years));
     }
 }

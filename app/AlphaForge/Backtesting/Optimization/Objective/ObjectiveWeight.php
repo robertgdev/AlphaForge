@@ -7,5 +7,7 @@ readonly class ObjectiveWeight
     public function __construct(
         public string $metric,
         public float $coefficient,
+        public ?float $minClamp = null,
+        public ?float $maxClamp = null,
     ) {}
 }

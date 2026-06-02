@@ -798,6 +798,9 @@ php artisan queue:work --queue=backtests
 # Dispatch optimization to queue
 php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --runner=queue --workers=4
 
+# Monitor progress with the optimization ID returned above
+php artisan alphaforge:optimizations:show <optimization_id>
+
 # Walk-forward with queue (optimization phase only)
 php artisan alphaforge:walk-forward sma_crossover BTCUSDT --use-strategy-ranges --runner=queue
 ```

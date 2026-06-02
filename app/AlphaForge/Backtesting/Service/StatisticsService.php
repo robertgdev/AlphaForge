@@ -8,6 +8,8 @@ use Ds\Vector;
 
 readonly class StatisticsService implements StatisticsServiceInterface
 {
+    private const MIN_OBSERVATIONS_FOR_RISK = 10;
+
     /**
      * Calculate comprehensive backtest statistics.
      *
@@ -15,7 +17,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
      * @param  string  $initialCapital  Starting capital
      * @param  string  $finalCapital  Ending capital
      * @param  string  $riskFreeRate  Annual risk-free rate (e.g., "0.02" for 2%)
-     * @param  int  $tradingDaysPerYear  Number of trading days per year (default: 252)
+     * @param  int  $tradingDaysPerYear  Number of periods per year (e.g., 8760 for 1h bars, 365 for 1d bars)
+     * @param  Vector<string>|null  $barEquityCurve  Bar-level equity curve for accurate periodic risk metrics
      * @return array<string, mixed> Comprehensive statistics array
      */
     public function calculate(
@@ -23,50 +26,43 @@ readonly class StatisticsService implements StatisticsServiceInterface
         string $initialCapital,
         string $finalCapital,
         string $riskFreeRate = '0.02',
-        int $tradingDaysPerYear = 252
+        int $tradingDaysPerYear = 252,
+        ?Vector $barEquityCurve = null,
     ): array {
-        // Filter to only closed positions (with exitTime set)
         $closedPositions = $positions->filter(fn (PositionDto $p) => $p->exitTime !== null);
 
         if ($closedPositions->isEmpty()) {
             return $this->getEmptyStatistics();
         }
 
-        // Calculate equity curve
-        $equityCurve = $this->buildEquityCurve($closedPositions, $initialCapital);
+        $tradeEquityCurve = $this->buildEquityCurve($closedPositions, $initialCapital);
 
-        // Calculate returns series
-        $returns = $this->calculateReturns($equityCurve);
+        $useBarCurve = $barEquityCurve !== null && $barEquityCurve->count() >= self::MIN_OBSERVATIONS_FOR_RISK;
+        $riskEquityCurve = $useBarCurve ? $barEquityCurve : $tradeEquityCurve;
+        $riskReturns = $this->calculateReturns($riskEquityCurve);
 
-        // Basic metrics
         $totalReturn = bcsub($finalCapital, $initialCapital, 12);
         $totalReturnPercent = Math::percentage($totalReturn, $initialCapital);
 
-        // Time-based metrics
         $firstTrade = $closedPositions->first();
         $lastTrade = $closedPositions->last();
         $tradingDays = $firstTrade && $lastTrade && $firstTrade->exitTime && $lastTrade->exitTime
             ? $firstTrade->exitTime->diffInDays($lastTrade->exitTime)
             : 0;
 
-        // Win/Loss metrics
         $winLoss = $this->calculateWinLossMetrics($closedPositions);
 
-        // Drawdown analysis
-        $drawdown = $this->calculateDrawdown($equityCurve);
+        $drawdown = $this->calculateDrawdown($riskEquityCurve);
 
-        // Risk metrics
         $riskMetrics = $this->calculateRiskMetrics(
-            $returns,
-            $equityCurve,
+            $riskReturns,
+            $riskEquityCurve,
             $riskFreeRate,
             $tradingDaysPerYear
         );
 
-        // Trade analysis
         $tradeAnalysis = $this->analyzeTrades($closedPositions);
 
-        // CAGR calculation
         $cagr = $this->calculateCAGR(
             $initialCapital,
             $finalCapital,
@@ -74,28 +70,23 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $tradingDaysPerYear
         );
 
-        // Alpha and Beta (if we had benchmark data)
         $alpha = '0';
         $beta = '0';
 
         return [
-            // Capital metrics
             'initial_capital' => $initialCapital,
             'final_capital' => $finalCapital,
             'total_return' => $totalReturn,
             'total_return_percent' => $totalReturnPercent,
 
-            // Time metrics
             'trading_days' => $tradingDays,
             'cagr' => $cagr,
 
-            // Trade count metrics
             'total_trades' => $positions->count(),
             'winning_trades' => $winLoss['wins'],
             'losing_trades' => $winLoss['losses'],
             'win_rate' => $winLoss['win_rate'],
 
-            // Profit metrics
             'gross_profit' => $winLoss['gross_profit'],
             'gross_loss' => $winLoss['gross_loss'],
             'net_profit' => $winLoss['net_profit'],
@@ -105,29 +96,24 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'largest_win' => $winLoss['largest_win'],
             'largest_loss' => $winLoss['largest_loss'],
 
-            // Risk metrics
             'max_drawdown' => $drawdown['max_drawdown'],
             'max_drawdown_percent' => $drawdown['max_drawdown_percent'],
             'avg_drawdown' => $drawdown['avg_drawdown'],
             'max_drawdown_duration' => $drawdown['max_duration'],
 
-            // Risk-adjusted metrics
             'sharpe_ratio' => $riskMetrics['sharpe_ratio'],
             'sortino_ratio' => $riskMetrics['sortino_ratio'],
             'calmar_ratio' => $riskMetrics['calmar_ratio'],
             'volatility' => $riskMetrics['volatility'],
 
-            // Alpha/Beta (placeholder - requires benchmark data)
             'alpha' => $alpha,
             'beta' => $beta,
 
-            // Trade analysis
             'average_trade_duration' => $tradeAnalysis['avg_duration'],
             'max_consecutive_wins' => $tradeAnalysis['max_consecutive_wins'],
             'max_consecutive_losses' => $tradeAnalysis['max_consecutive_losses'],
             'expectancy' => $tradeAnalysis['expectancy'],
 
-            // Per-side analysis
             'long_trades' => $tradeAnalysis['long_trades'],
             'short_trades' => $tradeAnalysis['short_trades'],
             'long_win_rate' => $tradeAnalysis['long_win_rate'],
@@ -222,7 +208,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $winRate = $total > 0 ? bcdiv((string) $wins, (string) $total, 6) : '0';
         $netProfit = bcadd($grossProfit, $grossLoss, 12);
 
-        // Profit factor (gross profit / abs(gross loss))
         $profitFactor = '0';
         if (bccomp($grossLoss, '0', 12) !== 0) {
             $profitFactor = bcdiv($grossProfit, abs(bcadd('0', $grossLoss, 12)), 4);
@@ -230,7 +215,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $profitFactor = 'INF';
         }
 
-        // Averages
         $averageWin = $wins > 0 ? bcdiv($grossProfit, (string) $wins, 12) : '0';
         $averageLoss = $losses > 0 ? bcdiv($grossLoss, (string) $losses, 12) : '0';
 
@@ -271,7 +255,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $equity = $equityCurve->get($i);
 
             if (bccomp($equity, $peak, 12) > 0) {
-                // New peak
                 $peak = $equity;
                 $peakIndex = $i;
 
@@ -284,7 +267,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
                 $currentDrawdown = '0';
                 $currentDuration = 0;
             } else {
-                // In drawdown
                 $drawdown = bcsub($peak, $equity, 12);
                 $drawdownPercent = bccomp($peak, '0', 12) !== 0
                     ? abs(bcdiv($drawdown, $peak, 6))
@@ -300,7 +282,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             }
         }
 
-        // Calculate average drawdown
         $avgDrawdown = '0';
         if ($drawdowns->count() > 0) {
             $sum = '0';
@@ -319,19 +300,25 @@ readonly class StatisticsService implements StatisticsServiceInterface
     }
 
     /**
-     * Calculate risk-adjusted metrics.
+     * Calculate risk-adjusted metrics using bar-periodic returns.
      *
-     * @param  Vector<string>  $returns
+     * Requires at least MIN_OBSERVATIONS_FOR_RISK data points for statistical significance.
+     * The tradingDaysPerYear parameter must match the actual bar frequency
+     * (e.g., 8760 for 1h bars, 365 for daily bars, 252 for daily trading bars).
+     *
+     * @param  Vector<string>  $returns  Bar-periodic returns
      * @param  Vector<string>  $equityCurve
+     * @param  string  $riskFreeRate  Annual risk-free rate
+     * @param  int  $periodsPerYear  Number of observation periods per year
      * @return array<string, mixed>
      */
     private function calculateRiskMetrics(
         Vector $returns,
         Vector $equityCurve,
         string $riskFreeRate,
-        int $tradingDaysPerYear
+        int $periodsPerYear
     ): array {
-        if ($returns->isEmpty()) {
+        if ($returns->count() < self::MIN_OBSERVATIONS_FOR_RISK) {
             return [
                 'sharpe_ratio' => '0',
                 'sortino_ratio' => '0',
@@ -340,37 +327,29 @@ readonly class StatisticsService implements StatisticsServiceInterface
             ];
         }
 
-        // Calculate average return
         $avgReturn = Math::mean($returns->toArray(), 12);
 
-        // Calculate volatility (standard deviation of returns)
         $volatility = Math::standardDeviation($returns->toArray(), 12);
 
-        // Annualized volatility
         $annualizedVolatility = bcmul(
             $volatility,
-            bcsqrt((string) $tradingDaysPerYear, 12),
+            bcsqrt((string) $periodsPerYear, 12),
             12
         );
 
-        // Daily risk-free rate
-        $dailyRiskFreeRate = bcdiv($riskFreeRate, (string) $tradingDaysPerYear, 12);
+        $periodRFR = bcdiv($riskFreeRate, (string) $periodsPerYear, 12);
 
-        // Sharpe Ratio = (Average Return - Risk Free Rate) / Volatility
         $sharpeRatio = '0';
         if (bccomp($volatility, '0', 12) !== 0) {
-            $excessReturn = bcsub($avgReturn, $dailyRiskFreeRate, 12);
+            $excessReturn = bcsub($avgReturn, $periodRFR, 12);
             $sharpeRatio = bcdiv($excessReturn, $volatility, 6);
-
-            // Annualize
             $sharpeRatio = bcmul(
                 $sharpeRatio,
-                bcsqrt((string) $tradingDaysPerYear, 6),
+                bcsqrt((string) $periodsPerYear, 6),
                 6
             );
         }
 
-        // Sortino Ratio (uses downside deviation)
         $downsideReturns = new Vector;
         foreach ($returns as $return) {
             if (bccomp($return, '0', 12) < 0) {
@@ -382,22 +361,19 @@ readonly class StatisticsService implements StatisticsServiceInterface
         if ($downsideReturns->count() > 0) {
             $downsideDeviation = Math::standardDeviation($downsideReturns->toArray(), 12);
             if (bccomp($downsideDeviation, '0', 12) !== 0) {
-                $excessReturn = bcsub($avgReturn, $dailyRiskFreeRate, 12);
+                $excessReturn = bcsub($avgReturn, $periodRFR, 12);
                 $sortinoRatio = bcdiv($excessReturn, $downsideDeviation, 6);
                 $sortinoRatio = bcmul(
                     $sortinoRatio,
-                    bcsqrt((string) $tradingDaysPerYear, 6),
+                    bcsqrt((string) $periodsPerYear, 6),
                     6
                 );
             }
         }
 
-        // Calmar Ratio (CAGR / Max Drawdown)
         $calmarRatio = '0';
         $drawdown = $this->calculateDrawdown($equityCurve);
         if (bccomp($drawdown['max_drawdown_percent'], '0', 12) !== 0) {
-            // We need CAGR here, but we'll calculate it separately
-            // For now, use total return / max drawdown
             $initialEquity = $equityCurve->first();
             $finalEquity = $equityCurve->last();
             if (bccomp($initialEquity, '0', 12) !== 0) {
@@ -435,7 +411,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             return '0';
         }
 
-        // CAGR = (Final / Initial)^(365/tradingDays) - 1
         $years = bcdiv((string) $tradingDays, (string) $tradingDaysPerYear, 12);
 
         if (bccomp($years, '0', 12) <= 0) {
@@ -444,8 +419,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
         $ratio = bcdiv($finalCapital, $initialCapital, 12);
 
-        // Use natural log and exp for power calculation
-        // CAGR = exp(ln(ratio) / years) - 1
         $lnRatio = log((float) $ratio);
         $cagr = exp($lnRatio / (float) $years) - 1;
 
@@ -471,11 +444,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $shortWins = 0;
 
         foreach ($positions as $position) {
-            // Duration
             $duration = $position->entryTime->diffInSeconds($position->exitTime);
             $totalDuration += $duration;
 
-            // Direction
             if ($position->direction === 'long') {
                 $longTrades++;
                 if (bccomp($position->realizedPnl, '0', 12) > 0) {
@@ -488,7 +459,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
                 }
             }
 
-            // Consecutive wins/losses
             $comparison = bccomp($position->realizedPnl, '0', 12);
             if ($comparison > 0) {
                 $currentConsecutiveWins++;
@@ -505,12 +475,10 @@ readonly class StatisticsService implements StatisticsServiceInterface
             }
         }
 
-        // Average duration in seconds
         $avgDuration = $positions->count() > 0
             ? (int) ($totalDuration / $positions->count())
             : 0;
 
-        // Expectancy = (Win Rate * Avg Win) - (Loss Rate * Abs(Avg Loss))
         $winLoss = $this->calculateWinLossMetrics($positions);
         $lossRate = bcsub('1', $winLoss['win_rate'], 6);
         $avgLossAbs = abs($winLoss['average_loss']);
