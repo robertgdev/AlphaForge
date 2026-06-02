@@ -26,6 +26,8 @@ use RuntimeException;
 
 class Backtester
 {
+    private const BAR_T = 0, BAR_O = 1, BAR_H = 2, BAR_L = 3, BAR_C = 4, BAR_V = 5;
+
     private BacktestCursor $cursor;
 
     private OrderManager $orderManager;
@@ -73,6 +75,42 @@ class Backtester
 
     /** @var Vector<string> Bar-level equity curve for periodic risk metrics */
     private Vector $barEquityCurve;
+
+    /** @var array<int> Pre-extracted timestamps for O(1) bar access */
+    private array $barTimestamps = [];
+
+    /** @var array<float> Pre-extracted opens for O(1) bar access */
+    private array $barOpens = [];
+
+    /** @var array<float> Pre-extracted highs for O(1) bar access */
+    private array $barHighs = [];
+
+    /** @var array<float> Pre-extracted lows for O(1) bar access */
+    private array $barLows = [];
+
+    /** @var array<float> Pre-extracted closes for O(1) bar access */
+    private array $barCloses = [];
+
+    /** @var array<float> Pre-extracted volumes for O(1) bar access */
+    private array $barVolumes = [];
+
+    /** @var array<int>|null Pre-extracted execution timestamps */
+    private ?array $execTimestamps = null;
+
+    /** @var array<float>|null Pre-extracted execution opens */
+    private ?array $execOpens = null;
+
+    /** @var array<float>|null Pre-extracted execution highs */
+    private ?array $execHighs = null;
+
+    /** @var array<float>|null Pre-extracted execution lows */
+    private ?array $execLows = null;
+
+    /** @var array<float>|null Pre-extracted execution closes */
+    private ?array $execCloses = null;
+
+    /** @var array<float>|null Pre-extracted execution volumes */
+    private ?array $execVolumes = null;
 
     public function __construct(
         private readonly StrategyRegistryInterface $strategyRegistry,
@@ -361,6 +399,8 @@ class Backtester
                 $this->cursor
             );
         }
+
+        $this->preExtractBarArrays($symbols[0]);
     }
 
     /**
@@ -404,6 +444,29 @@ class Backtester
                 new Map($aggregated),
                 $this->cursor
             );
+        }
+
+        $this->preExtractBarArrays($symbols[0]);
+    }
+
+    private function preExtractBarArrays(string $symbol): void
+    {
+        $ohlcv = $this->ohlcvData->get($symbol);
+        $this->barTimestamps = $ohlcv->getTimestamps()->getVector()->toArray();
+        $this->barOpens = $ohlcv->getOpens()->getVector()->toArray();
+        $this->barHighs = $ohlcv->getHighs()->getVector()->toArray();
+        $this->barLows = $ohlcv->getLows()->getVector()->toArray();
+        $this->barCloses = $ohlcv->getCloses()->getVector()->toArray();
+        $this->barVolumes = $ohlcv->getVolumes()->getVector()->toArray();
+
+        if ($this->executionOhlcvData !== null) {
+            $execOhlcv = $this->executionOhlcvData->get($symbol);
+            $this->execTimestamps = $execOhlcv->getTimestamps()->getVector()->toArray();
+            $this->execOpens = $execOhlcv->getOpens()->getVector()->toArray();
+            $this->execHighs = $execOhlcv->getHighs()->getVector()->toArray();
+            $this->execLows = $execOhlcv->getLows()->getVector()->toArray();
+            $this->execCloses = $execOhlcv->getCloses()->getVector()->toArray();
+            $this->execVolumes = $execOhlcv->getVolumes()->getVector()->toArray();
         }
     }
 
@@ -589,16 +652,19 @@ class Backtester
             }
 
             // Get current bar data
-            $currentBar = $this->getCurrentBar($primaryOhlcv);
+            $currentBar = $this->getCurrentBar();
 
             // Process pending orders
-            $this->processPendingOrders($currentBar);
+            if ($this->orderManager->hasPendingOrders()) {
+                $this->processPendingOrders($currentBar);
+            }
 
-            // Check for stop loss / take profit on open positions
-            $this->checkPositionExits($currentBar);
+            $hasPositions = $this->portfolioManager->hasOpenPositions();
 
-            // Update high/low water marks for trailing stop support
-            $this->updatePositionWaterMarks($currentBar);
+            if ($hasPositions) {
+                $this->checkPositionExits($currentBar);
+                $this->updatePositionWaterMarks($currentBar);
+            }
 
             // Call strategy for signals
             $signals = $this->callStrategy($primarySymbol, $primaryOhlcv);
@@ -679,16 +745,21 @@ class Backtester
                 }
 
                 $this->cursor->executionIndex = $execIndex;
-                $execBar = $this->getBarByIndex($executionOhlcv, $execIndex);
+                $execBar = $this->getExecBarByIndex($execIndex);
 
                 // Process pending orders at execution granularity
-                $this->processPendingOrders($execBar);
+                if ($this->orderManager->hasPendingOrders()) {
+                    $this->processPendingOrders($execBar);
+                }
 
-                // Check SL/TP at execution granularity
-                $this->checkPositionExits($execBar);
+                $hasPositions = $this->portfolioManager->hasOpenPositions();
 
-                // Update high/low water marks for trailing stop support
-                $this->updatePositionWaterMarks($execBar);
+                if ($hasPositions) {
+                    // Check SL/TP at execution granularity
+                    $this->checkPositionExits($execBar);
+                    // Update high/low water marks for trailing stop support
+                    $this->updatePositionWaterMarks($execBar);
+                }
 
                 // Record bar-level equity at execution granularity
                 $this->recordBarEquity($execBar, $symbol);
@@ -700,7 +771,7 @@ class Backtester
             $signals = $this->callStrategy($symbol, $signalOhlcv);
 
             // Process signals into pending orders (will be evaluated on next iteration's M1 bars)
-            $signalBar = $this->getCurrentBar($signalOhlcv);
+            $signalBar = $this->getCurrentBar();
             $this->processSignals($signals, $signalBar, $symbol);
         }
 
@@ -713,11 +784,17 @@ class Backtester
             }
 
             $this->cursor->executionIndex = $execIndex;
-            $execBar = $this->getBarByIndex($executionOhlcv, $execIndex);
+            $execBar = $this->getExecBarByIndex($execIndex);
 
-            $this->processPendingOrders($execBar);
-            $this->checkPositionExits($execBar);
-            $this->updatePositionWaterMarks($execBar);
+            if ($this->orderManager->hasPendingOrders()) {
+                $this->processPendingOrders($execBar);
+            }
+
+            $hasPositions = $this->portfolioManager->hasOpenPositions();
+            if ($hasPositions) {
+                $this->checkPositionExits($execBar);
+                $this->updatePositionWaterMarks($execBar);
+            }
 
             $this->recordBarEquity($execBar, $symbol);
 
@@ -730,34 +807,32 @@ class Backtester
      *
      * @return array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}
      */
-    private function getCurrentBar(OhlcvSeries $ohlcv): array
+    private function getCurrentBar(): array
     {
         $i = $this->cursor->currentIndex;
 
         return [
-            'timestamp' => (int) $ohlcv->getTimestamps()->getVector()->get($i),
-            'open' => (float) $ohlcv->getOpens()->getVector()->get($i),
-            'high' => (float) $ohlcv->getHighs()->getVector()->get($i),
-            'low' => (float) $ohlcv->getLows()->getVector()->get($i),
-            'close' => (float) $ohlcv->getCloses()->getVector()->get($i),
-            'volume' => (float) $ohlcv->getVolumes()->getVector()->get($i),
+            self::BAR_T => $this->barTimestamps[$i],
+            self::BAR_O => (float) $this->barOpens[$i],
+            self::BAR_H => (float) $this->barHighs[$i],
+            self::BAR_L => (float) $this->barLows[$i],
+            self::BAR_C => (float) $this->barCloses[$i],
+            self::BAR_V => (float) $this->barVolumes[$i],
         ];
     }
 
     /**
-     * Get bar data at a specific index from any OhlcvSeries.
-     *
-     * @return array{timestamp: int|float, open: float, high: float, low: float, close: float, volume: float}
+     * Get execution bar data at a specific index.
      */
-    private function getBarByIndex(OhlcvSeries $ohlcv, int $index): array
+    private function getExecBarByIndex(int $index): array
     {
         return [
-            'timestamp' => (int) $ohlcv->getTimestamps()->getVector()->get($index),
-            'open' => (float) $ohlcv->getOpens()->getVector()->get($index),
-            'high' => (float) $ohlcv->getHighs()->getVector()->get($index),
-            'low' => (float) $ohlcv->getLows()->getVector()->get($index),
-            'close' => (float) $ohlcv->getCloses()->getVector()->get($index),
-            'volume' => (float) $ohlcv->getVolumes()->getVector()->get($index),
+            self::BAR_T => (int) $this->execTimestamps[$index],
+            self::BAR_O => (float) $this->execOpens[$index],
+            self::BAR_H => (float) $this->execHighs[$index],
+            self::BAR_L => (float) $this->execLows[$index],
+            self::BAR_C => (float) $this->execCloses[$index],
+            self::BAR_V => (float) $this->execVolumes[$index],
         ];
     }
 
@@ -791,7 +866,7 @@ class Backtester
 
         if ($canExecute) {
             $executionPrice = $this->getExecutionPrice($order, $bar);
-            $this->executeOrder($order, $executionPrice, $bar['timestamp']);
+            $this->executeOrder($order, $executionPrice, $bar[self::BAR_T]);
 
             return true;
         }
@@ -805,10 +880,10 @@ class Backtester
     private function canExecuteLimit(PendingOrder $order, array $bar): bool
     {
         if ($order->direction === DirectionEnum::LONG) {
-            return bccomp($bar['low'], $order->price, 12) <= 0;
+            return (float) $bar[self::BAR_L] <= (float) $order->price;
         }
 
-        return bccomp($bar['high'], $order->price, 12) >= 0;
+        return (float) $bar[self::BAR_H] >= (float) $order->price;
     }
 
     /**
@@ -817,10 +892,10 @@ class Backtester
     private function canExecuteStop(PendingOrder $order, array $bar): bool
     {
         if ($order->direction === DirectionEnum::LONG) {
-            return bccomp($bar['high'], $order->stopPrice, 12) >= 0;
+            return (float) $bar[self::BAR_H] >= (float) $order->stopPrice;
         }
 
-        return bccomp($bar['low'], $order->stopPrice, 12) <= 0;
+        return (float) $bar[self::BAR_L] <= (float) $order->stopPrice;
     }
 
     /**
@@ -843,7 +918,7 @@ class Backtester
     private function getExecutionPrice(PendingOrder $order, array $bar): string
     {
         return match ($order->type) {
-            OrderTypeEnum::Market => $bar['open'], // Execute at next open
+            OrderTypeEnum::Market => $bar[self::BAR_O], // Execute at next open
             OrderTypeEnum::Limit => $order->price,
             OrderTypeEnum::Stop => $order->stopPrice,
             OrderTypeEnum::Stop_LIMIT => $order->price,
@@ -942,19 +1017,19 @@ class Backtester
     private function checkStaticSlTp(PositionDto $position, array $bar): ?ExitTrigger
     {
         if ($position->stopLoss) {
-            if ($position->direction === 'long' && bccomp($bar['low'], $position->stopLoss, 12) <= 0) {
+            if ($position->direction === 'long' && (float) $bar[self::BAR_L] <= (float) $position->stopLoss) {
                 return new ExitTrigger('stop_loss', (float) $position->stopLoss);
             }
-            if ($position->direction === 'short' && bccomp($bar['high'], $position->stopLoss, 12) >= 0) {
+            if ($position->direction === 'short' && (float) $bar[self::BAR_H] >= (float) $position->stopLoss) {
                 return new ExitTrigger('stop_loss', (float) $position->stopLoss);
             }
         }
 
         if ($position->takeProfit) {
-            if ($position->direction === 'long' && bccomp($bar['high'], $position->takeProfit, 12) >= 0) {
+            if ($position->direction === 'long' && (float) $bar[self::BAR_H] >= (float) $position->takeProfit) {
                 return new ExitTrigger('take_profit', (float) $position->takeProfit);
             }
-            if ($position->direction === 'short' && bccomp($bar['low'], $position->takeProfit, 12) <= 0) {
+            if ($position->direction === 'short' && (float) $bar[self::BAR_L] <= (float) $position->takeProfit) {
                 return new ExitTrigger('take_profit', (float) $position->takeProfit);
             }
         }
@@ -972,12 +1047,12 @@ class Backtester
         return new ExitContext(
             position: $position,
             barIndex: $this->cursor->currentIndex,
-            open: $bar['open'],
-            high: $bar['high'],
-            low: $bar['low'],
-            close: $bar['close'],
-            volume: $bar['volume'],
-            timestamp: $bar['timestamp'],
+            open: $bar[self::BAR_O],
+            high: $bar[self::BAR_H],
+            low: $bar[self::BAR_L],
+            close: $bar[self::BAR_C],
+            volume: $bar[self::BAR_V],
+            timestamp: $bar[self::BAR_T],
             barsInPosition: $this->barsInPositionTracker[$positionId] ?? 0,
             highestSinceEntry: $this->highWaterMarks[$positionId] ?? (float) $position->entryPrice,
             lowestSinceEntry: $this->lowWaterMarks[$positionId] ?? (float) $position->entryPrice,
@@ -993,7 +1068,7 @@ class Backtester
             $closedPosition = $this->portfolioManager->closePosition(
                 $position->id,
                 $exitPrice,
-                Carbon::createFromTimestamp($bar['timestamp']),
+                Carbon::createFromTimestamp($bar[self::BAR_T]),
                 $this->commissionConfig,
                 $trigger->exitTag ?? $trigger->ruleId,
             );
@@ -1043,8 +1118,8 @@ class Backtester
                 $this->barsInPositionTracker[$id] = 0;
             }
 
-            $this->highWaterMarks[$id] = max($this->highWaterMarks[$id], $bar['high']);
-            $this->lowWaterMarks[$id] = min($this->lowWaterMarks[$id], $bar['low']);
+            $this->highWaterMarks[$id] = max($this->highWaterMarks[$id], $bar[self::BAR_H]);
+            $this->lowWaterMarks[$id] = min($this->lowWaterMarks[$id], $bar[self::BAR_L]);
             $this->barsInPositionTracker[$id]++;
         }
     }
@@ -1054,7 +1129,7 @@ class Backtester
      */
     private function recordBarEquity(array $bar, string $symbol): void
     {
-        $equity = $this->portfolioManager->getTotalEquity([$symbol => (string) $bar['close']]);
+        $equity = $this->portfolioManager->getTotalEquity([$symbol => (string) $bar[self::BAR_C]]);
         $this->barEquityCurve->push($equity);
     }
 
@@ -1119,7 +1194,7 @@ class Backtester
         // Check if we have enough capital
         $stakeAmount = $signal->stakeAmount ?? $this->portfolioManager->getDefaultStakeAmount();
 
-        if (! $this->canAffordTrade($signal, $stakeAmount, $bar['close'])) {
+        if (! $this->canAffordTrade($signal, $stakeAmount, $bar[self::BAR_C])) {
             return;
         }
 
@@ -1133,7 +1208,7 @@ class Backtester
             stopPrice: $signal->stopPrice,
             stopLoss: $signal->stopLoss,
             takeProfit: $signal->takeProfit,
-            createdAt: Carbon::createFromTimestamp($bar['timestamp']),
+            createdAt: Carbon::createFromTimestamp($bar[self::BAR_T]),
             exitTag: $signal->exitTags[0] ?? null,
         );
 
@@ -1148,7 +1223,7 @@ class Backtester
         $cashBalance = $this->portfolioManager->getCashBalance();
 
         if ($signal->direction === DirectionEnum::LONG) {
-            return bccomp($cashBalance, $stakeAmount, 12) >= 0;
+            return (float) $cashBalance >= (float) $stakeAmount;
         }
 
         // For short positions, check if we have the position to close or can short

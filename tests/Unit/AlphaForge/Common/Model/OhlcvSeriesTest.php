@@ -45,8 +45,8 @@ describe('OhlcvSeries', function () {
         $hlc3 = $this->ohlcv->getHlc3();
         $values = $hlc3->toArray();
 
-        $expected0 = bcdiv(bcadd('110.00', bcadd('95.00', '105.00')), '3', 0);
-        expect(bccomp($values[0], $expected0, 1))->toBe(0);
+        $expected = bcdiv(bcadd(bcadd('110.00', '95.00'), '105.00'), '3');
+        expect($values[0])->toBe($expected);
     });
 
     it('handles empty market data', function () {

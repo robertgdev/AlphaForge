@@ -65,6 +65,14 @@ final class PortfolioManager
     }
 
     /**
+     * Check if there are any open positions without allocation overhead.
+     */
+    public function hasOpenPositions(): bool
+    {
+        return ! $this->openPositions->isEmpty();
+    }
+
+    /**
      * Get an open position by symbol.
      */
     public function getOpenPosition(string $symbol): ?PositionDto

@@ -21,7 +21,7 @@ class OhlcvSeries
 
     private Series $timestamp;
 
-    private Series $hlc3;
+    private ?Series $hlc3 = null;
 
     private BacktestCursor $cursor;
 
@@ -40,8 +40,6 @@ class OhlcvSeries
         $this->close = new Series($marketData[OhlcvEnum::Close->value] ?? [], $cursor);
         $this->volume = new Series($marketData[OhlcvEnum::Volume->value] ?? [], $cursor);
         $this->timestamp = new Series($marketData[OhlcvEnum::Timestamp->value] ?? [], $cursor);
-
-        $this->calculateHlc3();
     }
 
     public function getOpen(): Series
@@ -106,6 +104,10 @@ class OhlcvSeries
 
     public function getHlc3(): Series
     {
+        if ($this->hlc3 === null) {
+            $this->calculateHlc3();
+        }
+
         return $this->hlc3;
     }
 

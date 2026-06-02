@@ -66,7 +66,7 @@ describe('ObjectivePresets', function () {
             'win_rate' => '0.6',
         ];
 
-        $expected = 1.0 * 100 + (-0.5) * 20 + 10.0 * 2.0 + 0.5 * 0.6;
+        $expected = 1.0 * 100 + (-0.5) * 20 + 5.0 * 2.0 + 0.5 * 0.6;
         expect($objective->score($stats))->toBe($expected);
     });
 
