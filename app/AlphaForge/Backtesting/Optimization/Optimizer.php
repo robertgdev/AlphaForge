@@ -118,9 +118,10 @@ class Optimizer
                     $statistics = $result['statistics'];
                     $error = $result['error'] ?? null;
                     $finalCapitalRaw = (string) ($result['final_capital'] ?? '0');
+                    $numTrades = (int) ($statistics['total_trades'] ?? 0);
                     $score = $error !== null ? 0.0 : $objective->score($statistics);
 
-                    if ($error === null) {
+                    if ($error === null && $numTrades > 0) {
                         $generator->inform($params, $score);
                         $topResults->consider($params, $statistics, $score);
                     }
@@ -384,7 +385,7 @@ class Optimizer
     {
         return match ($config->method) {
             OptimizationMethod::GRID => tap(new GridGenerator, fn ($g) => $g->initialize($space)),
-            OptimizationMethod::RANDOM => tap(new RandomGenerator, fn ($g) => $g->initialize($space, $config->iterations)),
+            OptimizationMethod::RANDOM => tap(new RandomGenerator, fn ($g) => $g->initialize($space, $config->iterations, (int) config('alphaforge.optimization.random_max_retries', 10))),
             OptimizationMethod::GENETIC => tap(new GeneticGenerator, fn ($g) => $g->initialize(
                 $space,
                 $config->populationSize,

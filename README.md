@@ -685,6 +685,10 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 
 **Random search** is the default because it avoids combinatorial explosion. For a 5-parameter strategy with 10 values each, grid search requires 100,000 runs while random search with 500 iterations finds good solutions in 0.5% of the compute.
 
+**Duplicate detection:** Random search tracks which parameter combinations have been generated and retries when a duplicate is drawn (up to `random_max_retries` consecutive retries). If the retry limit is exhausted without finding a new combination, the generator terminates early — all unique combinations have been explored. This is most likely to trigger when the parameter space is small (e.g., a single boolean parameter with 2 values and 500 iterations requested) or when a high number of iterations has been requested relative to the parameter space. The retry limit is configurable via `ALPHAFORGE_RANDOM_MAX_RETRIES` (default: 10).
+
+**Degenerate result filtering:** Zero-trade results (backtest runs that produced no closed positions) are excluded from Top-N rankings and generator feedback. Parameter combinations that fail to generate any trades — whether due to identical indicator periods, affordability rejections, or other signal failures — are still counted in the iteration total but cannot pollute the best-parameter ranking.
+
 **Genetic algorithm** uses tournament selection (size 3), uniform crossover at the parameter level, and Gaussian mutation snapped to valid step values. It evolves populations over generations, using score feedback to converge toward better parameter regions.
 
 ##### Objective Functions
@@ -764,8 +768,19 @@ The `--progress` flag controls how optimization progress is displayed during exe
 
 Level 3 output format:
 ```
-[   15/  500] fast=10, slow=30               │ score=  1.2345 │ sharpe=  1.85 │ dd= -12.34% │ bal=  10,234.56
+[   15/  500] fast=10, slow=30              │ #trd=  1234 │ vol=  12.34% │ bal=  10,234.56 │ ret=   2.3% │ score=  1.2345 │ sharpe=  1.85
 ```
+
+**Column reference:**
+
+| Column | Field | Description |
+|--------|-------|-------------|
+| `#trd=` | `total_trades` | Total number of closed positions in the backtest |
+| `vol=` | `volatility` | Annualized standard deviation of bar-periodic equity returns, displayed as a percentage. Computed as `stddev(bar_returns) × √periodsPerYear`. Low volatility with flat returns indicates the strategy barely moves equity; high volatility signals an unstable equity curve |
+| `bal=` | `final_capital` | Account balance (initial capital + realized P&L) at the end of the backtest |
+| `ret=` | `total_return_percent` | Total return as a percentage: `(finalCapital − initialCapital) / initialCapital × 100` |
+| `score=` | — | Weighted composite score computed by the objective function (e.g., `balanced` preset = `1.0 × ret + 10.0 × clamped_sharpe + 0.5 × win_rate − 0.5 × drawdown`). Higher is better; negative scores indicate poor performance or a parameter set dominated by its penalty terms |
+| `sharpe=` | `sharpe_ratio` | Annualized risk-adjusted return: `(mean(bar_returns) − RFR_per_bar) / stddev(bar_returns) × √periodsPerYear`. Positive values above ~1.0 indicate favorable risk-adjusted returns; negative values mean returns trail the risk-free rate. Near-zero Sharpe with small non-zero `ret` suggests the risk-free rate deduction dominates tiny per-bar returns — common on high-frequency (1m) data where per-bar movements are microscopic
 
 **Progress Examples:**
 

@@ -211,29 +211,24 @@ class OptimizeStrategyCommand extends Command
                 }
 
                 $sharpe = number_format((float) ($p->statistics['sharpe_ratio'] ?? 0), 2);
-                $ddPct = (float) ($p->statistics['max_drawdown_percent'] ?? 0) * 100;
-                $ddStr = sprintf('%.2f%%', $ddPct);
                 $balance = number_format((float) ($p->statistics['final_capital'] ?? 0), 2);
-                $balanceRaw = number_format((float) $p->finalCapitalRaw, 2);
                 $trades = (int) ($p->statistics['total_trades'] ?? 0);
-                $winPct = (float) ($p->statistics['win_rate'] ?? 0) * 100;
+                $ddPct = (float) ($p->statistics['max_drawdown_percent'] ?? 0) * 100;
                 $retPct = (float) ($p->statistics['total_return_percent'] ?? 0) * 100;
-                $vol = number_format((float) ($p->statistics['volatility'] ?? 0), 4);
+                $volPct = (float) ($p->statistics['volatility'] ?? 0) * 100;
 
                 $this->line(sprintf(
-                    '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ score= %8.4f │ sharpe= %6s │ dd= %8s │ bal= %12s │ fcap= %12s │ #trd= %4d │ win= %5.1f%% │ ret= %6.1f%% │ vol= %7s',
+                    '  [%'.$iterWidth.'d/%'.$iterWidth.'d] %-35s │ #trd= %5d │ vol= %6.2f%% │ dd= %5.2f%% │ bal= %12s │ ret= %6.1f%% │ score= %8.4f │ sharpe= %6s',
                     $p->completed,
                     $p->total,
                     mb_strimwidth($paramsStr, 0, 35, '…'),
+                    $trades,
+                    $volPct,
+                    $ddPct,
+                    $balance,
+                    $retPct,
                     $p->score,
                     $sharpe,
-                    $ddStr,
-                    $balance,
-                    $balanceRaw,
-                    $trades,
-                    $winPct,
-                    $retPct,
-                    $vol,
                 ));
             },
             default => null,

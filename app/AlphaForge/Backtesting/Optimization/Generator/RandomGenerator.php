@@ -12,11 +12,18 @@ class RandomGenerator implements ParameterGeneratorInterface
 
     private int $completed = 0;
 
-    public function initialize(ParameterSpace $space, ?int $iterations = null): void
+    private int $maxRetries = 10;
+
+    /** @var array<string, true> */
+    private array $seen = [];
+
+    public function initialize(ParameterSpace $space, ?int $iterations = null, int $maxRetries = 10): void
     {
         $this->space = $space;
         $this->maxIterations = $iterations ?? 500;
+        $this->maxRetries = $maxRetries;
         $this->completed = 0;
+        $this->seen = [];
     }
 
     public function next(): ?array
@@ -25,12 +32,22 @@ class RandomGenerator implements ParameterGeneratorInterface
             return null;
         }
 
-        $this->completed++;
+        $retries = 0;
+        do {
+            $params = [];
+            foreach ($this->space->dimensions as $name => $dimension) {
+                $params[$name] = $dimension->randomValue();
+            }
+            $key = $this->hash($params);
+            $retries++;
+        } while (isset($this->seen[$key]) && $retries < $this->maxRetries);
 
-        $params = [];
-        foreach ($this->space->dimensions as $name => $dimension) {
-            $params[$name] = $dimension->randomValue();
+        if (isset($this->seen[$key])) {
+            return null;
         }
+
+        $this->completed++;
+        $this->seen[$key] = true;
 
         return $params;
     }
@@ -46,4 +63,11 @@ class RandomGenerator implements ParameterGeneratorInterface
     }
 
     public function inform(array $parameters, float $score): void {}
+
+    private function hash(array $params): string
+    {
+        ksort($params);
+
+        return json_encode($params, JSON_THROW_ON_ERROR);
+    }
 }
