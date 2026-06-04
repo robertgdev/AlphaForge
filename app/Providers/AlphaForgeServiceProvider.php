@@ -19,6 +19,7 @@ use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
+use App\AlphaForge\Console\Commands\ListStrategiesCommand;
 use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
 use App\AlphaForge\Console\Commands\OptimizationResultCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
@@ -201,6 +202,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
             $this->commands([
                 OptimizeStrategyCommand::class,
                 ListOptimizationsCommand::class,
+                ListStrategiesCommand::class,
                 ShowOptimizationCommand::class,
                 OptimizationResultCommand::class,
                 ListWalkForwardRunsCommand::class,

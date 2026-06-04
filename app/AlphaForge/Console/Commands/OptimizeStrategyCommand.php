@@ -234,6 +234,8 @@ class OptimizeStrategyCommand extends Command
             default => null,
         };
 
+        $this->line('  Loading market data...');
+
         $optimizationRun = $optimizer->optimize($config, $progressCallback);
 
         $progressBar?->finish();
