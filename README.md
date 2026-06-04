@@ -460,6 +460,41 @@ php artisan alphaforge:data:aggregate binance BTC/USDT 1m 1h --update
 
 ---
 
+### Strategy Commands
+
+#### `alphaforge:strategies:list` - List Available Strategies
+
+List all strategies discovered in the `App\AlphaForge\Strategy\Concretes` namespace.
+
+```bash
+php artisan alphaforge:strategies:list
+```
+
+**Example output:**
+
+```
++---------------+---------------+-----------------------------------------------+-----------+---------------+--------+
+| Alias         | Name          | Description                                   | Timeframe | Required Data | Inputs |
++---------------+---------------+-----------------------------------------------+-----------+---------------+--------+
+| sma_crossover | SMA Crossover | Simple Moving Average crossover strategy...    | 1h        | 1h            | 4      |
++---------------+---------------+-----------------------------------------------+-----------+---------------+--------+
+```
+
+**Columns:**
+
+| Column | Description |
+|--------|-------------|
+| `Alias` | Unique strategy identifier used with `alphaforge:backtest:run` and `alphaforge:optimize` |
+| `Name` | Human-readable strategy name |
+| `Description` | Strategy description from the `#[AsStrategy]` attribute |
+| `Timeframe` | Default signal timeframe (used when `--timeframe` is not specified) |
+| `Required Data` | Timeframes the strategy needs for multi-timeframe analysis |
+| `Inputs` | Number of configurable `#[Input]` parameters (excluding fixed inputs like `positionSizePercent`) |
+
+The command uses `StrategyRegistry` auto-discovery, which finds any class implementing `StrategyInterface` with an `#[AsStrategy]` attribute. Strategies are registered automatically — no manual wiring required.
+
+---
+
 ### Backtesting Commands
 
 #### `alphaforge:backtest:run` - Run a Backtest
