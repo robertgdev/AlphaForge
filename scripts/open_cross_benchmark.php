@@ -15,9 +15,9 @@
 // Bootstrap Laravel application
 require_once __DIR__.'/../vendor/autoload.php';
 
-use App\Analysis\Engine\OpenCrossProbabilityEngine;
-use App\Analysis\Engine\StatisticsAccumulator;
-use App\Analysis\Engine\VolatilityCalculator;
+use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
+use App\AlphaForge\Analysis\Engine\StatisticsAccumulator;
+use App\AlphaForge\Analysis\Engine\VolatilityCalculator;
 use Illuminate\Contracts\Console\Kernel;
 
 // Initialize Laravel app for config access

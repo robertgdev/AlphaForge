@@ -38,27 +38,56 @@ class StrategyRegistry implements StrategyRegistryInterface
     }
 
     /**
-     * Discover all strategies in the configured path.
+     * Discover all strategies in configured paths.
+     *
+     * User paths are scanned first (higher priority). The built-in path is
+     * scanned last (lowest priority). If a strategy alias is found in both,
+     * the user copy wins — the built-in copy is silently skipped.
      */
     private function discoverStrategies(): void
     {
-        $strategyPath = config('alphaforge.strategies.path', app_path('AlphaForge/Strategy/Concretes'));
-        $baseNamespace = config('alphaforge.strategies.namespace', 'App\\AlphaForge\\Strategy\\Concretes');
+        /**
+         * @var array<string, true> $seen Aliases already registered
+         */
+        $seen = [];
 
-        if (! File::isDirectory($strategyPath)) {
+        // 1. Scan user paths first (higher priority — can override built-in)
+        $userPaths = config('alphaforge.strategies.user_paths', []);
+        foreach ($userPaths as $namespace => $path) {
+            if (empty($path) || ! File::isDirectory($path)) {
+                continue;
+            }
+            $this->scanPath($path, $namespace, $seen);
+        }
+
+        // 2. Scan built-in path last (lower priority — cannot override user strategies)
+        $builtInPath = config('alphaforge.strategies.path', app_path('AlphaForge/Strategy'));
+        $builtInNamespace = config('alphaforge.strategies.namespace', 'App\\AlphaForge\\Strategy');
+
+        $this->scanPath($builtInPath, $builtInNamespace, $seen);
+    }
+
+    /**
+     * Scan a directory for strategy classes and register them.
+     *
+     * @param  array<string, true>  $seen  Aliases already registered from higher-priority paths
+     */
+    private function scanPath(string $path, string $namespace, array &$seen): void
+    {
+        if (! File::isDirectory($path)) {
             return;
         }
 
-        $files = File::allFiles($strategyPath);
+        $files = File::allFiles($path);
 
         foreach ($files as $file) {
-            $className = $this->getClassNameFromFile($file->getPathname(), $strategyPath);
+            $className = $this->getClassNameFromFile($file->getPathname(), $path);
 
             if ($className === null) {
                 continue;
             }
 
-            $fullClassName = $baseNamespace.'\\'.$className;
+            $fullClassName = $namespace.'\\'.$className;
 
             if (! class_exists($fullClassName)) {
                 continue;
@@ -79,6 +108,13 @@ class StrategyRegistry implements StrategyRegistryInterface
             /** @var AsStrategy $asStrategy */
             $asStrategy = $asStrategyAttributes[0]->newInstance();
             $alias = $asStrategy->alias;
+
+            // Skip if alias already registered from a higher-priority path
+            if (isset($seen[$alias])) {
+                continue;
+            }
+
+            $seen[$alias] = true;
 
             $this->metadata[$alias] = $asStrategy;
             $this->classMap[$alias] = $fullClassName;

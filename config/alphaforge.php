@@ -35,6 +35,26 @@ return [
         'path' => app_path('AlphaForge/Strategy'),
         'auto_discover' => env('ALPHAFORGE_AUTO_DISCOVER_STRATEGIES', true),
         'cache_discovery' => ! env('APP_DEBUG', false),
+
+        /*
+        |--------------------------------------------------------------------------
+        | User Strategy Paths
+        |--------------------------------------------------------------------------
+        |
+        | Paths for user-defined strategies that override built-in strategies.
+        | Format: namespace => directory. Scanned before built-in path — if a
+        | strategy with the same alias exists in both, the user copy wins.
+        |
+        | The user must add the namespace → directory mapping to composer.json
+        | autoload.psr-4 for class autodiscovery to work.
+        |
+        | Example:
+        |   'user_paths' => [
+        |       'Strategies\\' => base_path('strategies'),
+        |       'MyOrg\\Trading\\' => '/home/user/my-strategies',
+        |   ],
+        */
+        'user_paths' => [],
     ],
 
     'optimization' => [

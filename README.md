@@ -493,6 +493,48 @@ php artisan alphaforge:strategies:list
 
 The command uses `StrategyRegistry` auto-discovery, which finds any class implementing `StrategyInterface` with an `#[AsStrategy]` attribute. Strategies are registered automatically — no manual wiring required.
 
+#### User Strategy Paths
+
+You can define custom strategy classes outside the `app/AlphaForge/Strategy` directory. User strategies override built-in strategies with the same alias — if both exist, the user copy wins.
+
+**Setup:**
+
+1. Create a directory for your strategies (e.g., `strategies/` at the project root).
+2. Add the namespace → directory mapping to `composer.json`:
+
+```json
+{
+    "autoload": {
+        "psr-4": {
+            "Strategies\\": "strategies/"
+        }
+    }
+}
+```
+
+3. Run `composer dump-autoload` to register the namespace.
+4. Add the path to `config/alphaforge.php`:
+
+```php
+'strategies' => [
+    'user_paths' => [
+        'Strategies\\' => base_path('strategies'),
+    ],
+],
+```
+
+5. Create strategy classes in that directory with `#[AsStrategy]` attributes — same as built-in strategies.
+
+**Override behavior:**
+
+| Scenario | Result |
+|---|---|
+| User has `strategies/SmaCrossoverStrategy.php` with alias `sma_crossover` | Loaded; built-in `SmaCrossoverStrategy` is **silently skipped** |
+| User has `strategies/MyNewStrategy.php` with alias `my_new_strategy` | Loaded alongside built-in strategies |
+| No user strategy with alias `sma_crossover` | Built-in strategy is loaded as normal |
+
+User paths support multiple entries — each namespace→path pair is scanned in config order. Earlier entries take priority over later entries.
+
 ---
 
 ### Backtesting Commands
