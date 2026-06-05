@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Analysis\Engine;
 
-use App\Analysis\Engine\VolatilityCalculator;
+use App\AlphaForge\Analysis\Engine\VolatilityCalculator;
 use PHPUnit\Framework\TestCase;
 
 final class VolatilityCalculatorTest extends TestCase

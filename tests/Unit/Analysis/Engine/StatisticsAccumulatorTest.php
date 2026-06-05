@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Analysis\Engine;
 
-use App\Analysis\Engine\StatisticsAccumulator;
+use App\AlphaForge\Analysis\Engine\StatisticsAccumulator;
 use PHPUnit\Framework\TestCase;
 
 /**

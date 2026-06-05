@@ -18,6 +18,8 @@ use App\AlphaForge\Backtesting\Service\StatisticsServiceInterface;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
+use App\AlphaForge\Analysis\Console\Commands\OpenCrossProbabilityCommand;
+use App\AlphaForge\Analysis\Console\Commands\OpenCrossValidateCommand;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
 use App\AlphaForge\Console\Commands\ListStrategiesCommand;
 use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
@@ -40,8 +42,8 @@ use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
-use App\Analysis\Engine\OpenCrossProbabilityEngine;
-use App\Analysis\Renderer\ProbabilitySurfaceRenderer;
+use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
+use App\AlphaForge\Analysis\Renderer\ProbabilitySurfaceRenderer;
 use Illuminate\Support\ServiceProvider;
 
 use function Safe\mkdir;
@@ -200,6 +202,8 @@ class AlphaForgeServiceProvider extends ServiceProvider
         // Register commands
         if ($this->app->runningInConsole()) {
             $this->commands([
+                OpenCrossProbabilityCommand::class,
+                OpenCrossValidateCommand::class,
                 OptimizeStrategyCommand::class,
                 ListOptimizationsCommand::class,
                 ListStrategiesCommand::class,
