@@ -10,7 +10,7 @@ use function Safe\json_encode;
 
 class ExportTradesCommand extends Command
 {
-    protected $signature = 'alphaforge:backtest:trades
+    protected $signature = 'alphaforge:export:backtest
         {backtest_id : The backtest run ID}
         {--format=csv : Output format (csv, json)}
         {--output= : Output file path (stdout if omitted)}';

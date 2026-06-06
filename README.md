@@ -1075,12 +1075,12 @@ php artisan alphaforge:backtest:debug sma_crossover BTCUSDT --timeframe=1h
 
 ---
 
-#### `alphaforge:backtest:trades` - Export Trade Details
+#### `alphaforge:export:backtest` - Export Trade Details
 
 Export per-trade details from a completed backtest as CSV or JSON, including entry/exit prices, timing, P&L, Maximum Adverse Excursion (MAE), Maximum Favorable Excursion (MFE), duration, and exit reason. Enables post-trade analysis in external tools like Excel, Python/pandas, or R.
 
 ```bash
-php artisan alphaforge:backtest:trades <backtest_id> [options]
+php artisan alphaforge:export:backtest <backtest_id> [options]
 ```
 
 **Options:**
@@ -1117,18 +1117,63 @@ php artisan alphaforge:backtest:trades <backtest_id> [options]
 
 ```bash
 # Export trades as CSV to file
-php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 --output=trades.csv
+php artisan alphaforge:export:backtest 019d5725-3226-732b-9941-4e47a3350f93 --output=trades.csv
 
 # Export as JSON for programmatic analysis
-php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 --format=json
+php artisan alphaforge:export:backtest 019d5725-3226-732b-9941-4e47a3350f93 --format=json
 
 # Export to stdout for piping into analysis tools
-php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 | python analyze_trades.py
+php artisan alphaforge:export:backtest 019d5725-3226-732b-9941-4e47a3350f93 | python analyze_trades.py
 ```
 
 ---
 
-### Parameter Optimization Commands
+#### `alphaforge:export:optimize` - Export Optimization Results
+
+Export the top-N parameter sets and their statistics from a completed optimization run as CSV or JSON. Includes strategy parameters, performance metrics, and per-symbol breakdowns for portfolio optimizations.
+
+```bash
+php artisan alphaforge:export:optimize <optimization_id> [options]
+```
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--format=` | `csv` or `json` | `csv` |
+| `--output=` | File path to write output (stdout if omitted) | - |
+| `--top=` | Number of top results to export | `10` |
+
+**CSV columns:**
+
+| Column | Description |
+|--------|-------------|
+| `rank` | Result rank (1 = best) |
+| `score` | Optimization score |
+| `params` | Strategy parameters as JSON |
+| `return_pct` | Total return percent |
+| `sharpe` | Sharpe ratio |
+| `max_dd_pct` | Maximum drawdown percent |
+| `trades` | Total trades |
+| `win_rate` | Win rate |
+| `profit_factor` | Gross profit / gross loss |
+
+**JSON output** additionally includes the full parameter ranges, method, objective, and per-symbol breakdowns for portfolio optimizations.
+
+**Examples:**
+
+```bash
+# Export top 20 as CSV
+php artisan alphaforge:export:optimize 019d5725-3226-732b-9941-4e47a3350f93 --top=20 --output=results.csv
+
+# Export as JSON for downstream analysis
+php artisan alphaforge:export:optimize 019d5725-3226-732b-9941-4e47a3350f93 --format=json --output=results.json
+
+# Tailor export: top 5 results only
+php artisan alphaforge:export:optimize 019d5725-3226-732b-9941-4e47a3350f93 --top=5
+```
+
+---
 
 #### `alphaforge:optimize` - Run Parameter Optimization
 

@@ -7,6 +7,8 @@ use App\AlphaForge\Console\Commands\DataImportCommand;
 use App\AlphaForge\Console\Commands\DataInfoCommand;
 use App\AlphaForge\Console\Commands\DataListCommand;
 use App\AlphaForge\Console\Commands\DataUpdateCommand;
+use App\AlphaForge\Console\Commands\ExportOptimizeCommand;
+use App\AlphaForge\Console\Commands\ExportTradesCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\RepairDataCommand;
 use App\AlphaForge\Console\Commands\RunBacktestCommand;
@@ -266,6 +268,53 @@ describe('Console Command Signatures', function () {
 
         it('extends Command', function () {
             expect(is_a(WalkForwardCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('ExportTradesCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(ExportTradesCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:export:backtest')
+                ->and($defaultProps['signature'])->toContain('{backtest_id')
+                ->and($defaultProps['signature'])->toContain('--format=')
+                ->and($defaultProps['signature'])->toContain('--output=');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(ExportTradesCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(ExportTradesCommand::class, Command::class, true))->toBeTrue();
+        });
+    });
+
+    describe('ExportOptimizeCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(ExportOptimizeCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:export:optimize')
+                ->and($defaultProps['signature'])->toContain('{optimization_id')
+                ->and($defaultProps['signature'])->toContain('--format=')
+                ->and($defaultProps['signature'])->toContain('--output=')
+                ->and($defaultProps['signature'])->toContain('--top=');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(ExportOptimizeCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(ExportOptimizeCommand::class, Command::class, true))->toBeTrue();
         });
     });
 });
