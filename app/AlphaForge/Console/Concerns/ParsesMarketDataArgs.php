@@ -33,7 +33,12 @@ trait ParsesMarketDataArgs
      */
     protected function parseTimeframe(string $name = 'timeframe'): string
     {
-        return (string) $this->argument($name);
+        $value = $this->argument($name);
+        if (! is_string($value)) {
+            throw new \RuntimeException("Argument '{$name}' is not a string.");
+        }
+
+        return $value;
     }
 
     /**

@@ -229,9 +229,6 @@ parameters:
         # Parameter #3 timeframe expects string
         - '#Parameter .* \$timeframe of method.*expects string, array#'
 
-        # Console argument cast to string (always a string argument in our commands)
-        - '#Cannot cast array\|bool\|float\|int\|string\|null to string#'
-
         # Parameter expects array{final_capital
         - '#Parameter .* \$result of method.*expects array\\{final_capital#'
 
