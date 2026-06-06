@@ -64,6 +64,20 @@ class RandomGenerator implements ParameterGeneratorInterface
 
     public function inform(array $parameters, float $score): void {}
 
+    public function getState(): array
+    {
+        return [
+            'completed' => $this->completed,
+            'max_iterations' => $this->maxIterations,
+            'seen_count' => count($this->seen),
+        ];
+    }
+
+    public function restoreState(array $state): void
+    {
+        $this->completed = (int) ($state['completed'] ?? 0);
+    }
+
     private function hash(array $params): string
     {
         ksort($params);

@@ -182,4 +182,24 @@ class GeneticGenerator implements ParameterGeneratorInterface
 
         return $params;
     }
+
+    public function getState(): array
+    {
+        return [
+            'generation' => $this->generation,
+            'generation_index' => $this->generationIndex,
+            'total_yielded' => $this->totalYielded,
+            'max_generations' => $this->maxGenerations,
+            'population_size' => $this->populationSize,
+            'current_generation' => $this->currentGeneration,
+        ];
+    }
+
+    public function restoreState(array $state): void
+    {
+        $this->generation = (int) ($state['generation'] ?? 0);
+        $this->generationIndex = (int) ($state['generation_index'] ?? 0);
+        $this->totalYielded = (int) ($state['total_yielded'] ?? 0);
+        $this->currentGeneration = $state['current_generation'] ?? [];
+    }
 }

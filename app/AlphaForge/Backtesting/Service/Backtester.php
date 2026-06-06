@@ -71,6 +71,9 @@ class Backtester
     /** @var array<string, string> */
     private array $commissionConfig;
 
+    /** @var array<int, array<string, mixed>> */
+    private array $positionTradeDetails = [];
+
     /** @var callable|null */
     private $progressCallback = null;
 
@@ -219,6 +222,7 @@ class Backtester
             barEquityCurve: $this->barEquityCurve,
         );
         $statistics['position_pnl_values'] = $this->extractClosedPositionPnl();
+        $statistics['position_trades'] = $this->positionTradeDetails;
 
         $this->emitProgress(100, 100, 'Backtest completed');
 
@@ -295,6 +299,7 @@ class Backtester
             barEquityCurve: $this->barEquityCurve,
         );
         $statistics['position_pnl_values'] = $this->extractClosedPositionPnl();
+        $statistics['position_trades'] = $this->positionTradeDetails;
 
         $this->emitProgress(100, 100, 'Backtest completed');
 
@@ -332,6 +337,7 @@ class Backtester
         $this->lowWaterMarks = [];
         $this->barsInPositionTracker = [];
         $this->barEquityCurve = new Vector;
+        $this->positionTradeDetails = [];
         $this->progressCallback = null;
     }
 
@@ -992,6 +998,15 @@ class Backtester
 
             $this->positions->push($position);
             $this->currentCapital = $this->portfolioManager->getCashBalance();
+
+            if ($position->exitTime !== null) {
+                $this->positionTradeDetails[] = $this->buildTradeDetail(
+                    $position,
+                    $this->highWaterMarks[$position->id] ?? null,
+                    $this->lowWaterMarks[$position->id] ?? null,
+                    $this->barsInPositionTracker[$position->id] ?? null,
+                );
+            }
         }
     }
 
@@ -1102,6 +1117,13 @@ class Backtester
             $this->positions->push($closedPosition);
             $this->currentCapital = $this->portfolioManager->getCashBalance();
 
+            $this->positionTradeDetails[] = $this->buildTradeDetail(
+                $closedPosition,
+                $this->highWaterMarks[$position->id] ?? null,
+                $this->lowWaterMarks[$position->id] ?? null,
+                $this->barsInPositionTracker[$position->id] ?? null,
+            );
+
             unset(
                 $this->highWaterMarks[$position->id],
                 $this->lowWaterMarks[$position->id],
@@ -1206,101 +1228,49 @@ class Backtester
     }
 
     /**
-     * Create an order from a signal.
+     * Build a trade detail record including MAE/MFE.
+     *
+     * @return array<string, mixed>
      */
-    private function createOrderFromSignal(OrderSignal $signal, array $bar, string $symbol): void
-    {
-        // Check if we have enough capital
-        $stakeAmount = $signal->stakeAmount ?? $this->portfolioManager->getDefaultStakeAmount();
+    private function buildTradeDetail(
+        PositionDto $position,
+        ?float $highWater,
+        ?float $lowWater,
+        ?int $barsHeld,
+    ): array {
+        $entryPrice = (float) $position->entryPrice;
+        $isLong = $position->direction === 'long';
 
-        if (! $this->canAffordTrade($signal, $stakeAmount, $bar[self::BAR_C])) {
-            return;
-        }
+        $mae = null;
+        $mfe = null;
 
-        $pendingOrder = new PendingOrder(
-            id: uniqid('order_', true),
-            symbol: $symbol,
-            direction: $signal->direction,
-            type: $signal->orderType,
-            stakeAmount: $stakeAmount,
-            price: $signal->limitPrice,
-            stopPrice: $signal->stopPrice,
-            stopLoss: $signal->stopLoss,
-            takeProfit: $signal->takeProfit,
-            createdAt: Carbon::createFromTimestamp($bar[self::BAR_T]),
-            exitTag: $signal->exitTags[0] ?? null,
-        );
-
-        $this->orderManager->addPendingOrder($pendingOrder);
-    }
-
-    /**
-     * Check if we can afford a trade.
-     */
-    private function canAffordTrade(OrderSignal $signal, string $stakeAmount, string $price): bool
-    {
-        $cashBalance = $this->portfolioManager->getCashBalance();
-
-        if ($signal->direction === DirectionEnum::LONG) {
-            return (float) $cashBalance >= (float) $stakeAmount;
-        }
-
-        // For short positions, check if we have the position to close or can short
-        return true; // Simplified - would need margin calculation
-    }
-
-    /**
-     * Close all remaining positions.
-     */
-    private function closeAllPositions(OhlcvSeries $ohlcv): void
-    {
-        $openPositions = $this->portfolioManager->getOpenPositions();
-        $lastIndex = $ohlcv->getTimestamps()->count() - 1;
-        $lastPrice = $ohlcv->getCloses()->getVector()->get($lastIndex);
-        $lastTimestamp = $ohlcv->getTimestamps()->getVector()->get($lastIndex);
-
-        foreach ($openPositions as $position) {
-            $closedPosition = $this->portfolioManager->closePosition(
-                $position->id,
-                $lastPrice,
-                Carbon::createFromTimestamp($lastTimestamp),
-                $this->commissionConfig,
-                'end_of_backtest',
-            );
-
-            if ($closedPosition) {
-                if ($this->openPositionIndex->hasKey($closedPosition->id)) {
-                    $oldIndex = $this->openPositionIndex->get($closedPosition->id);
-                    $this->positions->remove($oldIndex);
-                    $this->openPositionIndex->remove($closedPosition->id);
-                    $this->rebuildOpenPositionIndex();
-                }
-                $this->positions->push($closedPosition);
-
-                unset(
-                    $this->highWaterMarks[$position->id],
-                    $this->lowWaterMarks[$position->id],
-                    $this->barsInPositionTracker[$position->id],
-                );
+        if ($highWater !== null && $lowWater !== null) {
+            if ($isLong) {
+                $mfe = $highWater - $entryPrice;
+                $mae = $entryPrice - $lowWater;
+            } else {
+                $mfe = $entryPrice - $lowWater;
+                $mae = $highWater - $entryPrice;
             }
         }
 
-        $this->currentCapital = $this->portfolioManager->getCashBalance();
-    }
-
-    private function emitProgress(int $current, int $total, string $message): void
-    {
-        if ($this->progressCallback !== null) {
-            ($this->progressCallback)($current, $total, $message);
-        }
+        return [
+            'direction' => $position->direction,
+            'entry_price' => $entryPrice,
+            'exit_price' => (float) ($position->exitPrice ?? 0),
+            'pnl' => (float) $position->realizedPnl,
+            'entry_time' => $position->entryTime->toIso8601String(),
+            'exit_time' => $position->exitTime?->toIso8601String(),
+            'bars_held' => $barsHeld,
+            'exit_reason' => $position->exitTag,
+            'mae' => $mae,
+            'mfe' => $mfe,
+            'quantity' => (float) $position->quantity,
+        ];
     }
 
     /**
-     * Compute periods per year from the signal timeframe duration.
-     *
-     * Uses the theoretical period count derived from the timeframe (e.g., 525,600 for 1m,
-     * 8,760 for 1h, 365 for 1d) rather than raw bar count, which is unreliable for
-     * non-time-synced data types like renko.
+     * Compute bars per year from the signal timeframe.
      */
     private function computeBarsPerYear(): int
     {

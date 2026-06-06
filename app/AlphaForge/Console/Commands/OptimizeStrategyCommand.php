@@ -18,6 +18,7 @@ use Safe\DateTimeImmutable;
 class OptimizeStrategyCommand extends Command
 {
     use ResolvesParallelRunner;
+
     protected $signature = 'alphaforge:optimize
         {strategy : The strategy alias}
         {symbol : Trading symbol}
@@ -40,7 +41,9 @@ class OptimizeStrategyCommand extends Command
         {--atr-period= : ATR period for atr_renko data-type (e.g., 14)}
         {--progress=1 : Progress verbosity (0=none, 1=bar, 2=dots, 3=detailed)}
         {--runner=fork : Parallel runner mode (sync, fork, queue)}
-        {--workers=auto : Number of parallel workers (auto = CPU core count)}';
+        {--workers=auto : Number of parallel workers (auto = CPU core count)}
+        {--resume= : Optimization ID to resume from checkpoint}
+        {--checkpoint-interval=0 : Save checkpoint every N iterations (0=disabled)}';
 
     protected $description = 'Run strategy parameter optimization';
 
@@ -236,7 +239,10 @@ class OptimizeStrategyCommand extends Command
 
         $this->line('  Loading market data...');
 
-        $optimizationRun = $optimizer->optimize($config, $progressCallback);
+        $checkpointInterval = (int) $this->option('checkpoint-interval');
+        $resumeFromId = $this->option('resume');
+
+        $optimizationRun = $optimizer->optimize($config, $progressCallback, $checkpointInterval, $resumeFromId);
 
         $progressBar?->finish();
         if ($progressLevel === 2 && $dotCount > 0 && $dotCount % 80 !== 0) {
@@ -252,7 +258,7 @@ class OptimizeStrategyCommand extends Command
             $this->line('  Monitor progress with:');
             $this->line("    php artisan alphaforge:optimizations:show {$optimizationRun->id}");
             $this->line('  Or check the queue worker logs.');
-            $this->line("  Results will be persisted to the database upon completion.");
+            $this->line('  Results will be persisted to the database upon completion.');
         } else {
             $this->info('Optimization completed!');
             $this->line("  Optimization ID: {$optimizationRun->id}");

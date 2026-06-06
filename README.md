@@ -1075,6 +1075,59 @@ php artisan alphaforge:backtest:debug sma_crossover BTCUSDT --timeframe=1h
 
 ---
 
+#### `alphaforge:backtest:trades` - Export Trade Details
+
+Export per-trade details from a completed backtest as CSV or JSON, including entry/exit prices, timing, P&L, Maximum Adverse Excursion (MAE), Maximum Favorable Excursion (MFE), duration, and exit reason. Enables post-trade analysis in external tools like Excel, Python/pandas, or R.
+
+```bash
+php artisan alphaforge:backtest:trades <backtest_id> [options]
+```
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--format=` | `csv` or `json` | `csv` |
+| `--output=` | File path to write output (stdout if omitted) | - |
+
+**CSV columns:**
+
+| Column | Description |
+|--------|-------------|
+| `entry_time` | ISO 8601 timestamp of entry bar |
+| `exit_time` | ISO 8601 timestamp of exit bar |
+| `direction` | `long` or `short` |
+| `entry_price` | Fill price |
+| `exit_price` | Exit price |
+| `pnl` | Realized profit/loss |
+| `mae` | Maximum Adverse Excursion — deepest drawdown during trade lifetime |
+| `mfe` | Maximum Favorable Excursion — highest unrealized gain during trade lifetime |
+| `bars_held` | Duration in bars |
+| `exit_reason` | `stop_loss`, `take_profit`, `strategy_signal`, `counter_signal`, `end_of_backtest` |
+| `quantity` | Position size |
+
+**MAE/MFE interpretation:**
+
+- **MAE (Maximum Adverse Excursion)**: How far price moved against the position before it closed. If a winning trade typically draws down 2% first, a stop-loss tighter than 2% is too restrictive.
+- **MFE (Maximum Favorable Excursion)**: The best unrealized gain the trade reached. Large MFE with small P&L suggests trades aren't capturing available upside — the exit may be too early.
+
+**Data availability:** Trade detail data is captured for all backtests run after this feature was added (includes `position_trades` in the statistics JSON). The backtester tracks per-position high/low watermarks during execution and computes MAE/MFE from them when the position closes.
+
+**Examples:**
+
+```bash
+# Export trades as CSV to file
+php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 --output=trades.csv
+
+# Export as JSON for programmatic analysis
+php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 --format=json
+
+# Export to stdout for piping into analysis tools
+php artisan alphaforge:backtest:trades 019d5725-3226-732b-9941-4e47a3350f93 | python analyze_trades.py
+```
+
+---
+
 ### Parameter Optimization Commands
 
 #### `alphaforge:optimize` - Run Parameter Optimization
@@ -1143,6 +1196,33 @@ php artisan alphaforge:optimize <strategy> <symbol> [options]
 **Degenerate result filtering:** Zero-trade results (backtest runs that produced no closed positions) are excluded from Top-N rankings and generator feedback. Parameter combinations that fail to generate any trades — whether due to identical indicator periods, affordability rejections, or other signal failures — are still counted in the iteration total but cannot pollute the best-parameter ranking.
 
 **Genetic algorithm** uses tournament selection (size 3), uniform crossover at the parameter level, and Gaussian mutation snapped to valid step values. It evolves populations over generations, using score feedback to converge toward better parameter regions.
+
+##### Checkpointing and Resuming
+
+Long-running optimizations can be periodically checkpointed and resumed if interrupted:
+
+```bash
+# Save checkpoint every 50 iterations
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --checkpoint-interval=50
+
+# Resume from a previous optimization's checkpoint
+php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --resume=<optimization_id>
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--checkpoint-interval=` | Save checkpoint to disk every N iterations | `0` (disabled) |
+| `--resume=` | Optimization ID to resume from (restores generator state + TopN results) | - |
+
+**What's saved per checkpoint:**
+
+- Generator state (current iteration for grid/random, generation + population for genetic)
+- Top-N results found so far (parameters, statistics, scores)
+- Completed iteration count
+
+Checkpoints are stored as JSON at `storage/optimization_checkpoints/<id>.json`. When resuming, the optimizer loads the checkpoint, restores the generator position, re-populates `TopNResults`, and continues from where it left off.
+
+**Note:** Resuming re-runs all market data loading. The checkpoint stores parameter-space state, not backtest results, so no backtests are repeated.
 
 ##### Objective Functions
 

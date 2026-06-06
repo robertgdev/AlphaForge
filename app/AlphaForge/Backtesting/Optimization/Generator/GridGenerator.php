@@ -34,6 +34,19 @@ class GridGenerator implements ParameterGeneratorInterface
 
     public function inform(array $parameters, float $score): void {}
 
+    public function getState(): array
+    {
+        return [
+            'index' => $this->index,
+            'total_combinations' => count($this->combinations),
+        ];
+    }
+
+    public function restoreState(array $state): void
+    {
+        $this->index = (int) ($state['index'] ?? 0);
+    }
+
     private function cartesian(ParameterSpace $space): array
     {
         $combinations = [[]];

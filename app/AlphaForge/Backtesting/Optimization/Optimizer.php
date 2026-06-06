@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+use function Safe\file_get_contents;
+use function Safe\file_put_contents;
 use function Safe\shell_exec;
 
 class Optimizer
@@ -31,8 +33,12 @@ class Optimizer
         private readonly MarketDataLoader $marketDataLoader,
     ) {}
 
-    public function optimize(OptimizationConfig $config, ?callable $progressCallback = null): OptimizationRun
-    {
+    public function optimize(
+        OptimizationConfig $config,
+        ?callable $progressCallback = null,
+        int $checkpointInterval = 0,
+        ?string $resumeFromId = null,
+    ): OptimizationRun {
         $space = $config->parameterOverrides
             ? ParameterSpace::fromArray($config->parameterOverrides)
             : ParameterSpace::fromStrategy($config->strategyAlias, $this->strategyRegistry);
@@ -75,8 +81,6 @@ class Optimizer
             'objective' => $objective->label(),
         ]);
 
-        $topResults = new TopNResults($config->topN, $objective);
-
         try {
             $data = $this->marketDataLoader->load(
                 symbols: $config->symbols,
@@ -89,6 +93,29 @@ class Optimizer
                 brickSize: $config->brickSize,
                 atrPeriod: $config->atrPeriod,
             );
+
+            $topResults = new TopNResults($config->topN, $objective);
+
+            // Restore top results from checkpoint
+            if ($resumeFromId !== null) {
+                $checkpoint = $this->loadCheckpoint($resumeFromId);
+                if ($checkpoint !== null) {
+                    $generator->restoreState($checkpoint['generator_state'] ?? []);
+                    if (! empty($checkpoint['top_results'] ?? [])) {
+                        foreach ($checkpoint['top_results'] as $r) {
+                            $topResults->consider(
+                                $r['parameters'] ?? [],
+                                $r['statistics'] ?? [],
+                                (float) ($r['score'] ?? 0),
+                            );
+                        }
+                    }
+                    Log::info('Resumed optimization from checkpoint', [
+                        'resume_id' => $resumeFromId,
+                        'restored_iteration' => $checkpoint['completed'] ?? 0,
+                    ]);
+                }
+            }
 
             if ($config->runnerMode === ParallelRunnerMode::QUEUE) {
                 $this->runGenerationQueue($config, $data, $objective, $generator, $optimizationRun);
@@ -159,6 +186,15 @@ class Optimizer
                         'total' => $totalIterations,
                     ]);
                 }
+
+                if ($checkpointInterval > 0 && $completed % $checkpointInterval === 0) {
+                    $this->saveCheckpoint(
+                        $optimizationRun->id,
+                        $completed,
+                        $generator->getState(),
+                        $topResults,
+                    );
+                }
             }
 
             $ranked = $topResults->ranked();
@@ -195,7 +231,7 @@ class Optimizer
                 'best_score' => ! empty($ranked) ? $ranked[0]->score : null,
             ]);
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Optimization failed', [
                 'optimization_id' => $optimizationRun->id,
                 'error' => $e->getMessage(),
@@ -394,5 +430,54 @@ class Optimizer
                 $config->crossoverRate,
             )),
         };
+    }
+
+    private function checkpointPath(string $optimizationId): string
+    {
+        $dir = storage_path('optimization_checkpoints');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        return "{$dir}/{$optimizationId}.json";
+    }
+
+    private function saveCheckpoint(string $optimizationId, int $completed, array $generatorState, TopNResults $topResults): void
+    {
+        $ranked = $topResults->ranked();
+        $checkpoint = [
+            'optimization_id' => $optimizationId,
+            'completed' => $completed,
+            'timestamp' => now()->toIso8601String(),
+            'generator_state' => $generatorState,
+            'top_results' => array_map(
+                fn (ScoredResult $r) => [
+                    'parameters' => $r->parameters,
+                    'statistics' => $r->statistics,
+                    'score' => $r->score,
+                ],
+                $ranked,
+            ),
+        ];
+
+        file_put_contents(
+            $this->checkpointPath($optimizationId),
+            \Safe\json_encode($checkpoint, JSON_PRETTY_PRINT),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function loadCheckpoint(string $optimizationId): ?array
+    {
+        $path = $this->checkpointPath($optimizationId);
+        if (! file_exists($path)) {
+            return null;
+        }
+
+        $data = \Safe\json_decode(file_get_contents($path), true);
+
+        return is_array($data) ? $data : null;
     }
 }
