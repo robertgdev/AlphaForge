@@ -11,6 +11,17 @@ readonly class StatisticsService implements StatisticsServiceInterface
     private const MIN_OBSERVATIONS_FOR_RISK = 10;
 
     /**
+     * Minimum per-period volatility required for meaningful risk metrics.
+     * Below this threshold, Sharpe/Sortino ratios are returned as 0 to avoid
+     * numerical instability from dividing near-zero volatility (common on high-frequency
+     * data types like 1m renko where bar-level returns approach floating-point noise).
+     *
+     * Value: 1e-5 = 0.001% per period. For 1m data with √525600 ≈ 725, the equivalent
+     * annualized threshold is ~0.725%.
+     */
+    private const MIN_PERIOD_VOLATILITY = '0.00001';
+
+    /**
      * Calculate comprehensive backtest statistics.
      *
      * @param  Vector<PositionDto>  $positions  All closed positions
@@ -341,7 +352,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $periodRFR = bcdiv($riskFreeRate, (string) $periodsPerYear, 12);
 
         $sharpeRatio = '0';
-        if (bccomp($volatility, '0', 12) !== 0) {
+        if (bccomp($volatility, self::MIN_PERIOD_VOLATILITY, 12) >= 0) {
             $excessReturn = bcsub($avgReturn, $periodRFR, 12);
             $sharpeRatio = bcdiv($excessReturn, $volatility, 6);
             $sharpeRatio = bcmul(
@@ -361,7 +372,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $sortinoRatio = '0';
         if ($downsideReturns->count() > 0) {
             $downsideDeviation = Math::standardDeviation($downsideReturns->toArray(), 12);
-            if (bccomp($downsideDeviation, '0', 12) !== 0) {
+            if (bccomp($downsideDeviation, self::MIN_PERIOD_VOLATILITY, 12) >= 0) {
                 $excessReturn = bcsub($avgReturn, $periodRFR, 12);
                 $sortinoRatio = bcdiv($excessReturn, $downsideDeviation, 6);
                 $sortinoRatio = bcmul(

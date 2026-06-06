@@ -822,12 +822,14 @@ The `--objective` option accepts either a single metric name or a preset composi
 
 | Preset | Formula | Description |
 |--------|---------|-------------|
-| `sharpe_focused` | `1.0 × sharpe - 0.3 × drawdown` | Maximizes risk-adjusted return with mild drawdown penalty |
-| `balanced` | `1.0 × return - 0.5 × drawdown + 10.0 × sharpe + 0.5 × win_rate` | Weighted blend of return, risk, and consistency |
-| `conservative` | `-2.0 × drawdown + 1.0 × profit_factor + 5.0 × sortino` | Strongly penalizes drawdown; favors steady returns |
-| `aggressive` | `2.0 × return + 5.0 × sharpe - 0.2 × drawdown` | Maximizes return with minimal drawdown consideration |
+| `sharpe_focused` | `1.0 × clamped_sharpe[-3,3] − 0.3 × drawdown` | Maximizes risk-adjusted return with mild drawdown penalty |
+| `balanced` | `2.0 × clamped_return[0,1] − 0.5 × drawdown + 1.0 × clamped_sharpe[-3,3] + 0.5 × win_rate` | Weighted blend of return, risk, and consistency |
+| `conservative` | `−2.0 × drawdown + 1.0 × profit_factor[0,10] + 1.0 × clamped_sortino[-3,3]` | Strongly penalizes drawdown; favors steady returns |
+| `aggressive` | `3.0 × clamped_return[0,1] + 1.0 × clamped_sharpe[-3,3] − 0.2 × drawdown` | Maximizes return with minimal drawdown consideration |
 
 Composite objectives avoid degenerate solutions — a single metric like `win_rate` can produce 99% wins with negative total return, while a composite penalizes that outcome.
+
+**Score semantics:** All composite presets now apply consistent clamping — Sharpe and Sortino ratios are clamped to `[-3, 3]` and return percentages to `[0, 1]` (0–100%). All ratio weights are `1.0`, ensuring no single metric dominates the score. Typical scores fall in the range `[-5, 10]` for `balanced`, with positive scores indicating favorable risk-adjusted returns.
 
 ##### Top-N Result Persistence
 

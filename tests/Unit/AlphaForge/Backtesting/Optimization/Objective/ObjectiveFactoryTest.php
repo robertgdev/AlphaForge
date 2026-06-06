@@ -60,13 +60,16 @@ describe('ObjectivePresets', function () {
         $objective = ObjectivePresets::balanced();
 
         $stats = [
-            'total_return_percent' => '100',
-            'max_drawdown_percent' => '20',
-            'sharpe_ratio' => '2.0',
+            'total_return_percent' => '0.15',
+            'max_drawdown_percent' => '0.08',
+            'sharpe_ratio' => '1.5',
             'win_rate' => '0.6',
         ];
 
-        $expected = 1.0 * 100 + (-0.5) * 20 + 5.0 * 2.0 + 0.5 * 0.6;
+        // balanced: 2.0 × return + (-0.5) × dd + 1.0 × sharpe + 0.5 × win_rate
+        // = 2.0 × 0.15 + (-0.5) × 0.08 + 1.0 × 1.5 + 0.5 × 0.6
+        // = 0.30 - 0.04 + 1.50 + 0.30 = 2.06
+        $expected = 2.06;
         expect($objective->score($stats))->toBe($expected);
     });
 
