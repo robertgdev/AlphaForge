@@ -1377,6 +1377,67 @@ php artisan alphaforge:optimizations:result 019d5725-3226-732b-9941-4e47a3350f93
 
 ---
 
+#### `alphaforge:optimizations:sensitivity` - Parameter Sensitivity Analysis
+
+Analyze how sensitive the optimization objective is to each parameter. Identifies which parameters drive performance, visualizes the score landscape as a 2D heatmap, and detects parameter interaction effects.
+
+```bash
+php artisan alphaforge:optimizations:sensitivity <optimization_id> [options]
+```
+
+**Arguments:**
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `optimization_id` | UUID of a completed optimization run | Yes |
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--metric=` | Metric to analyze (e.g., `optimization_score`, `sharpe_ratio`, `total_return_percent`) | `optimization_score` |
+| `--surface=` | Comma-separated pair of parameters for 2D heatmap (e.g., `fastPeriod,slowPeriod`) | - |
+| `--interactions` | Show inter-parameter interaction effects | - |
+
+**What it computes:**
+
+| Analysis | Description |
+|----------|-------------|
+| **Parameter Importance** (always shown) | For each parameter, computes the variance in mean score across its different values, normalized as a percentage of total variance. High importance = this parameter strongly drives performance. Low importance = the parameter has little impact and can likely be fixed at its default. |
+| **2D Score Surface** (`--surface=paramA,paramB`) | Renders an ASCII heatmap of average score for each combination of two parameter values. Shows the shape of the optimization landscape — is the optimum a flat plateau (robust) or a sharp peak (fragile)? |
+| **Interaction Effects** (`--interactions`) | For every parameter pair, computes whether the joint effect on score exceeds the sum of individual effects. A strong interaction means parameters A and B are non-separable — the best value of A depends on what B is set to. |
+
+**Stability score interpretation:**
+
+| Stability | Meaning |
+|-----------|---------|
+| > 60% | Flat plateau — robust optimum, unlikely overfit |
+| 30–60% | Moderate stability |
+| < 30% | Sharp peak — fragile optimum, likely overfit to IS data |
+
+**Examples:**
+
+```bash
+# Show parameter importance
+php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a3350f93
+
+# Analyze using a different metric
+php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a3350f93 --metric=sharpe_ratio
+
+# Show 2D score surface for fastPeriod × slowPeriod
+php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a3350f93 \
+    --surface=fastPeriod,slowPeriod
+
+# Show interactions between all parameters
+php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a3350f93 --interactions
+
+# Full analysis: importance + surface + interactions
+php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a3350f93 \
+    --surface=fastPeriod,slowPeriod --interactions
+```
+
+---
+
 ### Walk-Forward Analysis Commands
 
 #### `alphaforge:walk-forward` - Walk-Forward Analysis

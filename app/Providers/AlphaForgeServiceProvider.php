@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\AlphaForge\Analysis\Console\Commands\OpenCrossProbabilityCommand;
+use App\AlphaForge\Analysis\Console\Commands\OpenCrossValidateCommand;
+use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
+use App\AlphaForge\Analysis\Renderer\ProbabilitySurfaceRenderer;
 use App\AlphaForge\Backtesting\Optimization\MarketDataLoader;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Optimization\Runner\LightweightOptimizationRunner;
@@ -18,13 +22,12 @@ use App\AlphaForge\Backtesting\Service\StatisticsServiceInterface;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
-use App\AlphaForge\Analysis\Console\Commands\OpenCrossProbabilityCommand;
-use App\AlphaForge\Analysis\Console\Commands\OpenCrossValidateCommand;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
 use App\AlphaForge\Console\Commands\ListStrategiesCommand;
 use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
 use App\AlphaForge\Console\Commands\OptimizationResultCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
+use App\AlphaForge\Console\Commands\SensitivityAnalysisCommand;
 use App\AlphaForge\Console\Commands\ShowOptimizationCommand;
 use App\AlphaForge\Console\Commands\ShowWalkForwardRunCommand;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
@@ -42,8 +45,6 @@ use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
-use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
-use App\AlphaForge\Analysis\Renderer\ProbabilitySurfaceRenderer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
@@ -213,6 +214,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
                 OptimizationResultCommand::class,
                 ListWalkForwardRunsCommand::class,
                 ShowWalkForwardRunCommand::class,
+                SensitivityAnalysisCommand::class,
             ]);
 
             // Register user analysis commands — registered after built-in so
