@@ -590,4 +590,99 @@ describe('StatisticsService', function () {
                 ->and($result['losing_trades'])->toBe(0);
         });
     });
+
+    describe('risk metrics', function () {
+        it('returns zero sharpe and sortino when fewer than 10 observations', function () {
+            $positions = new Vector;
+            for ($i = 0; $i < 9; $i++) {
+                $positions->push(new PositionDto(
+                    id: (string) $i,
+                    symbol: 'BTC/USDT',
+                    direction: 'long',
+                    quantity: '0.01',
+                    entryPrice: '50000',
+                    entryTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)),
+                    exitPrice: (string) (51000 + $i * 100),
+                    exitTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT)),
+                    realizedPnl: (string) (100 + $i * 50),
+                ));
+            }
+
+            $result = $this->service->calculate($positions, '10000', '12000');
+
+            expect($result['sharpe_ratio'])->toBe('0')
+                ->and($result['sortino_ratio'])->toBe('0');
+        });
+
+        it('computes non-zero sharpe and sortino with enough observations', function () {
+            $positions = new Vector;
+            for ($i = 0; $i < 10; $i++) {
+                $positions->push(new PositionDto(
+                    id: (string) $i,
+                    symbol: 'BTC/USDT',
+                    direction: 'long',
+                    quantity: '0.01',
+                    entryPrice: '50000',
+                    entryTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)),
+                    exitPrice: (string) (51000 + $i * 100),
+                    exitTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT)),
+                    realizedPnl: $i % 2 === 0 ? '200' : '-100',
+                ));
+            }
+
+            $result = $this->service->calculate($positions, '10000', '10500');
+
+            expect(bccomp($result['sharpe_ratio'], '0', 6))->not->toBe(0)
+                ->and(bccomp($result['sortino_ratio'], '0', 6))->not->toBe(0);
+        });
+
+        it('returns zero ratios when volatility is too low', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '51000',
+                exitTime: Carbon::parse('2024-01-02'),
+                realizedPnl: '100',
+            ));
+
+            $constantEquity = new Vector;
+            for ($i = 0; $i < 11; $i++) {
+                $constantEquity->push('100');
+            }
+
+            $result = $this->service->calculate($positions, '10000', '10100', null, 252, $constantEquity);
+
+            expect($result['sharpe_ratio'])->toBe('0')
+                ->and($result['sortino_ratio'])->toBe('0');
+        });
+
+        it('computes different sharpe and sortino when downside returns differ', function () {
+            $positions = new Vector;
+            $pnls = ['500', '-50', '400', '-30', '300', '-80', '200', '-20', '100', '-10'];
+            foreach ($pnls as $i => $pnl) {
+                $positions->push(new PositionDto(
+                    id: (string) $i,
+                    symbol: 'BTC/USDT',
+                    direction: 'long',
+                    quantity: '0.01',
+                    entryPrice: '50000',
+                    entryTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)),
+                    exitPrice: '51000',
+                    exitTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT)),
+                    realizedPnl: $pnl,
+                ));
+            }
+
+            $result = $this->service->calculate($positions, '10000', '11310');
+
+            expect(bccomp($result['sharpe_ratio'], '0', 6))->not->toBe(0)
+                ->and(bccomp($result['sortino_ratio'], '0', 6))->not->toBe(0)
+                ->and($result['sharpe_ratio'])->not->toBe($result['sortino_ratio']);
+        });
+    });
 });
