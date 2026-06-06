@@ -44,6 +44,8 @@ use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
 use App\AlphaForge\Analysis\Renderer\ProbabilitySurfaceRenderer;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 
 use function Safe\mkdir;
@@ -212,10 +214,67 @@ class AlphaForgeServiceProvider extends ServiceProvider
                 ListWalkForwardRunsCommand::class,
                 ShowWalkForwardRunCommand::class,
             ]);
+
+            // Register user analysis commands — registered after built-in so
+            // commands with the same signature from user paths take precedence.
+            $this->registerUserAnalysisCommands();
         }
 
         // Ensure storage directories exist
         $this->ensureStorageDirectoriesExist();
+    }
+
+    /**
+     * Discover and register user-defined analysis commands from configured paths.
+     *
+     * Each entry in config('alphaforge.analysis.user_paths') maps a namespace to
+     * a directory. Files are scanned for classes extending Illuminate\Console\Command
+     * with a $signature property. Registered after built-in commands so user commands
+     * with the same signature take precedence.
+     */
+    private function registerUserAnalysisCommands(): void
+    {
+        $userPaths = config('alphaforge.analysis.user_paths', []);
+
+        foreach ($userPaths as $namespace => $dir) {
+            if (empty($dir) || ! File::isDirectory($dir)) {
+                continue;
+            }
+
+            $files = File::allFiles($dir);
+            $commands = [];
+
+            foreach ($files as $file) {
+                $relativePath = str_replace($dir.DIRECTORY_SEPARATOR, '', $file->getPathname());
+                $className = str_replace(['/', '.php'], ['\\', ''], $relativePath);
+
+                if (empty($className)) {
+                    continue;
+                }
+
+                $fqcn = $namespace.'\\'.$className;
+
+                if (! class_exists($fqcn)) {
+                    continue;
+                }
+
+                $reflection = new \ReflectionClass($fqcn);
+
+                if (! $reflection->isSubclassOf(Command::class) || $reflection->isAbstract()) {
+                    continue;
+                }
+
+                if (! $reflection->hasProperty('signature')) {
+                    continue;
+                }
+
+                $commands[] = $fqcn;
+            }
+
+            if (! empty($commands)) {
+                $this->commands($commands);
+            }
+        }
     }
 
     /**

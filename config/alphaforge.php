@@ -57,6 +57,12 @@ return [
         'user_paths' => [],
     ],
 
+    'analysis' => [
+        'namespace' => 'App\\AlphaForge\\Analysis',
+        'path' => app_path('AlphaForge/Analysis'),
+        'user_paths' => [],
+    ],
+
     'optimization' => [
         'cpu_ratio' => env('ALPHAFORGE_OPT_CPU_RATIO', 0.8),
         'random_max_retries' => env('ALPHAFORGE_RANDOM_MAX_RETRIES', 10),

@@ -535,6 +535,40 @@ You can define custom strategy classes outside the `app/AlphaForge/Strategy` dir
 
 User paths support multiple entries — each namespace→path pair is scanned in config order. Earlier entries take priority over later entries.
 
+#### User Analysis Command Paths
+
+Analysis commands (`OpenCrossProbabilityCommand`, `OpenCrossValidateCommand`) can also be extended or overridden via user paths. The mechanism mirrors strategy paths:
+
+**Config:**
+
+```php
+'analysis' => [
+    'user_paths' => [
+        'MyAnalysis\\' => base_path('analysis'),
+    ],
+],
+```
+
+**How it works:**
+
+- The service provider scans each user path for classes extending `Illuminate\Console\Command` with a `$signature` property
+- Discovered commands are registered after built-in commands
+- If a user command shares the same `$signature` as a built-in command, the user version takes precedence
+
+The user must add the namespace → directory mapping to `composer.json` autoload:
+
+```json
+{
+    "autoload": {
+        "psr-4": {
+            "MyAnalysis\\": "analysis/"
+        }
+    }
+}
+```
+
+This enables custom analysis modules (probabilities, validations, renderers) without modifying the `app/AlphaForge/Analysis` directory.
+
 ---
 
 ### Backtesting Commands
