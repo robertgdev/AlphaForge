@@ -1292,102 +1292,118 @@ php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --ru
 
 # Monitor progress with the optimization ID returned above
 php artisan alphaforge:optimizations:show <optimization_id>
-
-# Walk-forward with queue (optimization phase only)
-php artisan alphaforge:walk-forward sma_crossover BTCUSDT --use-strategy-ranges --runner=queue
 ```
-**Fallback behavior:** If `ext-pcntl` is not loaded or the platform is Windows, `--runner=fork` silently falls back to `--runner=sync` with a warning. Use `--runner=sync` explicitly to suppress the warning.
 
-**Worker resolution (`--workers`):**
+---
 
-| Value | Behavior |
-|-------|----------|
-| `auto` (default) | Detects CPU core count via `nproc` (Linux), `sysctl -n hw.ncpu` (macOS), capped at 80% by default. Falls back to 4 if detection fails. Configure the cap via `alphaforge.optimization.cpu_ratio` or env var `ALPHAFORGE_OPT_CPU_RATIO`. |
-| Integer (e.g., `8`) | Uses exactly that many worker processes |
-| Value > parameter count | Capped to the number of parameter combinations (no idle workers) |
+#### `alphaforge:optimize:portfolio` — Multi-Symbol Portfolio Optimization
 
-**Parallel execution examples:**
+Optimize strategy parameters jointly across multiple symbols. Unlike single-symbol optimization which maximizes performance on one asset, portfolio optimization:
+- Runs the strategy on each symbol independently with the same parameters
+- Scores the combined portfolio (averaging metrics, with diversity and participation bonuses)
+- Penalizes parameter sets where returns across symbols are too similar (extracting only one source of alpha)
+- Filters out parameter sets that fail to trade on any symbol
 
 ```bash
-# Default: fork mode with auto-detected CPU cores
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges
-
-# Explicit 8 workers for a grid search
-php artisan alphaforge:optimize sma_crossover BTCUSDT \
-    --method=grid --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}' \
-    --runner=fork --workers=8
-
-# Sequential mode (debugging, environments without pcntl)
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --runner=sync
-
-# Genetic algorithm with parallel generation evaluation (16 workers)
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --method=genetic --population=128 --generations=30 \
-    --runner=fork --workers=16
-
-# Walk-forward with parallel optimization phase
-php artisan alphaforge:walk-forward sma_crossover BTCUSDT --use-strategy-ranges \
-    --runner=fork --workers=8
-
-# Single-core (no parallelism) for consistent benchmarking
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --runner=fork --workers=1
+php artisan alphaforge:optimize:portfolio <strategy> <symbol> [symbol]... [options]
 ```
 
-**Expected speedup:** With `--runner=fork` on an 8-core machine (6 workers after 80% cap), expect **~5× speedup** over sequential mode. Near-linear scaling with ~10-15% overhead from fork/aggregation. Override the cap with `ALPHAFORGE_OPT_CPU_RATIO=1.0` to use all cores. Genetic algorithm speedup is per-generation and depends on population size vs worker count.
+**Arguments:**
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `strategy` | Strategy alias (e.g., `sma_crossover`) | Yes |
+| `symbols` | Two or more symbols | Yes (min 2) |
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--method=` | `grid`, `random`, or `genetic` | `random` |
+| `--iterations=` | Total iterations for `random` | `500` |
+| `--population=` | Population size for `genetic` | `50` |
+| `--generations=` | Generations for `genetic` | `20` |
+| `--timeframe=` | Bar timeframe (e.g., `1h`, `4h`, `1d`) | `1h` |
+| `--initial-capital=` | Initial capital per symbol | `10000` |
+| `--start-date=` | Start date (`YYYY-MM-DD`) | Earliest available |
+| `--end-date=` | End date (`YYYY-MM-DD`) | Latest available |
+| `--top-n=` | Number of top results to persist | `10` |
+| `--use-strategy-ranges` | Use `#[Input]` attribute ranges from the strategy class | Manual ranges |
+| `--min-trades=` | Minimum trades per symbol required to qualify | `1` |
+
+**Scoring methodology (`PortfolioObjective`):**
+
+The portfolio score combines four factors:
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| Average Sharpe | 40% | Risk-adjusted return averaged across qualifying symbols |
+| Return / Drawdown ratio | 30% | How much return per unit of drawdown risk |
+| Win rate | 20% | Consistency of trade outcomes |
+| Trade volume | 10% | Encourages parameter sets that trade frequently |
+
+This base score is then adjusted by:
+
+- **Correlation penalty** (0–50%): If per-symbol returns are highly correlated, the score is reduced. A perfectly diversified portfolio gets ~0% penalty; four identical returns get ~50%.
+- **Participation rate**: Multiplied by `qualifying_symbols / total_symbols`. If only 1 of 4 symbols meets the minimum trade threshold, the base score is scaled to 25%. This prevents parameter sets that only work on one symbol from ranking above those that work across the entire portfolio.
+
+**Example output:**
+
+```
+Best Portfolio Parameters:
+  fastPeriod = 10
+  slowPeriod = 50
+
+Combined Portfolio Metrics:
++-------------------+----------+
+| Metric            | Value    |
++-------------------+----------+
+| Avg Return %      | 22.50    |
+| Avg Sharpe        | 1.45     |
+| Avg Max DD %      | -8.50    |
+| Total Trades      | 95       |
+| Symbols Scored    | 3        |
++-------------------+----------+
+
+Per-Symbol Breakdown:
++----------+---------+--------+--------+----------+
+| Symbol   | Return  | Sharpe | Trades | Win Rate |
++----------+---------+--------+--------+----------+
+| BTCUSDT  | 25.30%  | 1.52   | 35     | 60.0%    |
+| ETHUSDT  | 18.20%  | 1.38   | 28     | 57.1%    |
+| SOLUSDT  | 24.00%  | 1.45   | 32     | 62.5%    |
++----------+---------+--------+--------+----------+
+```
 
 **Examples:**
 
 ```bash
-# Random search with strategy ranges (default method)
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges
+# Optimize sma_crossover across 3 crypto pairs
+php artisan alphaforge:optimize:portfolio sma_crossover BTCUSDT ETHUSDT SOLUSDT
 
-# Grid search with explicit parameter ranges
-php artisan alphaforge:optimize sma_crossover BTCUSDT --method=grid \
-    --params='{"fastPeriod":{"min":5,"max":20,"step":5},"slowPeriod":{"min":30,"max":60,"step":10}}'
+# Random search with 2000 iterations
+php artisan alphaforge:optimize:portfolio macd_crossover BTCUSDT ETHUSDT \
+    --method=random --iterations=2000
 
-# Random search with 1000 iterations and balanced objective
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --method=random --iterations=1000 --objective=balanced
+# Genetic algorithm across a date range, requiring 5+ trades per symbol
+php artisan alphaforge:optimize:portfolio rsi_reversal BTCUSDT ETHUSDT SOLUSDT \
+    --method=genetic --population=100 --generations=30 \
+    --start-date=2023-01-01 --end-date=2024-01-01 \
+    --min-trades=5
 
-# Genetic algorithm with custom population/generations
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --method=genetic --population=100 --generations=30
-
-# Conservative objective with date range and top-20 results
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --objective=conservative --start-date="2024-01-01" --end-date="2024-06-01" --top-n=20
-
-# Optimize for a single metric
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges --objective=profit_factor
-
-# Optimize against Heiken-Ashi data
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --data-type=heikenashi
-
-# Optimize against fixed-brick Renko data (brick size = 100)
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --data-type=renko --brick-size=100
-
-# Optimize against ATR-based Renko (ATR period = 14)
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --data-type=atr_renko --atr-period=14
-
-# Dual-timeframe optimization: H4 signals, M1 execution
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --timeframe=4h --execution-timeframe=1m
-
-# Renko optimization with genetic algorithm and custom objective
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --method=genetic --population=80 --generations=25 \
-    --data-type=renko --brick-size=100 --objective=balanced
-
-# Dual-TF ATR Renko: Renko bricks for signals, 1m OHLCV for order execution
-php artisan alphaforge:optimize sma_crossover BTCUSDT --use-strategy-ranges \
-    --timeframe=1h --execution-timeframe=1m \
-    --data-type=atr_renko --atr-period=14 \
-    --start-date="2024-01-01" --end-date="2024-09-01"
+# Grid search with strategy-defined parameter ranges
+php artisan alphaforge:optimize:portfolio bb_reversal BTCUSDT ETHUSDT \
+    --method=grid --use-strategy-ranges
 ```
+
+**Architecture notes:**
+
+- The `MultiSymbolOptimizer` runs a separate backtest per symbol, per parameter set. For `$N` symbols and `$P` parameter sets, it runs `$N × $P` backtests.
+- Results are accumulated by parameter set hash key. Once all $N symbols complete for a parameter set, the per-symbol statistics are passed to `PortfolioObjective::score()`.
+- The composite statistics stored in the database include a `per_symbol` key with the full breakdown, enabling per-symbol analysis in downstream tools.
+- The optimizer inherits the same `Backtester` and `OptimizationRunnerInterface` infrastructure as single-symbol optimization. It does not modify the core backtest loop — it passes a single symbol per backtest call.
+
+---
 
 #### `alphaforge:optimizations:list` - List Past Optimizations
 
