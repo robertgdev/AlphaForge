@@ -14,6 +14,7 @@ final readonly class SimulationReport
      * @param  float  $winRate  Proportion of winning trades
      * @param  float  $expectedValue  Expected value per trade
      * @param  float  $sharpeRatio  Sharpe ratio of returns
+     * @param  float  $sortinoRatio  Sortino ratio of returns
      * @param  float  $maxDrawdown  Maximum drawdown
      * @param  float  $performanceStability  Stability score across time splits
      * @param  array  $periodResults  Performance metrics by period
@@ -26,6 +27,7 @@ final readonly class SimulationReport
         public float $winRate,
         public float $expectedValue,
         public float $sharpeRatio,
+        public float $sortinoRatio,
         public float $maxDrawdown,
         public float $performanceStability,
         public array $periodResults,
@@ -44,6 +46,7 @@ final readonly class SimulationReport
             'win_rate' => round($this->winRate, 4),
             'expected_value' => round($this->expectedValue, 6),
             'sharpe_ratio' => round($this->sharpeRatio, 4),
+            'sortino_ratio' => round($this->sortinoRatio, 4),
             'max_drawdown' => round($this->maxDrawdown, 4),
             'performance_stability' => round($this->performanceStability, 4),
             'period_results' => $this->periodResults,

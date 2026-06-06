@@ -72,7 +72,7 @@ class ExportOptimizeCommand extends Command
      */
     private function renderCsv(OptimizationRun $run, $results): string
     {
-        $header = ['rank', 'score', 'params', 'return_pct', 'sharpe', 'max_dd_pct', 'trades', 'win_rate', 'profit_factor'];
+        $header = ['rank', 'score', 'params', 'return_pct', 'sharpe', 'sortino', 'max_dd_pct', 'trades', 'win_rate', 'profit_factor'];
         $lines = [implode(',', $header)];
 
         foreach ($results as $index => $r) {
@@ -88,6 +88,7 @@ class ExportOptimizeCommand extends Command
                 $paramsStr,
                 $stats['total_return_percent'] ?? '0',
                 $stats['sharpe_ratio'] ?? '0',
+                $stats['sortino_ratio'] ?? '0',
                 $stats['max_drawdown_percent'] ?? '0',
                 $stats['total_trades'] ?? '0',
                 $stats['win_rate'] ?? '0',

@@ -269,6 +269,7 @@ class MultiSymbolOptimizer
         $totalReturn = 0.0;
         $totalDrawdown = 0.0;
         $totalSharpe = 0.0;
+        $totalSortino = 0.0;
         $count = 0;
 
         foreach ($symbolStats as $symbol => $stats) {
@@ -276,6 +277,7 @@ class MultiSymbolOptimizer
             $totalReturn += (float) ($stats['total_return_percent'] ?? 0);
             $totalDrawdown += abs((float) ($stats['max_drawdown_percent'] ?? 0));
             $totalSharpe += (float) ($stats['sharpe_ratio'] ?? 0);
+            $totalSortino += (float) ($stats['sortino_ratio'] ?? 0);
             $count++;
         }
 
@@ -288,6 +290,7 @@ class MultiSymbolOptimizer
             'total_return_percent' => round($totalReturn / $count, 2),
             'max_drawdown_percent' => round(-$totalDrawdown / $count, 2),
             'sharpe_ratio' => round($totalSharpe / $count, 4),
+            'sortino_ratio' => round($totalSortino / $count, 4),
             'symbols_count' => $count,
             'per_symbol' => $symbolStats,
         ];

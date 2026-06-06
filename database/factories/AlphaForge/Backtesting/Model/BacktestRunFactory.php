@@ -58,6 +58,7 @@ class BacktestRunFactory extends Factory
                 'annualizedReturn' => 25.0,
                 'maxDrawdown' => 5.5,
                 'sharpeRatio' => 1.8,
+                'sortinoRatio' => 2.4,
                 'winRate' => 60.0,
                 'totalTrades' => 100,
                 'profitFactor' => 1.5,

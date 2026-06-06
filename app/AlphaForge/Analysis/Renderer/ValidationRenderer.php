@@ -269,6 +269,7 @@ final class ValidationRenderer
             $lines[] = sprintf('- **Win Rate:** %.2f%%', $simulation->winRate * 100);
             $lines[] = sprintf('- **Expected Value:** %.6f', $simulation->expectedValue);
             $lines[] = sprintf('- **Sharpe Ratio:** %.4f', $simulation->sharpeRatio);
+            $lines[] = sprintf('- **Sortino Ratio:** %.4f', $simulation->sortinoRatio);
             $lines[] = sprintf('- **Max Drawdown:** %.2f%%', $simulation->maxDrawdown * 100);
             $lines[] = sprintf('- **Performance Stability:** %.4f', $simulation->performanceStability);
             $lines[] = sprintf('- **Is Profitable:** %s', $simulation->isProfitable ? 'Yes' : 'No');
@@ -347,6 +348,7 @@ final class ValidationRenderer
 
         if ($result->simulation !== null) {
             $lines[] = sprintf('  Sharpe Ratio:      %.4f', $result->simulation->sharpeRatio);
+            $lines[] = sprintf('  Sortino Ratio:     %.4f', $result->simulation->sortinoRatio);
             $lines[] = sprintf('  Win Rate:          %.2f%%', $result->simulation->winRate * 100);
         }
 

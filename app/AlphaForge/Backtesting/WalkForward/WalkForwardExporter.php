@@ -30,6 +30,8 @@ class WalkForwardExporter
         $headers = array_merge($headers, [
             'is_score', 'oos_score', 'degradation',
             'is_return_pct', 'oos_return_pct',
+            'is_sharpe', 'oos_sharpe',
+            'is_sortino', 'oos_sortino',
             'is_max_dd_pct', 'oos_max_dd_pct',
             'is_trades', 'oos_trades',
             'is_win_rate', 'oos_win_rate',
@@ -49,6 +51,10 @@ class WalkForwardExporter
             $row[] = $this->formatCsvValue($result->score_degradation);
             $row[] = $this->formatCsvValue($result->is_statistics['total_return_percent'] ?? null);
             $row[] = $this->formatCsvValue($result->oos_statistics['total_return_percent'] ?? null);
+            $row[] = $this->formatCsvValue($result->is_statistics['sharpe_ratio'] ?? null);
+            $row[] = $this->formatCsvValue($result->oos_statistics['sharpe_ratio'] ?? null);
+            $row[] = $this->formatCsvValue($result->is_statistics['sortino_ratio'] ?? null);
+            $row[] = $this->formatCsvValue($result->oos_statistics['sortino_ratio'] ?? null);
             $row[] = $this->formatCsvValue($result->is_statistics['max_drawdown_percent'] ?? null);
             $row[] = $this->formatCsvValue($result->oos_statistics['max_drawdown_percent'] ?? null);
             $row[] = $this->formatCsvValue($result->is_statistics['total_trades'] ?? null);

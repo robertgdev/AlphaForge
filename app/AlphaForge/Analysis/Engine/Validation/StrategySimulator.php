@@ -51,6 +51,7 @@ final class StrategySimulator
             winRate: $metrics['win_rate'],
             expectedValue: $metrics['expected_value'],
             sharpeRatio: $metrics['sharpe_ratio'],
+            sortinoRatio: $metrics['sortino_ratio'],
             maxDrawdown: $metrics['max_drawdown'],
             performanceStability: $metrics['performance_stability'],
             periodResults: $periodResults,
@@ -367,7 +368,7 @@ final class StrategySimulator
      * Calculate performance metrics.
      *
      * @param  array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}>  $trades  All trades
-     * @return array{total_trades: int, winning_trades: int, losing_trades: int, win_rate: float, expected_value: float, sharpe_ratio: float, max_drawdown: float, performance_stability: float}
+     * @return array{total_trades: int, winning_trades: int, losing_trades: int, win_rate: float, expected_value: float, sharpe_ratio: float, sortino_ratio: float, max_drawdown: float, performance_stability: float}
      */
     private function calculatePerformanceMetrics(array $trades): array
     {
@@ -379,6 +380,7 @@ final class StrategySimulator
                 'win_rate' => 0.0,
                 'expected_value' => 0.0,
                 'sharpe_ratio' => 0.0,
+                'sortino_ratio' => 0.0,
                 'max_drawdown' => 0.0,
                 'performance_stability' => 0.0,
             ];
@@ -401,6 +403,19 @@ final class StrategySimulator
 
         $stdDev = count($pnls) > 1 ? sqrt($variance / (count($pnls) - 1)) : 0.0;
         $sharpeRatio = $stdDev > 0 ? $meanPnl / $stdDev : 0.0;
+
+        // Sortino ratio (downside deviation only)
+        $downsidePnls = array_filter($pnls, fn ($pnl) => $pnl < 0);
+        $sortinoRatio = 0.0;
+        if (count($downsidePnls) > 1) {
+            $downsideMean = array_sum($downsidePnls) / count($downsidePnls);
+            $downsideVariance = 0.0;
+            foreach ($downsidePnls as $pnl) {
+                $downsideVariance += ($pnl - $downsideMean) ** 2;
+            }
+            $downsideStdDev = sqrt($downsideVariance / (count($downsidePnls) - 1));
+            $sortinoRatio = $downsideStdDev > 0 ? $meanPnl / $downsideStdDev : 0.0;
+        }
 
         // Maximum drawdown
         $cumulativeReturn = 1.0;
@@ -443,6 +458,7 @@ final class StrategySimulator
             'win_rate' => $winRate,
             'expected_value' => $expectedValue,
             'sharpe_ratio' => $sharpeRatio,
+            'sortino_ratio' => $sortinoRatio,
             'max_drawdown' => $maxDrawdown,
             'performance_stability' => $performanceStability,
         ];

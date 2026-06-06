@@ -116,6 +116,7 @@ class PortfolioOptimizeCommand extends Command
             foreach ([
                 'total_return_percent' => 'Avg Return %',
                 'sharpe_ratio' => 'Avg Sharpe',
+                'sortino_ratio' => 'Avg Sortino',
                 'max_drawdown_percent' => 'Avg Max DD %',
                 'total_trades' => 'Total Trades',
                 'symbols_count' => 'Symbols Scored',
@@ -141,13 +142,14 @@ class PortfolioOptimizeCommand extends Command
                         $symbol,
                         number_format((float) ($s['total_return_percent'] ?? 0), 2).'%',
                         number_format((float) ($s['sharpe_ratio'] ?? 0), 3),
+                        number_format((float) ($s['sortino_ratio'] ?? 0), 3),
                         (int) ($s['total_trades'] ?? 0),
                         number_format((float) ($s['win_rate'] ?? 0) * 100, 1).'%',
                     ];
                 }
 
                 $this->table(
-                    ['Symbol', 'Return', 'Sharpe', 'Trades', 'Win Rate'],
+                    ['Symbol', 'Return', 'Sharpe', 'Sortino', 'Trades', 'Win Rate'],
                     $perSymbolData
                 );
             }

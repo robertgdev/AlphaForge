@@ -55,6 +55,7 @@ class BacktestRunFactory extends Factory
                 'total_return_percent' => '50',
                 'win_rate' => '0.65',
                 'sharpe_ratio' => '1.5',
+                'sortino_ratio' => '2.1',
                 'max_drawdown' => '1500',
             ],
             'started_at' => now()->subHour(),
