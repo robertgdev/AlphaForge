@@ -13,4 +13,10 @@ interface ConditionInterface
     public function or(ConditionInterface $other): ConditionInterface;
 
     public function not(): ConditionInterface;
+
+    public function withinLast(int $bars): ConditionInterface;
+
+    public function persistedFor(int $bars): ConditionInterface;
+
+    public function justBecame(): ConditionInterface;
 }

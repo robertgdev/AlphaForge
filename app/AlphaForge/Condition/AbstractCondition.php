@@ -28,4 +28,19 @@ abstract class AbstractCondition implements ConditionInterface
     {
         return new NotCondition($this);
     }
+
+    public function withinLast(int $bars): ConditionInterface
+    {
+        return new WithinLastCondition($this, $bars);
+    }
+
+    public function persistedFor(int $bars): ConditionInterface
+    {
+        return new PersistedForCondition($this, $bars);
+    }
+
+    public function justBecame(): ConditionInterface
+    {
+        return new JustBecameCondition($this);
+    }
 }

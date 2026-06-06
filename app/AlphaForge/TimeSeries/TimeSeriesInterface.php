@@ -20,6 +20,10 @@ interface TimeSeriesInterface
 
     public function isBelow(TimeSeriesInterface|float $other): ConditionInterface;
 
+    public function isAtLeast(TimeSeriesInterface|float $other): ConditionInterface;
+
+    public function isAtMost(TimeSeriesInterface|float $other): ConditionInterface;
+
     public function isRising(int $period = 1): ConditionInterface;
 
     public function isFalling(int $period = 1): ConditionInterface;

@@ -627,6 +627,108 @@ Each strategy defines its own `#[Input]` attributes with `min`, `max`, and `step
 
 ---
 
+### Condition & TimeSeries API
+
+Strategies define entry and exit logic through a composable, vectorized condition system. Indicators compute `TimeSeriesInterface` objects which expose comparison methods that return `ConditionInterface` trees. Conditions are evaluated once via `evaluateAll()` and the resulting `bool[]` arrays drive the execution loop — no per-bar condition evaluation at runtime.
+
+#### TimeSeries Comparisons
+
+Every `TimeSeriesInterface` (indicators, price series) supports these comparison operators:
+
+| Method | Operator | Returns |
+|--------|----------|---------|
+| `$a->crossesAbove($b)` | — | `CrossCondition` — true when `$a` crosses from ≤ to > `$b` |
+| `$a->crossesBelow($b)` | — | `CrossCondition` — true when `$a` crosses from ≥ to < `$b` |
+| `$a->isAbove($b)` | `>` | `ComparisonCondition` — `$a > $b` |
+| `$a->isBelow($b)` | `<` | `ComparisonCondition` — `$a < $b` |
+| `$a->isAtLeast($b)` | `>=` | `ComparisonCondition` — `$a >= $b` |
+| `$a->isAtMost($b)` | `<=` | `ComparisonCondition` — `$a <= $b` |
+| `$a->isRising($n)` | — | `TrendCondition` — `$a[i] > $a[i−n]` |
+| `$a->isFalling($n)` | — | `TrendCondition` — `$a[i] < $a[i−n]` |
+
+`$b` can be a `TimeSeriesInterface` or a scalar `float` (except for `crossesAbove`/`crossesBelow` which require two TimeSeries). When a scalar float is used, every bar is compared against the same constant.
+
+**Example:**
+```php
+$rsi = $ctx->rsi(14);
+$entry = $rsi->isBelow(30);   // RSI < 30 (float threshold)
+$exit  = $rsi->isAtLeast(70); // RSI >= 70 (float threshold)
+```
+
+#### Condition Composition
+
+Conditions compose via logical operators to form complex rule trees:
+
+| Method | Returns |
+|--------|---------|
+| `$cond->and($other)` | `LogicalCondition` — both conditions must be true |
+| `$cond->or($other)` | `LogicalCondition` — at least one condition must be true |
+| `$cond->not()` | `NotCondition` — inverts the condition |
+
+Operator precedence follows method chaining order. Use parentheses (via nested `and`/`or` calls) for explicit grouping:
+
+```php
+// (crossesAbove AND isBelow) OR isRising
+$entry = $fast->crossesAbove($slow)
+    ->and($rsi->isBelow(50))
+    ->or($volume->isRising(3));
+```
+
+#### Temporal Conditions
+
+Temporal conditions filter or refine standard conditions based on timing and persistence:
+
+| Method | Behavior | Example |
+|--------|----------|---------|
+| `$cond->withinLast($n)` | True if `$cond` was true at **any point** in the last `$n` bars (including current) | Signal happened recently |
+| `$cond->persistedFor($n)` | True if `$cond` has been true for **at least `$n` consecutive** bars ending at current | Confirmation / avoiding whipsaws |
+| `$cond->justBecame()` | True on **rising edges** — current bar is true but previous was false | Entry trigger that fires only once |
+
+Temporal conditions compose freely with logical operators and any base conditions:
+
+```php
+// Enter when a crossover happened within the last 5 bars
+// AND RSI has been below 40 for at least 2 consecutive bars
+$entry = $fast->crossesAbove($slow)
+    ->withinLast(5)
+    ->and($rsi->isBelow(40)->persistedFor(2));
+```
+
+#### Evaluation: Vectorized vs Per-Bar
+
+All conditions implement two execution paths:
+
+| Method | Description | When to Use |
+|--------|-------------|-------------|
+| `evaluate($index)` | Per-bar evaluation (single-point) | Backtester exit rules, incremental evaluation |
+| `evaluateAll($length)` | Vectorized — pre-computes `bool[$length]` in one pass | Strategy `initialize()` — compute all signals once |
+
+The vectorized path uses optimized algorithms (sliding windows for `withinLast`, running counters for `persistedFor`) and is the preferred method in strategy `initialize()`. Once the `bool[]` arrays are computed, the `onBar()` loop is a trivial array lookup.
+
+#### Exit Rules Using Conditions
+
+Strategies define exits through `ExitRuleSet` or via `onBar()` signal arrays. Conditions can be used directly in exit rules:
+
+```php
+use App\AlphaForge\ExitRule\ConditionExit;
+use App\AlphaForge\ExitRule\ExitRuleSet;
+use App\AlphaForge\ExitRule\StaticStopLoss;
+use App\AlphaForge\ExitRule\TrailingStop;
+
+public function getExitRules(): ?ExitRuleSet
+{
+    return new ExitRuleSet([
+        new StaticStopLoss(),                                    // price-based (priority)
+        ConditionExit::when($this->exitCondition, 'strategy'),   // condition-based
+        new TrailingStop::atr($this->ctx, 14, 2.0),            // price-based trailing
+    ]);
+}
+```
+
+Exit rules are evaluated in priority order: price-based rules first (SL, TP, trailing stops), then signal-based rules (conditions, max bars).
+
+---
+
 ### User Strategy Paths
 
 You can define custom strategy classes outside the `app/AlphaForge/Strategy` directory. User strategies override built-in strategies with the same alias — if both exist, the user copy wins.

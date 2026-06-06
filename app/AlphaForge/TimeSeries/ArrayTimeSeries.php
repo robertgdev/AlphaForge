@@ -57,6 +57,16 @@ class ArrayTimeSeries implements TimeSeriesInterface
         return new ComparisonCondition($this, $other, '<');
     }
 
+    public function isAtLeast(TimeSeriesInterface|float $other): ComparisonCondition
+    {
+        return new ComparisonCondition($this, $other, '>=');
+    }
+
+    public function isAtMost(TimeSeriesInterface|float $other): ComparisonCondition
+    {
+        return new ComparisonCondition($this, $other, '<=');
+    }
+
     public function isRising(int $period = 1): TrendCondition
     {
         return new TrendCondition($this, $period, 'rising');
