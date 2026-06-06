@@ -1438,6 +1438,93 @@ php artisan alphaforge:optimizations:sensitivity 019d5725-3226-732b-9941-4e47a33
 
 ---
 
+### Monte Carlo Analysis Commands
+
+#### `alphaforge:monte-carlo` - Bootstrap Stability Analysis
+
+Run a Monte Carlo bootstrap analysis on backtest trade outcomes. Resamples closed-trade P&L values with replacement to estimate the statistical stability of performance metrics. Produces confidence intervals and the probability that returns could be negative (P < 0).
+
+This is complementary to walk-forward analysis — walk-forward tests parameter robustness across time, while Monte Carlo tests trade-outcome stability within a single dataset.
+
+```bash
+php artisan alphaforge:monte-carlo <backtest_id> [options]
+```
+
+**Arguments:**
+
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `backtest_id` | UUID of a completed backtest run (must have closed trades) | Yes |
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--iterations=` | Number of bootstrap resamples | `1000` |
+| `--seed=` | Random seed for reproducible results | Random |
+| `--json` | Output results as JSON | Table |
+
+**How it works:**
+
+1. Extracts the per-trade P&L values from the backtest's `position_pnl_values` in statistics
+2. For each bootstrap iteration, randomly resamples N trades **with replacement** (same size as original)
+3. Builds a synthetic equity curve from the resampled P&L sequence
+4. Computes 6 metrics from the synthetic curve: total return %, win rate %, max drawdown %, profit factor, average trade P&L, and positive trade %
+
+After all iterations, reports percentile bands (P5 / P25 / Median / P75 / P95) and the probability of a negative outcome for each metric.
+
+**Metrics reported:**
+
+| Metric | What it means | Significance cutoff |
+|--------|--------------|---------------------|
+| Total Return % | Percentage return relative to initial capital | P(negative) < 5% |
+| Win Rate % | Percentage of trades with positive P&L | P(negative) < 5% |
+| Max Drawdown % | Maximum peak-to-trough decline in equity curve | N/A (always negative) |
+| Profit Factor | Gross profit / gross loss ratio | P(PF < 1) < 5% |
+| Avg Trade PnL | Mean P&L per trade | P(negative) < 5% |
+| Positive Trades % | Same as win rate, reported as distribution | P(negative) < 5% |
+
+**Interpreting the output:**
+
+```
+Metric           P5 (worst)  P25      Median    P75      P95 (best)  P(< 0)  Sig.
+Total Return %      -2.50%   1.20%    5.40%    9.80%     18.30%     8.2%    ~
+Win Rate %          40.00%  45.00%   50.00%   55.00%     60.00%     0.0%    ✓
+Max Drawdown %     -20.10%  -14.50%  -10.20%  -7.30%     -4.10%     N/A
+Profit Factor       0.8500   1.0500  1.1500   1.3200     1.6200    18.5%    ~
+```
+
+- The **median** is the most likely outcome if trade ordering were randomized
+- **P5–P95** span = 90% confidence interval
+- **P(< 0)** = probability of loss (lower is better)
+- **✓ Significant** = P(negative) < 5% AND P5 > 0
+- **~ Marginal** = P(negative) between 5% and 20%
+- **✗ Unreliable** = P(negative) > 20%
+
+**Examples:**
+
+```bash
+# Run Monte Carlo on a completed backtest
+php artisan alphaforge:monte-carlo 019d5725-3226-732b-9941-4e47a3350f93
+
+# More iterations for tighter confidence bands
+php artisan alphaforge:monte-carlo 019d5725-3226-732b-9941-4e47a3350f93 --iterations=5000
+
+# Reproducible analysis with a fixed seed
+php artisan alphaforge:monte-carlo 019d5725-3226-732b-9941-4e47a3350f93 --seed=42
+
+# Export as JSON for external analysis
+php artisan alphaforge:monte-carlo 019d5725-3226-732b-9941-4e47a3350f93 --json > mc_analysis.json
+```
+
+**Limitations:**
+
+- Assumes trade outcomes are independent and identically distributed (IID). This ignores serial correlation patterns (runs of wins/losses) present in real trading.
+- Does not account for trade timing or market regime shifts.
+- Best used as a complement to walk-forward analysis, not a replacement. Walk-forward tests temporal robustness; Monte Carlo tests outcome stability.
+
+---
+
 ### Walk-Forward Analysis Commands
 
 #### `alphaforge:walk-forward` - Walk-Forward Analysis

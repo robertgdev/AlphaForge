@@ -25,6 +25,7 @@ use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
 use App\AlphaForge\Console\Commands\ListStrategiesCommand;
 use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
+use App\AlphaForge\Console\Commands\MonteCarloCommand;
 use App\AlphaForge\Console\Commands\OptimizationResultCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
 use App\AlphaForge\Console\Commands\SensitivityAnalysisCommand;
@@ -215,6 +216,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
                 ListWalkForwardRunsCommand::class,
                 ShowWalkForwardRunCommand::class,
                 SensitivityAnalysisCommand::class,
+                MonteCarloCommand::class,
             ]);
 
             // Register user analysis commands — registered after built-in so

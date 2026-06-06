@@ -26,7 +26,17 @@ use RuntimeException;
 
 class Backtester
 {
-    private const BAR_T = 0, BAR_O = 1, BAR_H = 2, BAR_L = 3, BAR_C = 4, BAR_V = 5;
+    private const BAR_T = 0;
+
+    private const BAR_O = 1;
+
+    private const BAR_H = 2;
+
+    private const BAR_L = 3;
+
+    private const BAR_C = 4;
+
+    private const BAR_V = 5;
 
     private BacktestCursor $cursor;
 
@@ -208,9 +218,11 @@ class Backtester
             tradingDaysPerYear: $barsPerYear,
             barEquityCurve: $this->barEquityCurve,
         );
+        $statistics['position_pnl_values'] = $this->extractClosedPositionPnl();
 
         $this->emitProgress(100, 100, 'Backtest completed');
 
+        // Return (run())
         return [
             'strategy' => $strategyAlias,
             'symbols' => $symbols,
@@ -282,9 +294,11 @@ class Backtester
             tradingDaysPerYear: $barsPerYear,
             barEquityCurve: $this->barEquityCurve,
         );
+        $statistics['position_pnl_values'] = $this->extractClosedPositionPnl();
 
         $this->emitProgress(100, 100, 'Backtest completed');
 
+        // Return (runWithPreloadedData)
         return [
             'strategy' => $strategyAlias,
             'symbols' => $symbols,
@@ -565,10 +579,10 @@ class Backtester
         );
 
         return match ($dataType) {
-            'heikenashi' => $basePath . '/heikenashi.stchx',
-            'renko' => $basePath . '/renko_' . $this->formatBrickSize($brickSize ?? 10.0) . '.stchx',
-            'atr_renko' => $basePath . '/renko_atr_' . ($atrPeriod ?? 14) . '.stchx',
-            default => $basePath . '/ohlcv.stchx',
+            'heikenashi' => $basePath.'/heikenashi.stchx',
+            'renko' => $basePath.'/renko_'.$this->formatBrickSize($brickSize ?? 10.0).'.stchx',
+            'atr_renko' => $basePath.'/renko_atr_'.($atrPeriod ?? 14).'.stchx',
+            default => $basePath.'/ohlcv.stchx',
         };
     }
 
@@ -1069,31 +1083,31 @@ class Backtester
     private function closePositionFromTrigger(PositionDto $position, ExitTrigger $trigger, array $bar): void
     {
         $exitPrice = (string) $trigger->exitPrice;
-            $closedPosition = $this->portfolioManager->closePosition(
-                $position->id,
-                $exitPrice,
-                Carbon::createFromTimestamp($bar[self::BAR_T]),
-                $this->commissionConfig,
-                $trigger->exitTag ?? $trigger->ruleId,
-            );
+        $closedPosition = $this->portfolioManager->closePosition(
+            $position->id,
+            $exitPrice,
+            Carbon::createFromTimestamp($bar[self::BAR_T]),
+            $this->commissionConfig,
+            $trigger->exitTag ?? $trigger->ruleId,
+        );
 
-            if ($closedPosition) {
-                if ($this->openPositionIndex->hasKey($closedPosition->id)) {
-                    $oldIndex = $this->openPositionIndex->get($closedPosition->id);
-                    $this->positions->remove($oldIndex);
-                    $this->openPositionIndex->remove($closedPosition->id);
-                    $this->rebuildOpenPositionIndex();
-                }
-
-                $this->positions->push($closedPosition);
-                $this->currentCapital = $this->portfolioManager->getCashBalance();
-
-                unset(
-                    $this->highWaterMarks[$position->id],
-                    $this->lowWaterMarks[$position->id],
-                    $this->barsInPositionTracker[$position->id],
-                );
+        if ($closedPosition) {
+            if ($this->openPositionIndex->hasKey($closedPosition->id)) {
+                $oldIndex = $this->openPositionIndex->get($closedPosition->id);
+                $this->positions->remove($oldIndex);
+                $this->openPositionIndex->remove($closedPosition->id);
+                $this->rebuildOpenPositionIndex();
             }
+
+            $this->positions->push($closedPosition);
+            $this->currentCapital = $this->portfolioManager->getCashBalance();
+
+            unset(
+                $this->highWaterMarks[$position->id],
+                $this->lowWaterMarks[$position->id],
+                $this->barsInPositionTracker[$position->id],
+            );
+        }
     }
 
     /**
@@ -1297,5 +1311,23 @@ class Backtester
         $secondsPerYear = 31536000;
 
         return max(1, (int) round($secondsPerYear / $this->signalTimeframe->toSeconds()));
+    }
+
+    /**
+     * Extract realized P&L values from all closed positions.
+     *
+     * @return array<int, string>
+     */
+    private function extractClosedPositionPnl(): array
+    {
+        $pnlValues = [];
+
+        foreach ($this->positions as $position) {
+            if ($position->exitTime !== null) {
+                $pnlValues[] = $position->realizedPnl;
+            }
+        }
+
+        return $pnlValues;
     }
 }
