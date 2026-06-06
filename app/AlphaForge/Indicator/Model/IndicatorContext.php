@@ -3,6 +3,8 @@
 namespace App\AlphaForge\Indicator\Model;
 
 use App\AlphaForge\Common\Model\OhlcvSeries;
+use App\AlphaForge\Regime\RegimeDetector;
+use App\AlphaForge\Regime\RegimeSeries;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 use App\AlphaForge\TimeSeries\TimeSeriesInterface;
 use TaLibHybrid\TaLibHybrid;
@@ -16,6 +18,9 @@ class IndicatorContext
 
     /** @var array<string, ArrayTimeSeries> */
     private array $priceSeriesCache = [];
+
+    /** @var array<string, RegimeSeries> */
+    private array $regimeCache = [];
 
     private const VALID_PRICE_FIELDS = ['open', 'high', 'low', 'close', 'volume', 'hlc3'];
 
@@ -175,6 +180,44 @@ class IndicatorContext
         $result = $this->indicator('adx', ['period' => $period]);
 
         return $result;
+    }
+
+    /**
+     * Detect market regime for every bar.
+     *
+     * Returns a RegimeSeries indexed by bar position. Each entry is a string
+     * label like 'bull', 'bear', 'sideways', 'high_vol', 'low_vol', or
+     * combined labels like 'bull_high_vol' (depending on method).
+     *
+     * Cached per (method, period, maType) combination.
+     *
+     * @param  string  $method  Detection method: 'adx', 'trend', 'volatility', 'combined'
+     * @param  int  $period  Lookback period for indicators
+     * @param  int  $maType  Moving average type: TA_MA_TYPE_SMA (0), TA_MA_TYPE_EMA (1), etc.
+     */
+    public function regime(string $method = 'adx', int $period = 14, int $maType = 0): RegimeSeries
+    {
+        $key = "regime:{$method}:{$period}:{$maType}";
+
+        if (isset($this->regimeCache[$key])) {
+            return $this->regimeCache[$key];
+        }
+
+        $high = $this->ohlcv->getHighs()->getVector()->toArray();
+        $low = $this->ohlcv->getLows()->getVector()->toArray();
+        $close = $this->ohlcv->getCloses()->getVector()->toArray();
+
+        $regimes = match ($method) {
+            'trend' => RegimeDetector::detectTrend($close, $period, $maType),
+            'volatility' => RegimeDetector::detectVolatility($high, $low, $close, $period),
+            'combined' => RegimeDetector::detectCombined($high, $low, $close, $period, $maType),
+            default => RegimeDetector::detectAdx($high, $low, $close, $period, maType: $maType),
+        };
+
+        $series = new RegimeSeries($regimes);
+        $this->regimeCache[$key] = $series;
+
+        return $series;
     }
 
     private function buildInputArrays(array $definition, array $inputOverrides = []): array

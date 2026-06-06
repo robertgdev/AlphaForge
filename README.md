@@ -729,6 +729,112 @@ Exit rules are evaluated in priority order: price-based rules first (SL, TP, tra
 
 ---
 
+### Regime Detection
+
+AlphaForge can classify every bar into a market regime — a categorical label describing the current market environment. Regimes are exposed through `IndicatorContext::regime()` and return a `RegimeSeries` indexed by bar position, making them directly usable in strategy `initialize()` and `onBar()` logic.
+
+#### Detection Methods
+
+Four classification methods are available via `$ctx->regime($method, $period, $maType)`:
+
+| Method | Labels | Algorithm |
+|--------|--------|-----------|
+| `'adx'` (default) | `'bull'`, `'bear'`, `'sideways'` | ADX measures trend strength. Price direction determined by comparing close to a moving average (configurable MA type) |
+| `'trend'` | `'bull'`, `'bear'` | Simple MA-based classification: `close > MA(period)` → bull, otherwise bear. No ADX filter — purely direction-based |
+| `'volatility'` | `'high_vol'`, `'normal_vol'`, `'low_vol'` | ATR distribution: each bar's ATR ranked against the full dataset. Top ~30% → high_vol, bottom ~30% → low_vol, middle 40% → normal_vol |
+| `'combined'` | `'bull_high_vol'`, `'bear_low_vol'`, etc. | Composite of ADX trend + ATR volatility. Produces 9 possible labels (3 trends × 3 vol levels) |
+
+#### How ADX-Based Detection Works
+
+The default `'adx'` method applies a two-step classification:
+
+1. **Trend strength** — ADX is computed over `period` bars (default 14). If ADX < 20 (configurable threshold), the market is classified as `'sideways'` — there is no clear directional trend.
+2. **Trend direction** — If ADX ≥ 20, a moving average (configurable `maType`) is computed over `period` bars. If close > MA → `'bull'`. If close ≤ MA → `'bear'`.
+
+This correctly classifies:
+- **Strong uptrends**: ADX ≥ 20 AND close > MA → `'bull'`
+- **Strong downtrends**: ADX ≥ 20 AND close ≤ MA → `'bear'`
+- **Ranging/choppy markets**: ADX < 20 → `'sideways'` (regardless of MA position)
+
+#### MA Type Parameter
+
+The `maType` parameter controls which moving average is used for direction determination in both `'adx'` and `'trend'` methods:
+
+| Constant | Value | MA Type |
+|----------|-------|---------|
+| `TA_MA_TYPE_SMA` | `0` | Simple Moving Average (default) |
+| `TA_MA_TYPE_EMA` | `1` | Exponential Moving Average |
+| `TA_MA_TYPE_WMA` | `2` | Weighted Moving Average |
+| `TA_MA_TYPE_DEMA` | `3` | Double Exponential MA |
+| `TA_MA_TYPE_TEMA` | `4` | Triple Exponential MA |
+| `TA_MA_TYPE_TRIMA` | `5` | Triangular MA |
+| `TA_MA_TYPE_KAMA` | `6` | Kaufman Adaptive MA |
+| `TA_MA_TYPE_MAMA` | `7` | MESA Adaptive MA |
+| `TA_MA_TYPE_T3` | `8` | Tillson T3 MA |
+
+Using EMA instead of SMA makes the regime more responsive to recent price changes. Adaptive MAs (KAMA, MAMA) adjust their smoothing based on market volatility.
+
+#### Using Regimes in Strategies
+
+Regime detection is integrated into `IndicatorContext`. Call `$this->ctx->regime()` in the strategy's `initialize()` to pre-compute classifications, then use them in `onBar()`:
+
+```php
+public function initialize(array $data): void
+{
+    $this->ctx = new IndicatorContext($data['ohlcv']);
+
+    // ADX-based regime with EMA (more responsive)
+    $this->regime = $this->ctx->regime('adx', period: 14, maType: TA_MA_TYPE_EMA);
+
+    // Pre-compute conditions for each regime
+    $fast = $this->ctx->ema(10);
+    $slow = $this->ctx->ema(30);
+    $rsi = $this->ctx->rsi(14);
+
+    $this->trendEntry = $fast->crossesAbove($slow);
+    $this->pullbackEntry = $rsi->isBelow(30)->and($rsi->isRising());
+
+    $this->totalBars = $data['ohlcv']->getTimestamps()->count();
+    $this->trendSignals = $this->trendEntry->evaluateAll($this->totalBars);
+    $this->pullbackSignals = $this->pullbackEntry->evaluateAll($this->totalBars);
+}
+
+public function onBar(array $data): array
+{
+    $i = $data['cursor']->currentIndex;
+    $currentRegime = $this->regime->get($i);
+
+    if ($currentRegime === null) {
+        return []; // warmup — not enough data for classification
+    }
+
+    // Adaptive entry: different conditions per regime
+    $shouldEnter = match ($currentRegime) {
+        'bull', 'bull_high_vol' => $this->trendSignals[$i],
+        'bear' => false, // no longs in bear markets
+        'sideways' => $this->pullbackSignals[$i],
+        default => false,
+    };
+
+    // ... signal generation
+}
+```
+
+#### RegimeSeries API
+
+`RegimeSeries` is the object returned by `IndicatorContext::regime()`. It provides array-like access by bar index:
+
+| Method | Description |
+|--------|-------------|
+| `get(int $index): ?string` | Regime label at bar index, or null for warmup bars with insufficient data |
+| `toArray(): array` | Full regime array including nulls |
+| `count(): int` | Total number of bars |
+| `labels(): array` | Unique sorted regime labels excluding null (e.g., `['bear', 'bull', 'sideways']`) |
+
+Regime results are cached by `IndicatorContext` per `(method, period, maType)` combination, so calling `$ctx->regime('adx', 14)` multiple times only computes once.
+
+---
+
 ### User Strategy Paths
 
 You can define custom strategy classes outside the `app/AlphaForge/Strategy` directory. User strategies override built-in strategies with the same alias — if both exist, the user copy wins.
