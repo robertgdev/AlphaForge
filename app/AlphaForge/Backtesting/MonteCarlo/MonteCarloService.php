@@ -75,7 +75,7 @@ class MonteCarloService
             );
         }
 
-        $floatPnl = array_map(fn (string $v) => (float) $v, $this->tradePnlValues);
+        $floatPnl = array_values(array_map(fn (string $v) => (float) $v, $this->tradePnlValues));
         $initialCapital = (float) $this->initialCapital;
 
         // Collect bootstrap metric distributions
@@ -92,7 +92,7 @@ class MonteCarloService
             $sample = $this->resample($floatPnl, $totalTrades);
 
             $equityCurve = $this->buildEquityCurve($sample, $initialCapital);
-            $distributions['total_return_pct'][] = $this->totalReturnPct($initialCapital, end($equityCurve));
+            $distributions['total_return_pct'][] = $this->totalReturnPct($initialCapital, $equityCurve[count($equityCurve) - 1]);
             $distributions['win_rate'][] = $this->winRate($sample);
             $distributions['max_drawdown_pct'][] = $this->maxDrawdownPct($equityCurve);
             $distributions['profit_factor'][] = $this->profitFactor($sample);

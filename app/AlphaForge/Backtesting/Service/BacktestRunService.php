@@ -10,6 +10,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+use function Safe\json_encode;
+
 /**
  * Service responsible for orchestrating backtest execution.
  *

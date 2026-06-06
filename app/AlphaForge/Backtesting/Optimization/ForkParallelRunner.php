@@ -44,7 +44,7 @@ class ForkParallelRunner
             return $this->runSequential($configs, $data, $singleRunner, $progressCallback);
         }
 
-        $chunkSize = (int) ceil($totalConfigs / $this->workerCount);
+        $chunkSize = max(1, (int) ceil($totalConfigs / $this->workerCount));
         $chunks = array_chunk($configs, $chunkSize);
 
         $runId = uniqid('fork_', true);

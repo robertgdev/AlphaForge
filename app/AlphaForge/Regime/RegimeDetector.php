@@ -157,6 +157,7 @@ class RegimeDetector
         $lowCutoff = $validAtrs[(int) floor($n * $lowPercentile)] ?? $validAtrs[0];
 
         if ($highCutoff <= 0 || $highCutoff === $lowCutoff) {
+            $regimes = [];
             for ($i = 0; $i < $total; $i++) {
                 $regimes[$i] = $i < $warmup ? null : 'low_vol';
             }

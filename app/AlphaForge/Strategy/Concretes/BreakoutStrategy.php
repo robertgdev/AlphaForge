@@ -143,12 +143,14 @@ class BreakoutStrategy implements StrategyInterface
         $highestHigh = $this->ctx->indicator('max', ['period' => $this->lookback], ['close' => $highSeries]);
 
         // Entry: close price breaks above the highest high of the lookback
+        /** @var TimeSeriesInterface $highestHigh */
         $this->entryCondition = $close->crossesAbove($highestHigh);
 
         // Exit: close crosses below lowest low of the last half-lookback bars
         $lowSeries = $this->ctx->priceSeries('low');
         $halfLookback = max(5, (int) ($this->lookback / 2));
         $lowestLow = $this->ctx->indicator('min', ['period' => $halfLookback], ['close' => $lowSeries]);
+        /** @var TimeSeriesInterface $lowestLow */
         $this->exitCondition = $close->crossesBelow($lowestLow);
 
         // Pre-extract ATR values for dynamic SL/TP in onBar

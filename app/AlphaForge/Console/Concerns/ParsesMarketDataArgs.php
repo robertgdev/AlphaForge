@@ -31,9 +31,9 @@ trait ParsesMarketDataArgs
     /**
      * Parse the timeframe argument (as-is).
      */
-    protected function parseTimeframe(): string
+    protected function parseTimeframe(string $name = 'timeframe'): string
     {
-        return $this->argument('timeframe');
+        return (string) $this->argument($name);
     }
 
     /**

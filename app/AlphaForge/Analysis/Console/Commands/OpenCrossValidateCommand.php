@@ -55,8 +55,7 @@ final class OpenCrossValidateCommand extends Command
 
         {--tests=all : Comma-separated list of tests to run}
         {--output=json : Output format (json, csv, markdown, all)}
-        {--save= : Path to save results}
-        {--verbose : Show detailed progress}';
+        {--save= : Path to save results}';
 
     /**
      * The console command description.
@@ -117,7 +116,7 @@ final class OpenCrossValidateCommand extends Command
 
         // Run validation
         try {
-            $verbose = (bool) $this->option('verbose');
+            $verbose = $this->output->isVerbose();
 
             if ($verbose) {
                 $this->progressBar = $this->output->createProgressBar(100);

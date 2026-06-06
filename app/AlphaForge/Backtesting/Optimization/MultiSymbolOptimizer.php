@@ -226,7 +226,7 @@ class MultiSymbolOptimizer
         return $optimizationRun;
     }
 
-    /** @var array<string, array{params: array, completed: int, symbolStats: array}> */
+    /** @var array<string, array{params: array<string, mixed>, completed: int, symbolStats: array<string, array<string, mixed>>}> */
     private array $pendingSets = [];
 
     /**

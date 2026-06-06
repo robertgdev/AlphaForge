@@ -67,6 +67,9 @@ class ExportOptimizeCommand extends Command
         return 0;
     }
 
+    /**
+     * @param  \Illuminate\Support\Collection<int, BacktestRun>  $results
+     */
     private function renderCsv(OptimizationRun $run, $results): string
     {
         $header = ['rank', 'score', 'params', 'return_pct', 'sharpe', 'max_dd_pct', 'trades', 'win_rate', 'profit_factor'];
@@ -97,6 +100,9 @@ class ExportOptimizeCommand extends Command
         return implode("\n", $lines);
     }
 
+    /**
+     * @param  \Illuminate\Support\Collection<int, BacktestRun>  $results
+     */
     private function renderJson(OptimizationRun $run, $results): string
     {
         $data = [

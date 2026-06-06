@@ -13,6 +13,9 @@ class DataTypeConfig
     /** @var list<string> */
     public readonly array $warnings;
 
+    /**
+     * @param  list<string>  $warnings
+     */
     private function __construct(string $dataType, ?float $brickSize, ?int $atrPeriod, array $warnings = [])
     {
         $this->dataType = $dataType;
