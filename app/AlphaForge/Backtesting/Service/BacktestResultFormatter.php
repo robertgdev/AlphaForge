@@ -59,13 +59,13 @@ class BacktestResultFormatter
         }
         if (isset($stats['sharpe_ratio'])) {
             $sharpeVal = (float) $stats['sharpe_ratio'];
-            $colored = $sharpeVal >= 0 ? "<fg=green>{$sharpeVal}</>" : "<fg=red>{$sharpeVal}</>";
-            $formatted['Sharpe Ratio'] = number_format($sharpeVal, 2).' '.$colored;
+            $color = $sharpeVal > 0 ? '<fg=green>' : '<fg=red>';
+            $formatted['Sharpe Ratio'] = $color.number_format($sharpeVal, 2).'</>';
         }
         if (isset($stats['sortino_ratio'])) {
             $sortinoVal = (float) $stats['sortino_ratio'];
-            $colored = $sortinoVal >= 0 ? "<fg=green>{$sortinoVal}</>" : "<fg=red>{$sortinoVal}</>";
-            $formatted['Sortino Ratio'] = number_format($sortinoVal, 2).' '.$colored;
+            $color = $sortinoVal > 0 ? '<fg=green>' : '<fg=red>';
+            $formatted['Sortino Ratio'] = $color.number_format($sortinoVal, 2).'</>';
         }
         if (isset($stats['total_return_percent'])) {
             $formatted['Total Return'] = number_format((float) $stats['total_return_percent'], 2).'%';

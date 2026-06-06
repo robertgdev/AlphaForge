@@ -1348,7 +1348,7 @@ The `--progress` flag controls how optimization progress is displayed during exe
 
 Level 3 output format:
 ```
-[   15/  500] fast=10, slow=30              │ #trd=  1234 │ vol=  12.34% │ bal=  10,234.56 │ ret=   2.3% │ score=  1.2345 │ sharpe=  1.85
+[   15/  500] fast=10, slow=30              │ #trd=  1234 │ vol=  12.34% │ dd=  5.00% │ bal=  10,234.56 │ ret=   2.3% │ score=  1.2345 │ sharpe=  1.85 │ sortino=  2.10
 ```
 
 **Column reference:**
@@ -1360,7 +1360,8 @@ Level 3 output format:
 | `bal=` | `final_capital` | Account balance (initial capital + realized P&L) at the end of the backtest |
 | `ret=` | `total_return_percent` | Total return as a percentage: `(finalCapital − initialCapital) / initialCapital × 100` |
 | `score=` | — | Weighted composite score computed by the objective function (e.g., `balanced` preset = `1.0 × ret + 10.0 × clamped_sharpe + 0.5 × win_rate − 0.5 × drawdown`). Higher is better; negative scores indicate poor performance or a parameter set dominated by its penalty terms |
-| `sharpe=` | `sharpe_ratio` | Annualized risk-adjusted return: `(mean(bar_returns) − RFR_per_bar) / stddev(bar_returns) × √periodsPerYear`. Positive values above ~1.0 indicate favorable risk-adjusted returns; negative values mean returns trail the risk-free rate. Near-zero Sharpe with small non-zero `ret` suggests the risk-free rate deduction dominates tiny per-bar returns — common on high-frequency (1m) data where per-bar movements are microscopic
+| `sharpe=` | `sharpe_ratio` | Annualized risk-adjusted return: `(mean(bar_returns) − RFR_per_bar) / stddev(bar_returns) × √periodsPerYear`. Positive values above ~1.0 indicate favorable risk-adjusted returns; negative values mean returns trail the risk-free rate. If the annualized volatility of the equity curve is below 0.1% (the volatility guard), both Sharpe and Sortino are clamped to 0 to avoid numerical instability from dividing by near-zero movement |
+| `sortino=` | `sortino_ratio` | Same formula as Sharpe but uses **downside deviation** (stddev of negative returns only) instead of total volatility. Ignores upside volatility, making it a better measure for strategies with asymmetric return profiles. Same 0.1% annualized volatility guard applies |
 
 **Progress Examples:**
 

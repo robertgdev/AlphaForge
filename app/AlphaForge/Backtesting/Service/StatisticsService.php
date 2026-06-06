@@ -11,15 +11,17 @@ readonly class StatisticsService implements StatisticsServiceInterface
     private const MIN_OBSERVATIONS_FOR_RISK = 10;
 
     /**
-     * Minimum per-period volatility required for meaningful risk metrics.
-     * Below this threshold, Sharpe/Sortino ratios are returned as 0 to avoid
-     * numerical instability from dividing near-zero volatility (common on high-frequency
-     * data types like 1m renko where bar-level returns approach floating-point noise).
+     * Minimum annualized volatility required for meaningful risk metrics.
      *
-     * Value: 1e-5 = 0.001% per period. For 1m data with √525600 ≈ 725, the equivalent
-     * annualized threshold is ~0.725%.
+     * Below this threshold, Sharpe/Sortino ratios are clamped to 0 — a
+     * strategy with near-zero annualized volatility is effectively flat,
+     * and dividing by minuscule numbers produces unstable results.
+     *
+     * Checked against annualized (not per-period) volatility so the guard
+     * is data-type agnostic: daily, hourly, 1m, and renko all use the
+     * same meaningful 0.1% annualized floor.
      */
-    private const MIN_PERIOD_VOLATILITY = '0.00001';
+    private const MIN_ANNUALIZED_VOLATILITY = '0.001';
 
     /**
      * Calculate comprehensive backtest statistics.
@@ -156,8 +158,13 @@ readonly class StatisticsService implements StatisticsServiceInterface
     /**
      * Calculate period returns from equity curve.
      *
+     * Skips periods where equity stayed the same (no open position) —
+     * these flat bars contribute no signal and would dilute the mean
+     * return to near zero, producing misleadingly negative Sharpe/Sortino
+     * on strategies with low market exposure.
+     *
      * @param  Vector<string>  $equityCurve
-     * @return Vector<string> Returns
+     * @return Vector<string> Non-zero period returns
      */
     private function calculateReturns(Vector $equityCurve): Vector
     {
@@ -168,15 +175,19 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $currEquity = $equityCurve->get($i);
 
             if (bccomp($prevEquity, '0', 12) === 0) {
-                $returns->push('0');
-            } else {
-                $return = bcdiv(
-                    bcsub($currEquity, $prevEquity, 12),
-                    $prevEquity,
-                    12
-                );
-                $returns->push($return);
+                continue;
             }
+
+            if (bccomp($prevEquity, $currEquity, 12) === 0) {
+                continue;
+            }
+
+            $return = bcdiv(
+                bcsub($currEquity, $prevEquity, 12),
+                $prevEquity,
+                12
+            );
+            $returns->push($return);
         }
 
         return $returns;
@@ -352,7 +363,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $periodRFR = bcdiv($riskFreeRate, (string) $periodsPerYear, 12);
 
         $sharpeRatio = '0';
-        if (bccomp($volatility, self::MIN_PERIOD_VOLATILITY, 12) >= 0) {
+        if (bccomp($annualizedVolatility, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
             $excessReturn = bcsub($avgReturn, $periodRFR, 12);
             $sharpeRatio = bcdiv($excessReturn, $volatility, 6);
             $sharpeRatio = bcmul(
@@ -372,7 +383,12 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $sortinoRatio = '0';
         if ($downsideReturns->count() > 0) {
             $downsideDeviation = Math::standardDeviation($downsideReturns->toArray(), 12);
-            if (bccomp($downsideDeviation, self::MIN_PERIOD_VOLATILITY, 12) >= 0) {
+            $annualizedDownsideDeviation = bcmul(
+                $downsideDeviation,
+                bcsqrt((string) $periodsPerYear, 12),
+                12
+            );
+            if (bccomp($annualizedDownsideDeviation, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
                 $excessReturn = bcsub($avgReturn, $periodRFR, 12);
                 $sortinoRatio = bcdiv($excessReturn, $downsideDeviation, 6);
                 $sortinoRatio = bcmul(
