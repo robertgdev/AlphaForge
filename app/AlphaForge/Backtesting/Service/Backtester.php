@@ -341,6 +341,13 @@ class Backtester
         $this->progressCallback = null;
     }
 
+    private function emitProgress(int $current, int $total, string $message): void
+    {
+        if ($this->progressCallback !== null) {
+            ($this->progressCallback)($current, $total, $message);
+        }
+    }
+
     /**
      * Configure the strategy with inputs.
      */
@@ -1225,6 +1232,87 @@ class Backtester
 
             $this->createOrderFromSignal($signal, $currentBar, $symbol);
         }
+    }
+
+    /**
+     * Create an order from a signal.
+     */
+    private function createOrderFromSignal(OrderSignal $signal, array $bar, string $symbol): void
+    {
+        $stakeAmount = $signal->stakeAmount ?? $this->portfolioManager->getDefaultStakeAmount();
+
+        if (! $this->canAffordTrade($signal, $stakeAmount, $bar[self::BAR_C])) {
+            return;
+        }
+
+        $pendingOrder = new PendingOrder(
+            id: uniqid('order_', true),
+            symbol: $symbol,
+            direction: $signal->direction,
+            type: $signal->orderType,
+            stakeAmount: $stakeAmount,
+            createdAt: Carbon::createFromTimestamp($bar[self::BAR_T]),
+            price: $signal->limitPrice,
+            stopPrice: $signal->stopPrice,
+            stopLoss: $signal->stopLoss,
+            takeProfit: $signal->takeProfit,
+            exitTag: $signal->exitTags[0] ?? null,
+        );
+
+        $this->orderManager->addPendingOrder($pendingOrder);
+    }
+
+    /**
+     * Check if we can afford a trade.
+     */
+    private function canAffordTrade(OrderSignal $signal, string $stakeAmount, string $price): bool
+    {
+        $cashBalance = $this->portfolioManager->getCashBalance();
+
+        if ($signal->direction === DirectionEnum::LONG) {
+            return (float) $cashBalance >= (float) $stakeAmount;
+        }
+
+        return true;
+    }
+
+    /**
+     * Close all remaining positions.
+     */
+    private function closeAllPositions(OhlcvSeries $ohlcv): void
+    {
+        $openPositions = $this->portfolioManager->getOpenPositions();
+        $lastIndex = $ohlcv->getTimestamps()->count() - 1;
+        $lastPrice = $ohlcv->getCloses()->getVector()->get($lastIndex);
+        $lastTimestamp = $ohlcv->getTimestamps()->getVector()->get($lastIndex);
+
+        foreach ($openPositions as $position) {
+            $closedPosition = $this->portfolioManager->closePosition(
+                $position->id,
+                $lastPrice,
+                Carbon::createFromTimestamp($lastTimestamp),
+                $this->commissionConfig,
+                'end_of_backtest',
+            );
+
+            if ($closedPosition) {
+                if ($this->openPositionIndex->hasKey($closedPosition->id)) {
+                    $oldIndex = $this->openPositionIndex->get($closedPosition->id);
+                    $this->positions->remove($oldIndex);
+                    $this->openPositionIndex->remove($closedPosition->id);
+                    $this->rebuildOpenPositionIndex();
+                }
+                $this->positions->push($closedPosition);
+
+                unset(
+                    $this->highWaterMarks[$position->id],
+                    $this->lowWaterMarks[$position->id],
+                    $this->barsInPositionTracker[$position->id],
+                );
+            }
+        }
+
+        $this->currentCapital = $this->portfolioManager->getCashBalance();
     }
 
     /**
