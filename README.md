@@ -493,7 +493,141 @@ php artisan alphaforge:strategies:list
 
 The command uses `StrategyRegistry` auto-discovery, which finds any class implementing `StrategyInterface` with an `#[AsStrategy]` attribute. Strategies are registered automatically — no manual wiring required.
 
-#### User Strategy Paths
+### Built-in Strategies
+
+AlphaForge ships with 8 built-in strategies covering major trading styles: trend-following, momentum, mean-reversion, and volatility-breakout.
+
+#### Crossover Strategies
+
+These strategies generate signals when a faster indicator crosses a slower one.
+
+| Alias | Name | Indicators | Entry Signal | Exit Signal | Configurable Inputs |
+|-------|------|------------|-------------|-------------|---------------------|
+| `sma_crossover` | SMA Crossover | SMA (fast, slow) | Fast SMA crosses **above** slow SMA | Fast SMA crosses **below** slow SMA | `fastPeriod` (5–50, step 5), `slowPeriod` (20–200, step 10), `stopLossPercent`, `takeProfitPercent` |
+| `ema_crossover` | EMA Crossover | EMA (fast, slow) | Fast EMA crosses **above** slow EMA | Fast EMA crosses **below** slow EMA | `fastPeriod` (3–30, step 2), `slowPeriod` (15–100, step 5), `stopLossPercent`, `takeProfitPercent` |
+| `macd_crossover` | MACD Crossover | MACD (line, signal) | MACD line crosses **above** signal line | MACD line crosses **below** signal line | `fastPeriod` (5–20), `slowPeriod` (15–40), `signalPeriod` (5–15), `stopLossPercent`, `takeProfitPercent` |
+
+**Use case:** Trend-following — captures directional moves in trending markets. EMA responds faster than SMA. MACD adds signal-line smoothing to reduce false signals.
+
+**Example:**
+```bash
+# Backtest SMA crossover with custom periods
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --inputs='{"fastPeriod":10,"slowPeriod":50}'
+
+# Optimize MACD crossover using strategy-defined ranges
+php artisan alphaforge:optimize macd_crossover BTCUSDT --use-strategy-ranges --objective=balanced
+```
+
+---
+
+#### Momentum / Reversal Strategies
+
+These strategies identify turning points using oscillator overbought/oversold conditions.
+
+| Alias | Name | Indicators | Entry Signal | Exit Signal | Configurable Inputs |
+|-------|------|------------|-------------|-------------|---------------------|
+| `rsi_reversal` | RSI Reversal | RSI | RSI is below oversold threshold **AND** rising | RSI is above overbought threshold **AND** falling | `rsiPeriod` (5–30, step 1), `oversoldThreshold` (10–40, step 5), `overboughtThreshold` (60–90, step 5), `stopLossPercent`, `takeProfitPercent` |
+| `stoch_reversal` | Stochastic Reversal | Stochastic (%K, %D) | %K crosses **above** %D | %K crosses **below** %D | `fastKPeriod` (5–30), `slowKPeriod` (1–10), `slowDPeriod` (1–10), `stopLossPercent`, `takeProfitPercent` |
+
+**Use case:** Momentum / mean-reversion — enters when an oscillator signals an oversold bounce or overbought pullback.
+
+**Example:**
+```bash
+# Backtest RSI reversal with custom thresholds
+php artisan alphaforge:backtest:run rsi_reversal BTCUSDT \
+    --inputs='{"rsiPeriod":14,"oversoldThreshold":25,"overboughtThreshold":75}'
+
+# Optimize stochastic with genetic algorithm
+php artisan alphaforge:optimize stoch_reversal BTCUSDT --use-strategy-ranges \
+    --method=genetic --population=80 --generations=25
+```
+
+---
+
+#### Mean Reversion Strategies
+
+These strategies exploit the tendency of price to revert to a statistical mean.
+
+| Alias | Name | Indicators | Entry Signal | Exit Signal | Configurable Inputs |
+|-------|------|------------|-------------|-------------|---------------------|
+| `bb_reversal` | Bollinger Band Reversal | BBands (upper, middle, lower) | Close crosses **below** lower band (oversold) | Close crosses **above** middle band (reversion complete) | `period` (10–50, step 5), `stdDev` (1.0–4.0, step 0.5), `stopLossPercent`, `takeProfitPercent` |
+
+**Use case:** Mean reversion in ranging/sideways markets. Buy when price is statistically cheap (below lower band), sell when it returns to the moving average. Less effective in strong trends.
+
+**Example:**
+```bash
+# Backtest Bollinger Band reversal with tight bands
+php artisan alphaforge:backtest:run bb_reversal BTCUSDT \
+    --inputs='{"period":20,"stdDev":1.5}'
+
+# Optimize across a multi-month range
+php artisan alphaforge:optimize bb_reversal BTCUSDT --use-strategy-ranges \
+    --start-date="2023-01-01" --end-date="2023-12-31" --objective=conservative
+```
+
+---
+
+#### Trend-Confirmation Strategies
+
+These strategies use multiple indicators to confirm trend direction before entering, and exit when the trend weakens or reverses.
+
+| Alias | Name | Indicators | Entry Signal | Exit Signal | Configurable Inputs |
+|-------|------|------------|-------------|-------------|---------------------|
+| `adx_trend_pullback` | ADX Trend Pullback | ADX, RSI | ADX > threshold (trend confirmed) **AND** RSI < pullback level **AND** RSI rising | ADX < threshold (trend fading) **OR** RSI > overbought level | `adxPeriod` (10–30, step 2), `adxThreshold` (15–40, step 5), `rsiPeriod` (5–30, step 1), `rsiPullbackLevel` (20–50, step 5), `rsiOverboughtLevel` (60–85, step 5), `stopLossPercent`, `takeProfitPercent` |
+
+**Use case:** Trend-following with pullback entries — waits for a confirmed trend (high ADX) then buys during a temporary RSI dip within that trend. This avoids entering during choppy/sideways markets and catches entries at favorable prices within a trend.
+
+**Example:**
+```bash
+# Backtest with ADX threshold of 30
+php artisan alphaforge:backtest:run adx_trend_pullback BTCUSDT \
+    --inputs='{"adxPeriod":14,"adxThreshold":30,"rsiPeriod":14,"rsiPullbackLevel":35}'
+
+# Optimize trend pullback
+php artisan alphaforge:optimize adx_trend_pullback BTCUSDT --use-strategy-ranges \
+    --objective=balanced --method=random --iterations=1000
+```
+
+---
+
+#### Volatility-Based Strategies
+
+These strategies use price breakouts with volatility-adjusted stops and profit targets.
+
+| Alias | Name | Indicators | Entry Signal | Exit Signal | Configurable Inputs |
+|-------|------|------------|-------------|-------------|---------------------|
+| `breakout` | Volatility Breakout | Rolling highest high, rolling lowest low, ATR | Close crosses **above** the highest high of N bars | Close crosses **below** the lowest low of N/2 bars | `lookback` (10–60, step 5), `atrPeriod` (5–30, step 1), `atrMultiplier` (1.0–5.0, step 0.5), `stopLossPercent`, `takeProfitPercent` |
+
+**Use case:** Channel breakouts — enters when price breaks through resistance (highest high of the lookback window), signaling a momentum breakout. Uses ATR-based stop placement to adapt to current volatility. The exit uses a tighter lookback (half the entry lookback) to lock in profits before a full reversal.
+
+**Example:**
+```bash
+# Backtest breakout with 30-bar lookback and 2.5x ATR trailing stop
+php artisan alphaforge:backtest:run breakout BTCUSDT \
+    --inputs='{"lookback":30,"atrPeriod":14,"atrMultiplier":2.5}'
+
+# Optimize breakout parameters
+php artisan alphaforge:optimize breakout BTCUSDT --use-strategy-ranges \
+    --objective=aggressive
+```
+
+---
+
+### Strategy Parameter Reference
+
+All built-in strategies share these common parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `stopLossPercent` | float | Percentage below entry price for stop-loss (e.g., `3.0` = 3% stop). Calculated as `entryPrice × (1 − stopLossPercent/100)`. |
+| `takeProfitPercent` | float | Percentage above entry price for take-profit (e.g., `6.0` = 6% target). Calculated as `entryPrice × (1 + takeProfitPercent/100)`. |
+| `positionSizePercent` | float | Percentage of initial capital to risk per trade (default: `1.0`). Not exposed as an `#[Input]` — set via `--inputs='{"positionSizePercent":2.0}'` in the CLI. |
+
+Each strategy defines its own `#[Input]` attributes with `min`, `max`, and `step` values. These ranges are used by `alphaforge:optimize` when `--use-strategy-ranges` is specified, and by `alphaforge:walk-forward` for parameter space generation.
+
+---
+
+### User Strategy Paths
 
 You can define custom strategy classes outside the `app/AlphaForge/Strategy` directory. User strategies override built-in strategies with the same alias — if both exist, the user copy wins.
 
