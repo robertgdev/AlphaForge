@@ -3,9 +3,11 @@
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Service\Backtester;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
-uses(\Tests\TestCase::class);
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(TestCase::class);
+uses(RefreshDatabase::class);
 
 describe('BacktestRunService findCompletedDuplicate', function () {
     beforeEach(function () {

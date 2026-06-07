@@ -1,8 +1,8 @@
 <?php
 
 use App\AlphaForge\Backtesting\Optimization\Generator\GeneticGenerator;
-use App\AlphaForge\Backtesting\Optimization\Generator\RandomGenerator;
 use App\AlphaForge\Backtesting\Optimization\Generator\GridGenerator;
+use App\AlphaForge\Backtesting\Optimization\Generator\RandomGenerator;
 use App\AlphaForge\Backtesting\Optimization\ParameterDimension;
 use App\AlphaForge\Backtesting\Optimization\ParameterSpace;
 

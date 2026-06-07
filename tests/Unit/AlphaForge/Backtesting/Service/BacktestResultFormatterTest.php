@@ -1,6 +1,7 @@
 <?php
 
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
+use Carbon\Carbon;
 
 describe('BacktestResultFormatter', function () {
     beforeEach(function () {
@@ -276,8 +277,8 @@ describe('BacktestResultFormatter', function () {
                     'entryPrice' => 50000,
                     'exitPrice' => 55000,
                     'realizedPnl' => 1000,
-                    'entryTime' => \Carbon\Carbon::parse('2024-01-01 10:00:00'),
-                    'exitTime' => \Carbon\Carbon::parse('2024-01-03 14:30:45'),
+                    'entryTime' => Carbon::parse('2024-01-01 10:00:00'),
+                    'exitTime' => Carbon::parse('2024-01-03 14:30:45'),
                 ],
             ];
 

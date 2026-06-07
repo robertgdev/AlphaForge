@@ -42,32 +42,32 @@ describe('DataTypeConfig', function () {
 
         it('throws on invalid data type', function () {
             expect(fn () => DataTypeConfig::fromOptions('invalid', null, null))
-                ->toThrow(\InvalidArgumentException::class, "Invalid data-type 'invalid'");
+                ->toThrow(InvalidArgumentException::class, "Invalid data-type 'invalid'");
         });
 
         it('throws when renko has no brick size', function () {
             expect(fn () => DataTypeConfig::fromOptions('renko', null, null))
-                ->toThrow(\InvalidArgumentException::class, 'data-type=renko requires --brick-size');
+                ->toThrow(InvalidArgumentException::class, 'data-type=renko requires --brick-size');
         });
 
         it('throws when renko has zero brick size', function () {
             expect(fn () => DataTypeConfig::fromOptions('renko', '0', null))
-                ->toThrow(\InvalidArgumentException::class, 'data-type=renko requires --brick-size');
+                ->toThrow(InvalidArgumentException::class, 'data-type=renko requires --brick-size');
         });
 
         it('throws when renko has negative brick size', function () {
             expect(fn () => DataTypeConfig::fromOptions('renko', '-5', null))
-                ->toThrow(\InvalidArgumentException::class, 'data-type=renko requires --brick-size');
+                ->toThrow(InvalidArgumentException::class, 'data-type=renko requires --brick-size');
         });
 
         it('throws when atr_renko has no atr period', function () {
             expect(fn () => DataTypeConfig::fromOptions('atr_renko', null, null))
-                ->toThrow(\InvalidArgumentException::class, 'data-type=atr_renko requires --atr-period');
+                ->toThrow(InvalidArgumentException::class, 'data-type=atr_renko requires --atr-period');
         });
 
         it('throws when atr_renko has zero atr period', function () {
             expect(fn () => DataTypeConfig::fromOptions('atr_renko', null, '0'))
-                ->toThrow(\InvalidArgumentException::class, 'data-type=atr_renko requires --atr-period');
+                ->toThrow(InvalidArgumentException::class, 'data-type=atr_renko requires --atr-period');
         });
 
         it('auto-upgrades renko to atr_renko when brick size is missing but atr-period is set', function () {
@@ -246,7 +246,7 @@ describe('DataTypeConfig', function () {
 
         it('throws on invalid data_type in array', function () {
             expect(fn () => DataTypeConfig::fromArray(['data_type' => 'invalid']))
-                ->toThrow(\InvalidArgumentException::class, "Invalid data-type 'invalid'");
+                ->toThrow(InvalidArgumentException::class, "Invalid data-type 'invalid'");
         });
     });
 });

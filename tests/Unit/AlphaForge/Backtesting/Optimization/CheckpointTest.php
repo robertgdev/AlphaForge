@@ -1,9 +1,7 @@
 <?php
 
-use App\AlphaForge\Backtesting\Optimization\Optimizer;
-use App\AlphaForge\Backtesting\Optimization\ParameterSpace;
-use App\AlphaForge\Backtesting\Optimization\TopNResults;
 use App\AlphaForge\Backtesting\Optimization\Objective\SingleMetricObjective;
+use App\AlphaForge\Backtesting\Optimization\TopNResults;
 
 describe('Optimizer checkpointing', function () {
     it('saves and loads checkpoint file', function () {

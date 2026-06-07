@@ -4,6 +4,7 @@ use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Console\Commands\ExportOptimizeCommand;
 use App\AlphaForge\Console\Commands\ExportTradesCommand;
+use Illuminate\Database\Eloquent\Collection;
 
 describe('ExportTradesCommand', function () {
     function makeBacktestRun(array $trades): BacktestRun
@@ -128,9 +129,9 @@ describe('ExportOptimizeCommand', function () {
         return $run;
     }
 
-    function makeOptimizationResults(array $stats): \Illuminate\Database\Eloquent\Collection
+    function makeOptimizationResults(array $stats): Collection
     {
-        $results = new \Illuminate\Database\Eloquent\Collection;
+        $results = new Collection;
         foreach ($stats as $index => $s) {
             $r = new BacktestRun;
             $r->id = '019a0000-0000-7000-8000-'.str_pad((string) $index, 12, '0', STR_PAD_LEFT);

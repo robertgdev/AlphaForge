@@ -2,12 +2,12 @@
 
 namespace Tests\Unit\Analysis\Engine;
 
-use App\AlphaForge\Data\Service\BinaryStorage;
-use App\AlphaForge\Data\Service\BinaryStorageInterface;
-use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Analysis\Config\OpenCrossAnalysisConfig;
 use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
 use App\AlphaForge\Analysis\Exception\AnalysisException;
+use App\AlphaForge\Data\Service\BinaryStorage;
+use App\AlphaForge\Data\Service\BinaryStorageInterface;
+use App\AlphaForge\Services\MarketDataFileService;
 use PHPUnit\Framework\TestCase;
 
 final class OpenCrossProbabilityEngineTest extends TestCase
