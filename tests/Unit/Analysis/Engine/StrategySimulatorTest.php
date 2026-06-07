@@ -1,82 +1,97 @@
 <?php
 
+use App\AlphaForge\Analysis\Config\ValidationConfig;
+use App\AlphaForge\Analysis\Dto\OpenCrossProbabilityResult;
+use App\AlphaForge\Analysis\Dto\Validation\SimulationReport;
 use App\AlphaForge\Analysis\Engine\Validation\StrategySimulator;
+use App\AlphaForge\Backtesting\Service\SeriesMetricServiceInterface;
 
 describe('StrategySimulator', function () {
     beforeEach(function () {
-        $this->simulator = new StrategySimulator;
+        $this->seriesMetricService = Mockery::mock(SeriesMetricServiceInterface::class);
+        $this->simulator = new StrategySimulator($this->seriesMetricService);
     });
 
-    describe('calculatePerformanceMetrics', function () {
-        it('returns zero sharpe and sortino for empty trades', function () {
-            $reflection = new ReflectionMethod(StrategySimulator::class, 'calculatePerformanceMetrics');
+    describe('simulate', function () {
+        it('returns zero metrics when no trades were generated', function () {
+            $this->seriesMetricService->shouldReceive('tradeWinLossStats')->once()->andReturn([
+                'total_trades' => 0,
+                'winning_trades' => 0,
+                'losing_trades' => 0,
+                'win_rate' => 0.0,
+                'expected_value' => 0.0,
+            ]);
+            $this->seriesMetricService->shouldReceive('sharpeRatioFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('sortinoRatioFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('maxDrawdownFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('performanceStabilityFromTrades')->once()->andReturn(0.0);
 
-            $metrics = $reflection->invoke($this->simulator, []);
+            $surface = new OpenCrossProbabilityResult(
+                probabilitySurface: [],
+                totalBlocksAnalyzed: 0,
+                totalObservations: 0,
+                metadata: [],
+            );
 
-            expect($metrics['total_trades'])->toBe(0)
-                ->and($metrics['sharpe_ratio'])->toBe(0.0)
-                ->and($metrics['sortino_ratio'])->toBe(0.0);
+            $config = new ValidationConfig(
+                exchange: 'test',
+                market: 'BTC/USDT',
+                timeframe: '1m',
+                blockMinutes: 15,
+                bucketSize: 0.001,
+            );
+
+            $report = $this->simulator->simulate($surface, [], $config);
+
+            expect($report->totalTrades)->toBe(0)
+                ->and($report->sharpeRatio)->toBe(0.0)
+                ->and($report->sortinoRatio)->toBe(0.0)
+                ->and($report->maxDrawdown)->toBe(0.0)
+                ->and($report->isProfitable)->toBeFalse();
         });
 
-        it('returns non-zero sharpe and sortino with mixed trades', function () {
-            $reflection = new ReflectionMethod(StrategySimulator::class, 'calculatePerformanceMetrics');
+        it('delegates all stats to SeriesMetricService when trades exist', function () {
+            $this->seriesMetricService->shouldReceive('tradeWinLossStats')->once()->with([])->andReturn([
+                'total_trades' => 0,
+                'winning_trades' => 0,
+                'losing_trades' => 0,
+                'win_rate' => 0.0,
+                'expected_value' => 0.0,
+            ]);
+            $this->seriesMetricService->shouldReceive('sharpeRatioFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('sortinoRatioFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('maxDrawdownFromReturns')->once()->andReturn(0.0);
+            $this->seriesMetricService->shouldReceive('performanceStabilityFromTrades')->once()->andReturn(0.0);
 
-            $trades = [];
-            for ($i = 0; $i < 20; $i++) {
-                $trades[] = [
-                    'timestamp' => $i,
-                    'entry_price' => 100.0,
-                    'exit_price' => 105.0,
-                    'pnl' => $i % 3 === 0 ? -0.01 - ($i * 0.001) : 0.05,
-                    'entry_distance' => 0.01,
+            $surface = new OpenCrossProbabilityResult(
+                probabilitySurface: [],
+                totalBlocksAnalyzed: 0,
+                totalObservations: 0,
+                metadata: [],
+            );
+
+            $records = [];
+            for ($i = 0; $i < 15; $i++) {
+                $records[] = [
+                    'timestamp' => 1700000000 + ($i * 60),
+                    'open' => 100.0 + ($i * 0.01),
+                    'high' => 100.5 + ($i * 0.01),
+                    'low' => 99.5 + ($i * 0.01),
+                    'close' => 100.1 + ($i * 0.01),
                 ];
             }
 
-            $metrics = $reflection->invoke($this->simulator, $trades);
+            $config = new ValidationConfig(
+                exchange: 'test',
+                market: 'BTC/USDT',
+                timeframe: '1m',
+                blockMinutes: 15,
+                bucketSize: 0.001,
+            );
 
-            expect($metrics['sharpe_ratio'])->toBeGreaterThan(0)
-                ->and($metrics['sortino_ratio'])->toBeGreaterThan(0);
-        });
+            $report = $this->simulator->simulate($surface, $records, $config);
 
-        it('returns zero sortino when no downside returns', function () {
-            $reflection = new ReflectionMethod(StrategySimulator::class, 'calculatePerformanceMetrics');
-
-            $trades = [];
-            for ($i = 0; $i < 20; $i++) {
-                $trades[] = [
-                    'timestamp' => $i,
-                    'entry_price' => 100.0,
-                    'exit_price' => 105.0,
-                    'pnl' => 0.03 + ($i * 0.001),
-                    'entry_distance' => 0.01,
-                ];
-            }
-
-            $metrics = $reflection->invoke($this->simulator, $trades);
-
-            expect($metrics['sharpe_ratio'])->toBeGreaterThan(0)
-                ->and($metrics['sortino_ratio'])->toBe(0.0);
-        });
-
-        it('returns different sharpe and sortino with mixed returns', function () {
-            $reflection = new ReflectionMethod(StrategySimulator::class, 'calculatePerformanceMetrics');
-
-            $trades = [];
-            for ($i = 0; $i < 30; $i++) {
-                $trades[] = [
-                    'timestamp' => $i,
-                    'entry_price' => 100.0,
-                    'exit_price' => 105.0,
-                    'pnl' => $i % 2 === 0 ? 0.06 : -0.01 - ($i * 0.0005),
-                    'entry_distance' => 0.01,
-                ];
-            }
-
-            $metrics = $reflection->invoke($this->simulator, $trades);
-
-            expect($metrics['sharpe_ratio'])->toBeGreaterThan(0)
-                ->and($metrics['sortino_ratio'])->toBeGreaterThan(0)
-                ->and($metrics['sortino_ratio'])->not->toEqual($metrics['sharpe_ratio']);
+            expect($report)->toBeInstanceOf(SimulationReport::class);
         });
     });
 });

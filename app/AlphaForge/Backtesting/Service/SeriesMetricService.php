@@ -284,4 +284,144 @@ readonly class SeriesMetricService implements SeriesMetricServiceInterface
             'kurtosis' => '0',
         ];
     }
+
+    /**
+     * Calculate annualized Sharpe ratio from a flat array of periodic returns.
+     *
+     * @param  array<int, float>  $returns
+     */
+    public function sharpeRatioFromReturns(array $returns): float
+    {
+        if (count($returns) < 2) {
+            return 0.0;
+        }
+
+        $mean = array_sum($returns) / count($returns);
+
+        $variance = 0.0;
+        foreach ($returns as $r) {
+            $variance += ($r - $mean) ** 2;
+        }
+
+        $stdDev = sqrt($variance / (count($returns) - 1));
+
+        if ($stdDev < 1e-15) {
+            return 0.0;
+        }
+
+        return $mean / $stdDev;
+    }
+
+    /**
+     * Calculate Sortino ratio from a flat array of periodic returns.
+     *
+     * Uses only downside deviation (returns below zero) in the denominator.
+     *
+     * @param  array<int, float>  $returns
+     */
+    public function sortinoRatioFromReturns(array $returns): float
+    {
+        $mean = count($returns) > 0 ? array_sum($returns) / count($returns) : 0.0;
+
+        $downsideReturns = array_filter($returns, fn ($r) => $r < 0);
+
+        if (count($downsideReturns) < 2) {
+            return 0.0;
+        }
+
+        $downsideMean = array_sum($downsideReturns) / count($downsideReturns);
+        $downsideVariance = 0.0;
+        foreach ($downsideReturns as $r) {
+            $downsideVariance += ($r - $downsideMean) ** 2;
+        }
+
+        $downsideStdDev = sqrt($downsideVariance / (count($downsideReturns) - 1));
+
+        if ($downsideStdDev < 1e-15) {
+            return 0.0;
+        }
+
+        return $mean / $downsideStdDev;
+    }
+
+    /**
+     * Calculate maximum drawdown from an array of returns.
+     *
+     * @param  array<int, float>  $returns
+     */
+    public function maxDrawdownFromReturns(array $returns): float
+    {
+        $cumulativeReturn = 1.0;
+        $peak = 1.0;
+        $maxDrawdown = 0.0;
+
+        foreach ($returns as $r) {
+            $cumulativeReturn *= (1 + $r);
+            $peak = max($peak, $cumulativeReturn);
+            $drawdown = ($peak - $cumulativeReturn) / $peak;
+            $maxDrawdown = max($maxDrawdown, $drawdown);
+        }
+
+        return $maxDrawdown;
+    }
+
+    /**
+     * Calculate performance stability — fraction of trading days with positive net return.
+     *
+     * @param  array<int, array{timestamp: int, pnl: float}>  $trades
+     */
+    public function performanceStabilityFromTrades(array $trades): float
+    {
+        $periodReturns = [];
+
+        foreach ($trades as $trade) {
+            $date = date('Y-m-d', $trade['timestamp']);
+            if (! isset($periodReturns[$date])) {
+                $periodReturns[$date] = 0.0;
+            }
+            $periodReturns[$date] += $trade['pnl'];
+        }
+
+        $positivePeriods = 0;
+        $totalPeriods = count($periodReturns);
+
+        foreach ($periodReturns as $return) {
+            if ($return > 0) {
+                $positivePeriods++;
+            }
+        }
+
+        return $totalPeriods > 0 ? $positivePeriods / $totalPeriods : 0.0;
+    }
+
+    /**
+     * Calculate basic win/loss statistics from an array of returns.
+     *
+     * @param  array<int, float>  $returns
+     * @return array{total_trades: int, winning_trades: int, losing_trades: int, win_rate: float, expected_value: float}
+     */
+    public function tradeWinLossStats(array $returns): array
+    {
+        if (empty($returns)) {
+            return [
+                'total_trades' => 0,
+                'winning_trades' => 0,
+                'losing_trades' => 0,
+                'win_rate' => 0.0,
+                'expected_value' => 0.0,
+            ];
+        }
+
+        $total = count($returns);
+        $wins = count(array_filter($returns, fn ($r) => $r > 0));
+        $losses = count(array_filter($returns, fn ($r) => $r < 0));
+
+        return [
+            'total_trades' => $total,
+            'winning_trades' => $wins,
+            'losing_trades' => $losses,
+            'win_rate' => $total > 0 ? (float) $wins / $total : 0.0,
+            'expected_value' => $total > 0 ? array_sum($returns) / $total : 0.0,
+        ];
+    }
 }

@@ -5,12 +5,20 @@ namespace App\AlphaForge\Analysis\Engine\Validation;
 use App\AlphaForge\Analysis\Config\ValidationConfig;
 use App\AlphaForge\Analysis\Dto\OpenCrossProbabilityResult;
 use App\AlphaForge\Analysis\Dto\Validation\SimulationReport;
+use App\AlphaForge\Backtesting\Service\SeriesMetricServiceInterface;
 
 /**
  * Simulates a simple trading strategy based on probability estimates.
+ *
+ * Statistics calculations are delegated to SeriesMetricServiceInterface
+ * to avoid duplicating Backtesting module logic.
  */
 final class StrategySimulator
 {
+    public function __construct(
+        private readonly SeriesMetricServiceInterface $seriesMetricService,
+    ) {}
+
     /**
      * Simulate a trading strategy based on probability estimates.
      *
@@ -23,39 +31,34 @@ final class StrategySimulator
         array $testRecords,
         ValidationConfig $config
     ): SimulationReport {
-        // Build surface lookup map
         $surfaceMap = $this->buildSurfaceMap($surface);
 
-        // Partition test records into blocks
         $blocks = $this->partitionIntoBlocks($testRecords, $config->blockMinutes);
 
-        // Simulate trades
         $trades = [];
-        $periodResults = [];
 
         foreach ($blocks as $blockData) {
             $blockTrades = $this->simulateBlock($blockData, $surfaceMap, $config);
             $trades = array_merge($trades, $blockTrades);
         }
 
-        // Group trades by period for stability analysis
         $periodResults = $this->calculatePeriodResults($trades);
 
-        // Calculate overall metrics
-        $metrics = $this->calculatePerformanceMetrics($trades);
+        $pnls = array_column($trades, 'pnl');
+        $wlStats = $this->seriesMetricService->tradeWinLossStats($pnls);
 
         return new SimulationReport(
-            totalTrades: $metrics['total_trades'],
-            winningTrades: $metrics['winning_trades'],
-            losingTrades: $metrics['losing_trades'],
-            winRate: $metrics['win_rate'],
-            expectedValue: $metrics['expected_value'],
-            sharpeRatio: $metrics['sharpe_ratio'],
-            sortinoRatio: $metrics['sortino_ratio'],
-            maxDrawdown: $metrics['max_drawdown'],
-            performanceStability: $metrics['performance_stability'],
+            totalTrades: $wlStats['total_trades'],
+            winningTrades: $wlStats['winning_trades'],
+            losingTrades: $wlStats['losing_trades'],
+            winRate: $wlStats['win_rate'],
+            expectedValue: $wlStats['expected_value'],
+            sharpeRatio: $this->seriesMetricService->sharpeRatioFromReturns($pnls),
+            sortinoRatio: $this->seriesMetricService->sortinoRatioFromReturns($pnls),
+            maxDrawdown: $this->seriesMetricService->maxDrawdownFromReturns($pnls),
+            performanceStability: $this->seriesMetricService->performanceStabilityFromTrades($trades),
             periodResults: $periodResults,
-            isProfitable: $metrics['expected_value'] > 0
+            isProfitable: $wlStats['expected_value'] > 0
         );
     }
 
@@ -207,7 +210,6 @@ final class StrategySimulator
 
         foreach ($records as $index => $record) {
             if ($index >= $blockLength - 1) {
-                // Force close at end of block
                 if ($inPosition) {
                     $exitPrice = (float) $record['close'];
                     $pnl = $this->calculatePnL($entryDistance, $entryPrice, $exitPrice);
@@ -232,33 +234,22 @@ final class StrategySimulator
             $bucketKey = sprintf('%.6f', floor($distance / $config->bucketSize) * $config->bucketSize);
             $minutesRemaining = $blockLength - 1 - $index;
 
-            // Get probability from surface
             $probability = null;
             if (isset($surfaceMap[$bucketKey][$minutesRemaining])) {
                 $probability = $surfaceMap[$bucketKey][$minutesRemaining]['probability'];
             }
 
             if (! $inPosition && $probability !== null) {
-                // Entry signal: P(cross) < threshold means price is unlikely to cross back
-                // So we bet on continuation (trend following)
-                // Or P(cross) > (1 - threshold) means price is likely to cross back
-                // So we bet on mean reversion
-
                 if ($probability < (1 - $config->simulationThreshold)) {
-                    // Low cross probability: trend following
-                    // If above open, bet on staying above; if below, bet on staying below
                     $inPosition = true;
                     $entryPrice = $price;
                     $entryDistance = $distance;
                 } elseif ($probability > $config->simulationThreshold) {
-                    // High cross probability: mean reversion
-                    // Bet on price returning to open
                     $inPosition = true;
                     $entryPrice = $price;
                     $entryDistance = $distance;
                 }
             } elseif ($inPosition) {
-                // Check exit conditions
                 $shouldExit = $this->shouldExitPosition(
                     $distance,
                     $entryDistance,
@@ -306,9 +297,7 @@ final class StrategySimulator
         array $record,
         float $blockOpen
     ): bool {
-        // Exit if probability has flipped significantly
         if ($probability !== null) {
-            // If we entered on high cross probability and it's now low, exit
             if ($entryDistance > 0 && $probability < 0.3) {
                 return true;
             }
@@ -317,7 +306,6 @@ final class StrategySimulator
             }
         }
 
-        // Exit if we've crossed the open (target reached for mean reversion)
         if ($entryDistance > 0 && $currentDistance <= 0) {
             return true;
         }
@@ -325,8 +313,6 @@ final class StrategySimulator
             return true;
         }
 
-        // Exit on stop loss (2% against position)
-        $price = (float) $record['close'];
         $priceMove = abs($currentDistance - $entryDistance);
 
         if ($priceMove > 0.02) {
@@ -350,118 +336,11 @@ final class StrategySimulator
             return 0.0;
         }
 
-        // Direction based on strategy
-        // If we entered above open (positive distance) with low cross prob, we're long
-        // If we entered below open (negative distance) with low cross prob, we're short
-        // For mean reversion, we bet on return to open
-
         if ($entryDistance > 0) {
-            // Long position
             return ($exitPrice - $entryPrice) / $entryPrice;
-        } else {
-            // Short position
-            return ($entryPrice - $exitPrice) / $entryPrice;
-        }
-    }
-
-    /**
-     * Calculate performance metrics.
-     *
-     * @param  array<int, array{timestamp: int, entry_price: float, exit_price: float, pnl: float, entry_distance: float}>  $trades  All trades
-     * @return array{total_trades: int, winning_trades: int, losing_trades: int, win_rate: float, expected_value: float, sharpe_ratio: float, sortino_ratio: float, max_drawdown: float, performance_stability: float}
-     */
-    private function calculatePerformanceMetrics(array $trades): array
-    {
-        if (empty($trades)) {
-            return [
-                'total_trades' => 0,
-                'winning_trades' => 0,
-                'losing_trades' => 0,
-                'win_rate' => 0.0,
-                'expected_value' => 0.0,
-                'sharpe_ratio' => 0.0,
-                'sortino_ratio' => 0.0,
-                'max_drawdown' => 0.0,
-                'performance_stability' => 0.0,
-            ];
         }
 
-        $pnls = array_column($trades, 'pnl');
-        $winningTrades = count(array_filter($pnls, fn ($pnl) => $pnl > 0));
-        $losingTrades = count(array_filter($pnls, fn ($pnl) => $pnl < 0));
-
-        $winRate = $winningTrades / count($trades);
-        $expectedValue = array_sum($pnls) / count($trades);
-
-        // Sharpe ratio (simplified, assuming zero risk-free rate)
-        $meanPnl = $expectedValue;
-        $variance = 0.0;
-
-        foreach ($pnls as $pnl) {
-            $variance += ($pnl - $meanPnl) ** 2;
-        }
-
-        $stdDev = count($pnls) > 1 ? sqrt($variance / (count($pnls) - 1)) : 0.0;
-        $sharpeRatio = $stdDev > 0 ? $meanPnl / $stdDev : 0.0;
-
-        // Sortino ratio (downside deviation only)
-        $downsidePnls = array_filter($pnls, fn ($pnl) => $pnl < 0);
-        $sortinoRatio = 0.0;
-        if (count($downsidePnls) > 1) {
-            $downsideMean = array_sum($downsidePnls) / count($downsidePnls);
-            $downsideVariance = 0.0;
-            foreach ($downsidePnls as $pnl) {
-                $downsideVariance += ($pnl - $downsideMean) ** 2;
-            }
-            $downsideStdDev = sqrt($downsideVariance / (count($downsidePnls) - 1));
-            $sortinoRatio = $downsideStdDev > 0 ? $meanPnl / $downsideStdDev : 0.0;
-        }
-
-        // Maximum drawdown
-        $cumulativeReturn = 1.0;
-        $peak = 1.0;
-        $maxDrawdown = 0.0;
-
-        foreach ($pnls as $pnl) {
-            $cumulativeReturn *= (1 + $pnl);
-            $peak = max($peak, $cumulativeReturn);
-            $drawdown = ($peak - $cumulativeReturn) / $peak;
-            $maxDrawdown = max($maxDrawdown, $drawdown);
-        }
-
-        // Performance stability (based on consistency of returns)
-        $positivePeriods = 0;
-        $totalPeriods = 0;
-        $periodReturns = [];
-
-        foreach ($trades as $trade) {
-            $date = date('Y-m-d', $trade['timestamp']);
-            if (! isset($periodReturns[$date])) {
-                $periodReturns[$date] = 0.0;
-            }
-            $periodReturns[$date] += $trade['pnl'];
-        }
-
-        foreach ($periodReturns as $return) {
-            $totalPeriods++;
-            if ($return > 0) {
-                $positivePeriods++;
-            }
-        }
-
-        $performanceStability = $totalPeriods > 0 ? $positivePeriods / $totalPeriods : 0.0;
-
-        return [
-            'total_trades' => count($trades),
-            'winning_trades' => $winningTrades,
-            'losing_trades' => $losingTrades,
-            'win_rate' => $winRate,
-            'expected_value' => $expectedValue,
-            'sharpe_ratio' => $sharpeRatio,
-            'sortino_ratio' => $sortinoRatio,
-            'max_drawdown' => $maxDrawdown,
-            'performance_stability' => $performanceStability,
-        ];
+        return ($entryPrice - $exitPrice) / $entryPrice;
     }
 
     /**
@@ -493,7 +372,6 @@ final class StrategySimulator
             }
         }
 
-        // Calculate per-period metrics
         foreach ($periodResults as $month => $data) {
             $periodResults[$month]['win_rate'] = $data['trades'] > 0 ? $data['wins'] / $data['trades'] : 0.0;
             $periodResults[$month]['avg_pnl'] = $data['trades'] > 0 ? $data['total_pnl'] / $data['trades'] : 0.0;

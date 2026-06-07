@@ -14,6 +14,7 @@ use App\AlphaForge\Analysis\Dto\Validation\UncertaintyReport;
 use App\AlphaForge\Analysis\Dto\Validation\ValidationResult;
 use App\AlphaForge\Analysis\Engine\OpenCrossProbabilityEngine;
 use App\AlphaForge\Analysis\Exception\AnalysisException;
+use App\AlphaForge\Backtesting\Service\SeriesMetricServiceInterface;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
 
@@ -41,7 +42,8 @@ final class ValidationOrchestrator
     public function __construct(
         private readonly OpenCrossProbabilityEngine $engine,
         private readonly BinaryStorageInterface $binaryStorage,
-        private readonly MarketDataFileService $fileService
+        private readonly MarketDataFileService $fileService,
+        private readonly SeriesMetricServiceInterface $seriesMetricService,
     ) {
         $this->trainTestSplitter = new TrainTestSplitter($engine);
         $this->calibrationTester = new CalibrationTester;
@@ -50,7 +52,7 @@ final class ValidationOrchestrator
         $this->uncertaintyEstimator = new UncertaintyEstimator;
         $this->randomizationGenerator = new RandomizedBaselineGenerator;
         $this->crossPeriodComparator = new CrossPeriodComparator($engine);
-        $this->strategySimulator = new StrategySimulator;
+        $this->strategySimulator = new StrategySimulator($seriesMetricService);
     }
 
     /**
