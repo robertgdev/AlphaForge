@@ -2,16 +2,10 @@
 
 namespace App\AlphaForge\Strategy\Concretes;
 
-use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use App\AlphaForge\Condition\ConditionInterface;
-use App\AlphaForge\ExitRule\DefaultExitRules;
-use App\AlphaForge\Indicator\Model\IndicatorContext;
-use App\AlphaForge\Order\Dto\OrderSignal;
-use App\AlphaForge\Order\Enum\OrderTypeEnum;
+use App\AlphaForge\Common\Model\OhlcvSeries;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;
 use App\AlphaForge\Strategy\Attribute\Input;
-use App\AlphaForge\Strategy\StrategyInterface;
 
 #[AsStrategy(
     alias: 'rsi_reversal',
@@ -20,10 +14,8 @@ use App\AlphaForge\Strategy\StrategyInterface;
     timeframe: TimeframeEnum::H1,
     requiredMarketData: [TimeframeEnum::H1]
 )]
-class RsiReversalStrategy implements StrategyInterface
+class RsiReversalStrategy extends BaseSignalStrategy
 {
-    use DefaultExitRules;
-
     #[Input(
         description: 'RSI lookback period',
         min: 5,
@@ -64,113 +56,31 @@ class RsiReversalStrategy implements StrategyInterface
     )]
     private float $takeProfitPercent = 6.0;
 
-    private float $positionSizePercent = 1.0;
-
-    private float $initialCapital = 10000.0;
-
-    private ?IndicatorContext $ctx = null;
-
-    private ?ConditionInterface $entryCondition = null;
-
-    private ?ConditionInterface $exitCondition = null;
-
-    /** @var array<int, bool> */
-    private array $entrySignals = [];
-
-    /** @var array<int, bool> */
-    private array $exitSignals = [];
-
-    /** @var array<int, float> */
-    private array $closePrices = [];
-
-    private int $totalBars = 0;
-
-    public function configure(array $inputs): void
+    protected function stopLossPercent(): float
     {
-        if (isset($inputs['rsiPeriod'])) {
-            $this->rsiPeriod = (int) $inputs['rsiPeriod'];
-        }
-        if (isset($inputs['oversoldThreshold'])) {
-            $this->oversoldThreshold = (float) $inputs['oversoldThreshold'];
-        }
-        if (isset($inputs['overboughtThreshold'])) {
-            $this->overboughtThreshold = (float) $inputs['overboughtThreshold'];
-        }
-        if (isset($inputs['stopLossPercent'])) {
-            $this->stopLossPercent = (float) $inputs['stopLossPercent'];
-        }
-        if (isset($inputs['takeProfitPercent'])) {
-            $this->takeProfitPercent = (float) $inputs['takeProfitPercent'];
-        }
-        if (isset($inputs['positionSizePercent'])) {
-            $this->positionSizePercent = (float) $inputs['positionSizePercent'];
-        }
+        return $this->stopLossPercent;
     }
 
-    public function initialize(array $data): void
+    protected function takeProfitPercent(): float
     {
-        $ohlcv = $data['ohlcv'];
-        $this->ctx = new IndicatorContext($ohlcv);
+        return $this->takeProfitPercent;
+    }
 
-        $this->initialCapital = (float) ($data['initial_capital'] ?? '10000');
+    protected function minBars(): int
+    {
+        return $this->rsiPeriod;
+    }
 
-        $totalBars = $ohlcv->getTimestamps()->count();
+    protected function strategyName(): string
+    {
+        return 'RSI Reversal';
+    }
 
-        if ($totalBars < $this->rsiPeriod) {
-            throw new \RuntimeException(
-                sprintf(
-                    'Insufficient data for RSI Reversal strategy. Need at least %d bars, got %d.',
-                    $this->rsiPeriod,
-                    $totalBars
-                )
-            );
-        }
-
+    protected function computeSignals(OhlcvSeries $ohlcv): void
+    {
         $rsi = $this->ctx->rsi($this->rsiPeriod);
 
         $this->entryCondition = $rsi->isBelow($this->oversoldThreshold)->and($rsi->isRising());
         $this->exitCondition = $rsi->isAbove($this->overboughtThreshold)->and($rsi->isFalling());
-
-        $this->totalBars = $totalBars;
-        $this->entrySignals = $this->entryCondition->evaluateAll($this->totalBars);
-        $this->exitSignals = $this->exitCondition->evaluateAll($this->totalBars);
-        $this->closePrices = $ohlcv->getCloses()->getVector()->toArray();
-    }
-
-    public function onBar(array $data): array
-    {
-        $signals = [];
-        $currentIndex = $data['cursor']->currentIndex;
-        $portfolio = $data['portfolio'];
-        $symbol = $data['symbol'];
-
-        $currentPrice = (string) $this->closePrices[$currentIndex];
-        $openPosition = $portfolio->getOpenPosition($symbol);
-
-        if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
-            $stopLoss = bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent), '100', 6), 6);
-            $takeProfit = bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent), '100', 6), 6);
-
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::LONG,
-                orderType: OrderTypeEnum::Market,
-                stakeAmount: (string) ($this->initialCapital * $this->positionSizePercent / 100.0),
-                stopLoss: $stopLoss,
-                takeProfit: $takeProfit,
-            );
-        }
-
-        if (($this->exitSignals[$currentIndex] ?? false) && $openPosition !== null) {
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::SHORT,
-                orderType: OrderTypeEnum::Market,
-                quantity: (string) $openPosition->quantity,
-                exitTags: ['strategy_signal'],
-            );
-        }
-
-        return $signals;
     }
 }

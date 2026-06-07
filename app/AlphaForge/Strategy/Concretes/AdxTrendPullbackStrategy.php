@@ -2,16 +2,10 @@
 
 namespace App\AlphaForge\Strategy\Concretes;
 
-use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use App\AlphaForge\Condition\ConditionInterface;
-use App\AlphaForge\ExitRule\DefaultExitRules;
-use App\AlphaForge\Indicator\Model\IndicatorContext;
-use App\AlphaForge\Order\Dto\OrderSignal;
-use App\AlphaForge\Order\Enum\OrderTypeEnum;
+use App\AlphaForge\Common\Model\OhlcvSeries;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;
 use App\AlphaForge\Strategy\Attribute\Input;
-use App\AlphaForge\Strategy\StrategyInterface;
 
 #[AsStrategy(
     alias: 'adx_trend_pullback',
@@ -20,10 +14,8 @@ use App\AlphaForge\Strategy\StrategyInterface;
     timeframe: TimeframeEnum::H1,
     requiredMarketData: [TimeframeEnum::H1]
 )]
-class AdxTrendPullbackStrategy implements StrategyInterface
+class AdxTrendPullbackStrategy extends BaseSignalStrategy
 {
-    use DefaultExitRules;
-
     #[Input(
         description: 'ADX lookback period',
         min: 10,
@@ -80,127 +72,36 @@ class AdxTrendPullbackStrategy implements StrategyInterface
     )]
     private float $takeProfitPercent = 8.0;
 
-    private float $positionSizePercent = 1.0;
-
-    private float $initialCapital = 10000.0;
-
-    private ?IndicatorContext $ctx = null;
-
-    private ?ConditionInterface $entryCondition = null;
-
-    private ?ConditionInterface $exitCondition = null;
-
-    /** @var array<int, bool> */
-    private array $entrySignals = [];
-
-    /** @var array<int, bool> */
-    private array $exitSignals = [];
-
-    /** @var array<int, float> */
-    private array $closePrices = [];
-
-    private int $totalBars = 0;
-
-    public function configure(array $inputs): void
+    protected function stopLossPercent(): float
     {
-        if (isset($inputs['adxPeriod'])) {
-            $this->adxPeriod = (int) $inputs['adxPeriod'];
-        }
-        if (isset($inputs['adxThreshold'])) {
-            $this->adxThreshold = (float) $inputs['adxThreshold'];
-        }
-        if (isset($inputs['rsiPeriod'])) {
-            $this->rsiPeriod = (int) $inputs['rsiPeriod'];
-        }
-        if (isset($inputs['rsiPullbackLevel'])) {
-            $this->rsiPullbackLevel = (float) $inputs['rsiPullbackLevel'];
-        }
-        if (isset($inputs['rsiOverboughtLevel'])) {
-            $this->rsiOverboughtLevel = (float) $inputs['rsiOverboughtLevel'];
-        }
-        if (isset($inputs['stopLossPercent'])) {
-            $this->stopLossPercent = (float) $inputs['stopLossPercent'];
-        }
-        if (isset($inputs['takeProfitPercent'])) {
-            $this->takeProfitPercent = (float) $inputs['takeProfitPercent'];
-        }
-        if (isset($inputs['positionSizePercent'])) {
-            $this->positionSizePercent = (float) $inputs['positionSizePercent'];
-        }
+        return $this->stopLossPercent;
     }
 
-    public function initialize(array $data): void
+    protected function takeProfitPercent(): float
     {
-        $ohlcv = $data['ohlcv'];
-        $this->ctx = new IndicatorContext($ohlcv);
+        return $this->takeProfitPercent;
+    }
 
-        $this->initialCapital = (float) ($data['initial_capital'] ?? '10000');
+    protected function minBars(): int
+    {
+        return max($this->adxPeriod, $this->rsiPeriod);
+    }
 
-        $minBars = max($this->adxPeriod, $this->rsiPeriod);
-        $totalBars = $ohlcv->getTimestamps()->count();
+    protected function strategyName(): string
+    {
+        return 'ADX Trend Pullback';
+    }
 
-        if ($totalBars < $minBars) {
-            throw new \RuntimeException(
-                sprintf(
-                    'Insufficient data for ADX Trend Pullback strategy. Need at least %d bars, got %d.',
-                    $minBars,
-                    $totalBars
-                )
-            );
-        }
-
+    protected function computeSignals(OhlcvSeries $ohlcv): void
+    {
         $adx = $this->ctx->adx($this->adxPeriod);
         $rsi = $this->ctx->rsi($this->rsiPeriod);
 
-        // Entry: ADX confirms trend AND RSI is in pullback zone AND RSI is starting to rise
         $this->entryCondition = $adx->isAbove($this->adxThreshold)
             ->and($rsi->isBelow($this->rsiPullbackLevel))
             ->and($rsi->isRising());
 
-        // Exit: ADX drops below threshold (trend weakening) OR RSI reaches overbought
         $this->exitCondition = $adx->isBelow($this->adxThreshold)
             ->or($rsi->isAbove($this->rsiOverboughtLevel));
-
-        $this->totalBars = $totalBars;
-        $this->entrySignals = $this->entryCondition->evaluateAll($this->totalBars);
-        $this->exitSignals = $this->exitCondition->evaluateAll($this->totalBars);
-        $this->closePrices = $ohlcv->getCloses()->getVector()->toArray();
-    }
-
-    public function onBar(array $data): array
-    {
-        $signals = [];
-        $currentIndex = $data['cursor']->currentIndex;
-        $portfolio = $data['portfolio'];
-        $symbol = $data['symbol'];
-
-        $currentPrice = (string) $this->closePrices[$currentIndex];
-        $openPosition = $portfolio->getOpenPosition($symbol);
-
-        if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
-            $stopLoss = bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent), '100', 6), 6);
-            $takeProfit = bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent), '100', 6), 6);
-
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::LONG,
-                orderType: OrderTypeEnum::Market,
-                stakeAmount: (string) ($this->initialCapital * $this->positionSizePercent / 100.0),
-                stopLoss: $stopLoss,
-                takeProfit: $takeProfit,
-            );
-        }
-
-        if (($this->exitSignals[$currentIndex] ?? false) && $openPosition !== null) {
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::SHORT,
-                orderType: OrderTypeEnum::Market,
-                quantity: (string) $openPosition->quantity,
-                exitTags: ['strategy_signal'],
-            );
-        }
-
-        return $signals;
     }
 }
