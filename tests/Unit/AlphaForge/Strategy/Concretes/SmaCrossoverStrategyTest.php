@@ -8,6 +8,7 @@ use App\AlphaForge\Order\Model\PortfolioManager;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;
 use App\AlphaForge\Strategy\Attribute\Input;
 use App\AlphaForge\Strategy\Concretes\SmaCrossoverStrategy;
+use App\AlphaForge\Strategy\Dto\BarData;
 use App\AlphaForge\Strategy\StrategyInterface;
 use Ds\Vector;
 
@@ -110,12 +111,12 @@ describe('SmaCrossoverStrategy', function () {
 
             $portfolio = new PortfolioManager('10000');
 
-            $data = [
-                'ohlcv' => $ohlcv,
-                'cursor' => $cursor,
-                'portfolio' => $portfolio,
-                'symbol' => 'BTC/USDT',
-            ];
+            $data = new BarData(
+                cursor: $cursor,
+                ohlcv: $ohlcv,
+                portfolio: $portfolio,
+                symbol: 'BTC/USDT',
+            );
 
             $result = $this->strategy->onBar($data);
 

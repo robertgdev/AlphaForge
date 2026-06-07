@@ -2,14 +2,14 @@
 
 namespace App\AlphaForge\Strategy\Concretes;
 
-use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Model\OhlcvSeries;
 use App\AlphaForge\Condition\ConditionInterface;
 use App\AlphaForge\ExitRule\DefaultExitRules;
 use App\AlphaForge\Indicator\Model\IndicatorContext;
-use App\AlphaForge\Order\Dto\OrderSignal;
-use App\AlphaForge\Order\Enum\OrderTypeEnum;
+use App\AlphaForge\Order\Service\OrderCalculator;
 use App\AlphaForge\Strategy\Attribute\Input;
+use App\AlphaForge\Strategy\Dto\BarData;
+use App\AlphaForge\Strategy\Dto\InitializeData;
 use App\AlphaForge\Strategy\StrategyInterface;
 
 abstract class BaseSignalStrategy implements StrategyInterface
@@ -77,11 +77,11 @@ abstract class BaseSignalStrategy implements StrategyInterface
         }
     }
 
-    public function initialize(array $data): void
+    public function initialize(InitializeData $data): void
     {
-        $ohlcv = $data['ohlcv'];
+        $ohlcv = $data->ohlcv;
         $this->ctx = new IndicatorContext($ohlcv);
-        $this->initialCapital = (float) ($data['initial_capital'] ?? '10000');
+        $this->initialCapital = (float) $data->initialCapital;
 
         $this->totalBars = $ohlcv->getTimestamps()->count();
 
@@ -105,37 +105,31 @@ abstract class BaseSignalStrategy implements StrategyInterface
         $this->closePrices = $ohlcv->getCloses()->getVector()->toArray();
     }
 
-    final public function onBar(array $data): array
+    final public function onBar(BarData $data): array
     {
         $signals = [];
-        $currentIndex = $data['cursor']->currentIndex;
-        $portfolio = $data['portfolio'];
-        $symbol = $data['symbol'];
+        $currentIndex = $data->cursor->currentIndex;
 
         $currentPrice = (string) $this->closePrices[$currentIndex];
-        $openPosition = $portfolio->getOpenPosition($symbol);
+        $openPosition = $data->portfolio->getOpenPosition($data->symbol);
 
         if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
             $stopLoss = $this->calculateStopLoss($currentPrice, $currentIndex);
             $takeProfit = $this->calculateTakeProfit($currentPrice, $currentIndex);
+            $positionSize = OrderCalculator::positionSize($this->initialCapital, $this->positionSizePercent);
 
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::LONG,
-                orderType: OrderTypeEnum::Market,
-                stakeAmount: (string) ($this->initialCapital * $this->positionSizePercent / 100.0),
+            $signals[] = OrderCalculator::entryOrder(
+                symbol: $data->symbol,
+                positionSize: $positionSize,
                 stopLoss: $stopLoss,
                 takeProfit: $takeProfit,
             );
         }
 
         if (($this->exitSignals[$currentIndex] ?? false) && $openPosition !== null) {
-            $signals[] = new OrderSignal(
-                symbol: $symbol,
-                direction: DirectionEnum::SHORT,
-                orderType: OrderTypeEnum::Market,
+            $signals[] = OrderCalculator::exitOrder(
+                symbol: $data->symbol,
                 quantity: (string) $openPosition->quantity,
-                exitTags: ['strategy_signal'],
             );
         }
 
@@ -144,12 +138,12 @@ abstract class BaseSignalStrategy implements StrategyInterface
 
     protected function calculateStopLoss(string $currentPrice, int $currentIndex): string
     {
-        return bcmul($currentPrice, bcdiv((string) (100 - $this->stopLossPercent()), '100', 6), 6);
+        return OrderCalculator::stopLoss($currentPrice, $this->stopLossPercent());
     }
 
     protected function calculateTakeProfit(string $currentPrice, int $currentIndex): string
     {
-        return bcmul($currentPrice, bcdiv((string) (100 + $this->takeProfitPercent()), '100', 6), 6);
+        return OrderCalculator::takeProfit($currentPrice, $this->takeProfitPercent());
     }
 
     /**

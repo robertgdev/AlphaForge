@@ -18,6 +18,8 @@ use App\AlphaForge\Order\Dto\PositionDto;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\OrderManager;
 use App\AlphaForge\Order\Model\PortfolioManager;
+use App\AlphaForge\Strategy\Dto\BarData;
+use App\AlphaForge\Strategy\Dto\InitializeData;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Carbon\Carbon;
 use Ds\Map;
@@ -1189,14 +1191,11 @@ class Backtester
             return;
         }
 
-        $data = [
-            'symbol' => $symbol,
-            'ohlcv' => $ohlcv,
-            'multi_timeframe' => $this->multiTimeframeData,
-            'initial_capital' => $this->initialCapital,
-        ];
-
-        $this->strategy->initialize($data);
+        $this->strategy->initialize(new InitializeData(
+            ohlcv: $ohlcv,
+            initialCapital: $this->initialCapital,
+            multiTimeframe: $this->multiTimeframeData,
+        ));
     }
 
     /**
@@ -1208,16 +1207,13 @@ class Backtester
             return [];
         }
 
-        // Prepare data for strategy
-        $data = [
-            'symbol' => $symbol,
-            'ohlcv' => $ohlcv,
-            'cursor' => $this->cursor,
-            'portfolio' => $this->portfolioManager,
-            'multi_timeframe' => $this->multiTimeframeData,
-        ];
-
-        return $this->strategy->onBar($data) ?? [];
+        return $this->strategy->onBar(new BarData(
+            cursor: $this->cursor,
+            ohlcv: $ohlcv,
+            portfolio: $this->portfolioManager,
+            symbol: $symbol,
+            multiTimeframe: $this->multiTimeframeData,
+        )) ?? [];
     }
 
     /**

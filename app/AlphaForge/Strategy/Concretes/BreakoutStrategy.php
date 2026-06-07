@@ -4,8 +4,10 @@ namespace App\AlphaForge\Strategy\Concretes;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Model\OhlcvSeries;
+use App\AlphaForge\Order\Service\OrderCalculator;
 use App\AlphaForge\Strategy\Attribute\AsStrategy;
 use App\AlphaForge\Strategy\Attribute\Input;
+use App\AlphaForge\TimeSeries\TimeSeriesInterface;
 
 #[AsStrategy(
     alias: 'breakout',
@@ -89,14 +91,14 @@ class BreakoutStrategy extends BaseSignalStrategy
         $highSeries = $this->ctx->priceSeries('high');
         $highestHigh = $this->ctx->indicator('max', ['period' => $this->lookback], ['close' => $highSeries]);
 
-        /** @var \App\AlphaForge\TimeSeries\TimeSeriesInterface $highestHigh */
+        /** @var TimeSeriesInterface $highestHigh */
         $this->entryCondition = $close->crossesAbove($highestHigh);
 
         $lowSeries = $this->ctx->priceSeries('low');
         $halfLookback = max(5, (int) ($this->lookback / 2));
         $lowestLow = $this->ctx->indicator('min', ['period' => $halfLookback], ['close' => $lowSeries]);
 
-        /** @var \App\AlphaForge\TimeSeries\TimeSeriesInterface $lowestLow */
+        /** @var TimeSeriesInterface $lowestLow */
         $this->exitCondition = $close->crossesBelow($lowestLow);
 
         $atr = $this->ctx->atr($this->atrPeriod);
@@ -109,9 +111,7 @@ class BreakoutStrategy extends BaseSignalStrategy
         $atrVal = $this->atrValues[$currentIndex] ?? null;
 
         if ($atrVal !== null && $atrVal > 0) {
-            $stopDistance = $atrVal * $this->atrMultiplier;
-
-            return bcsub($currentPrice, (string) $stopDistance, 6);
+            return OrderCalculator::atrStopLoss($currentPrice, $atrVal, $this->atrMultiplier);
         }
 
         return parent::calculateStopLoss($currentPrice, $currentIndex);
