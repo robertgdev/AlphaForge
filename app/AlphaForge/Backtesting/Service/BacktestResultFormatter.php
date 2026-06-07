@@ -2,6 +2,8 @@
 
 namespace App\AlphaForge\Backtesting\Service;
 
+use Carbon\Carbon;
+
 class BacktestResultFormatter
 {
     /**
@@ -77,7 +79,7 @@ class BacktestResultFormatter
     /**
      * Format position objects for table display.
      *
-     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null, entryTime?: \Carbon\Carbon|null, exitTime?: \Carbon\Carbon|null}>  $positions
+     * @param  array<object|array{symbol?: string, direction?: string, entryPrice?: numeric, exitPrice?: numeric, realizedPnl?: numeric, exitTag?: string|null, entryTime?: Carbon|null, exitTime?: Carbon|null}>  $positions
      * @param  float  $initialCapital  Initial capital for running balance calculation
      * @param  bool  $noColor  Disable color output for PnL column
      * @return array<int, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string, 6: string, 7: string, 8: string, 9: string}>
@@ -110,29 +112,29 @@ class BacktestResultFormatter
                 $pnl = $position->realizedPnl ?? 0;
                 /** @var string|null $exitTag */
                 $exitTag = $position->exitTag ?? '-';
-                /** @var \Carbon\Carbon|null $entryTime */
+                /** @var Carbon|null $entryTime */
                 $entryTime = $position->entryTime ?? null;
-                /** @var \Carbon\Carbon|null $exitTime */
+                /** @var Carbon|null $exitTime */
                 $exitTime = $position->exitTime ?? null;
             }
 
             $runningBalance += $pnl;
 
             $duration = '-';
-            if ($entryTime instanceof \Carbon\Carbon && $exitTime instanceof \Carbon\Carbon) {
+            if ($entryTime instanceof Carbon && $exitTime instanceof Carbon) {
                 $diff = $entryTime->diff($exitTime);
                 $parts = [];
                 if ($diff->d > 0) {
-                    $parts[] = $diff->d . 'd';
+                    $parts[] = $diff->d.'d';
                 }
                 if ($diff->h > 0) {
-                    $parts[] = $diff->h . 'h';
+                    $parts[] = $diff->h.'h';
                 }
                 if ($diff->i > 0) {
-                    $parts[] = $diff->i . 'm';
+                    $parts[] = $diff->i.'m';
                 }
                 if (empty($parts)) {
-                    $parts[] = $diff->s . 's';
+                    $parts[] = $diff->s.'s';
                 }
                 $duration = implode(' ', $parts);
             }
@@ -147,8 +149,8 @@ class BacktestResultFormatter
             $result[] = [
                 $symbol,
                 $direction,
-                $entryTime instanceof \Carbon\Carbon ? $entryTime->format('Y-m-d H:i:s') : '-',
-                $exitTime instanceof \Carbon\Carbon ? $exitTime->format('Y-m-d H:i:s') : '-',
+                $entryTime instanceof Carbon ? $entryTime->format('Y-m-d H:i:s') : '-',
+                $exitTime instanceof Carbon ? $exitTime->format('Y-m-d H:i:s') : '-',
                 $duration,
                 number_format($entryPrice, 2),
                 number_format($exitPrice, 2),

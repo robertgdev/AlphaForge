@@ -24,7 +24,7 @@ class DataExportCommand extends Command
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();
 
-        warning("Export is not yet implemented.");
+        warning('Export is not yet implemented.');
 
         return self::FAILURE;
     }

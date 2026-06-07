@@ -6,7 +6,6 @@ use App\AlphaForge\Backtesting\Dto\BacktestConfiguration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-use function Safe\file;
 use function Safe\fclose;
 use function Safe\fopen;
 use function Safe\fwrite;
@@ -173,7 +172,7 @@ class ForkParallelRunner
     }
 
     /**
-     * @return array<int, array{array, int}>  List of [entry, newPosition] pairs
+     * @return array<int, array{array, int}> List of [entry, newPosition] pairs
      */
     private function readNewResults(string $filePath, int $offset): array
     {
@@ -253,7 +252,7 @@ class ForkParallelRunner
                     ]);
                 }
 
-                fwrite($fp, $line . "\n");
+                fwrite($fp, $line."\n");
             }
 
             fclose($fp);

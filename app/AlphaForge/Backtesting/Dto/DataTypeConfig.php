@@ -7,7 +7,9 @@ class DataTypeConfig
     private const VALID_TYPES = ['ohlcv', 'heikenashi', 'renko', 'atr_renko'];
 
     public readonly string $dataType;
+
     public readonly ?float $brickSize;
+
     public readonly ?int $atrPeriod;
 
     /** @var list<string> */
@@ -41,7 +43,6 @@ class DataTypeConfig
     /**
      * Build from raw CLI option strings.
      *
-     * @return self
      *
      * @throws \InvalidArgumentException on invalid data-type or missing required params
      */

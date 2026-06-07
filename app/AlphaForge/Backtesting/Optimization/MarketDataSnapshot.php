@@ -11,8 +11,8 @@ use function Safe\unserialize;
 readonly class MarketDataSnapshot
 {
     /**
-     * @param array<string, array{data: array, symbol: string, timeframe: TimeframeEnum}> $signalData
-     * @param array<string, array{data: array, symbol: string, timeframe: TimeframeEnum}>|null $executionData
+     * @param  array<string, array{data: array, symbol: string, timeframe: TimeframeEnum}>  $signalData
+     * @param  array<string, array{data: array, symbol: string, timeframe: TimeframeEnum}>|null  $executionData
      */
     public function __construct(
         public array $signalData,

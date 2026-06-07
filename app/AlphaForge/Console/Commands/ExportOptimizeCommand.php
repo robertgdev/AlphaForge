@@ -5,6 +5,7 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 
 use function Safe\file_put_contents;
 use function Safe\json_encode;
@@ -68,7 +69,7 @@ class ExportOptimizeCommand extends Command
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, BacktestRun>  $results
+     * @param  Collection<int, BacktestRun>  $results
      */
     private function renderCsv(OptimizationRun $run, $results): string
     {
@@ -102,7 +103,7 @@ class ExportOptimizeCommand extends Command
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, BacktestRun>  $results
+     * @param  Collection<int, BacktestRun>  $results
      */
     private function renderJson(OptimizationRun $run, $results): string
     {

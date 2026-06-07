@@ -363,7 +363,7 @@ class RunBacktestCommand extends Command
                 $table->setRows($positionData);
 
                 // Right-align numeric columns: Duration(4), Entry Price(5), Exit Price(6), PnL(7), Balance(8)
-                $rightAlign = new TableStyle();
+                $rightAlign = new TableStyle;
                 $rightAlign->setPadType(STR_PAD_LEFT);
                 foreach ([4, 5, 6, 7, 8] as $colIndex) {
                     $table->setColumnStyle($colIndex, $rightAlign);

@@ -26,7 +26,6 @@ trait ResolvesParallelRunner
             return ParallelRunnerMode::SYNC;
         }
 
-
         return $mode;
     }
 

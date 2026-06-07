@@ -214,10 +214,10 @@ class MarketDataLoader
         );
 
         return match ($dataType) {
-            'heikenashi' => $basePath . '/heikenashi.stchx',
-            'renko' => $basePath . '/renko_' . $this->formatBrickSize($brickSize ?? 10.0) . '.stchx',
-            'atr_renko' => $basePath . '/renko_atr_' . ($atrPeriod ?? 14) . '.stchx',
-            default => $basePath . '/ohlcv.stchx',
+            'heikenashi' => $basePath.'/heikenashi.stchx',
+            'renko' => $basePath.'/renko_'.$this->formatBrickSize($brickSize ?? 10.0).'.stchx',
+            'atr_renko' => $basePath.'/renko_atr_'.($atrPeriod ?? 14).'.stchx',
+            default => $basePath.'/ohlcv.stchx',
         };
     }
 

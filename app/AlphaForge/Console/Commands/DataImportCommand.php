@@ -8,7 +8,6 @@ use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Events\DownloadProgress;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Events\Dispatcher;
 

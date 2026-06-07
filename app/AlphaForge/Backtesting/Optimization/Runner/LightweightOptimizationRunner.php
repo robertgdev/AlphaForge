@@ -5,7 +5,6 @@ namespace App\AlphaForge\Backtesting\Optimization\Runner;
 use App\AlphaForge\Backtesting\Dto\BacktestConfiguration;
 use App\AlphaForge\Backtesting\Optimization\MarketDataSnapshot;
 use App\AlphaForge\Backtesting\Service\Backtester;
-use Carbon\Carbon;
 
 class LightweightOptimizationRunner implements OptimizationRunnerInterface
 {

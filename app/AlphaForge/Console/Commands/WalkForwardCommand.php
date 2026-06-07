@@ -22,6 +22,7 @@ use function Safe\file_put_contents;
 class WalkForwardCommand extends Command
 {
     use ResolvesParallelRunner;
+
     protected $signature = 'alphaforge:walk-forward
         {strategy : The strategy alias}
         {symbol : Trading symbol}
