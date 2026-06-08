@@ -17,7 +17,7 @@ use TaLibHybrid\TaLibHybrid;
  * header's brickSize field, and the actual ATR values can always be recomputed
  * from the source OHLC data given that period.
  */
-final class AtrRenkoConverter
+class AtrRenkoConverter
 {
     /**
      * @param  BinaryStorageInterface  $binaryStorage  The binary storage service for reading/writing files

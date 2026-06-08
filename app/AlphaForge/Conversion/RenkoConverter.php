@@ -11,7 +11,7 @@ use Generator;
 /**
  * Service for converting OHLC data to Renko bricks.
  */
-final class RenkoConverter
+class RenkoConverter
 {
     /**
      * @param  BinaryStorageInterface  $binaryStorage  The binary storage service for reading/writing files

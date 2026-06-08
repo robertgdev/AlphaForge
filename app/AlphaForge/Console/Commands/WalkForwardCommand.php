@@ -12,6 +12,7 @@ use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
+use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -52,11 +53,13 @@ class WalkForwardCommand extends Command
         {--format=table : Output format (table, csv, json)}
         {--output= : Write output to file instead of stdout}
         {--runner=fork : Parallel runner mode for optimization phase (sync, fork, queue)}
-        {--workers=auto : Number of parallel workers (auto = CPU core count)}';
+        {--workers=auto : Number of parallel workers (auto = CPU core count)}
+        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}';
 
     protected $description = 'Run walk-forward analysis: optimize on in-sample data, validate on out-of-sample data';
 
-    public function handle(WalkForwardService $service, WalkForwardAnalyzer $analyzer, WalkForwardExporter $exporter, StrategyInputParser $inputParser): int
+    public function handle(WalkForwardService $service, WalkForwardAnalyzer $analyzer, WalkForwardExporter $exporter, StrategyInputParser $inputParser,
+        DataAutoGenerator $dataAutoGenerator): int
     {
         $strategyAlias = $this->argument('strategy');
         $symbol = $this->argument('symbol');
@@ -138,6 +141,36 @@ class WalkForwardCommand extends Command
 
         foreach ($dataTypeConfig->warnings as $warning) {
             $this->warn($warning);
+
+        // Auto-generate derived data when --auto-generate is set
+        if ($this->option('auto-generate')) {
+            $this->line("Auto-generate enabled — checking derived data for {$symbol} / {$timeframeValue}...");
+
+            $genResult = $dataAutoGenerator->autoGenerate(
+                $dataTypeConfig,
+                $exchange,
+                $symbol,
+                $timeframeValue,
+                $executionTimeframeValue,
+                additionalTimeframes: [],
+                output: fn (string $msg) => $this->line("  {$msg}"),
+            );
+
+            foreach ($genResult['generated'] as $path) {
+                $this->line("  Generated: {$path}");
+            }
+
+            foreach ($genResult['errors'] as $err) {
+                $this->error($err);
+            }
+
+            if (! empty($genResult['errors'])) {
+                return self::FAILURE;
+            }
+
+            $this->newLine();
+        }
+
         }
 
         $dataTypeValue = $dataTypeConfig->dataType;

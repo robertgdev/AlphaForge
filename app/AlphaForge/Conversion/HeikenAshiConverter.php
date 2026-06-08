@@ -8,7 +8,7 @@ use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
 use Generator;
 
-final class HeikenAshiConverter
+class HeikenAshiConverter
 {
     public function __construct(
         private readonly BinaryStorageInterface $binaryStorage,

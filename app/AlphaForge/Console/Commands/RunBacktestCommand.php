@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
+use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
@@ -45,6 +46,7 @@ class RunBacktestCommand extends Command
         {--inputs= : Strategy inputs as JSON string (e.g., \'{"fastPeriod":10,"slowPeriod":50}\')}
         {--no-color : Disable colored output in the positions table}
         {--async : Queue the backtest instead of running synchronously}
+        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
         {--force : Overwrite existing completed backtest with same parameters}';
 
     /**
@@ -62,7 +64,8 @@ class RunBacktestCommand extends Command
         BacktestResultFormatter $resultFormatter,
         DateParsingService $dateParsingService,
         StrategyInputParser $inputParser,
-        StrategyRegistryInterface $strategyRegistry
+        StrategyRegistryInterface $strategyRegistry,
+        DataAutoGenerator $dataAutoGenerator
     ): int {
         $strategyAlias = $this->argument('strategy');
         $symbols = $this->argument('symbols');
@@ -103,6 +106,37 @@ class RunBacktestCommand extends Command
 
         foreach ($dataTypeConfig->warnings as $warning) {
             warning($warning);
+        }
+
+
+        // Auto-generate derived data when --auto-generate is set
+        if ($this->option('auto-generate')) {
+            $symbolForGen = $symbols[0];
+            $this->line("Auto-generate enabled — checking derived data for {$symbolForGen} / {$timeframeValue}...");
+
+            $genResult = $dataAutoGenerator->autoGenerate(
+                $dataTypeConfig,
+                $exchange,
+                $symbolForGen,
+                $timeframeValue,
+                $executionTimeframeValue,
+                additionalTimeframes: [],
+                output: fn (string $msg) => $this->line("  {$msg}"),
+            );
+
+            foreach ($genResult['generated'] as $path) {
+                $this->line("  Generated: {$path}");
+            }
+
+            foreach ($genResult['errors'] as $err) {
+                error($err);
+            }
+
+            if (! empty($genResult['errors'])) {
+                return self::FAILURE;
+            }
+
+            $this->newLine();
         }
 
         $dataTypeValue = $dataTypeConfig->dataType;

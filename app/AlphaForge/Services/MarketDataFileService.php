@@ -10,10 +10,10 @@ use function Safe\rmdir;
 use function Safe\scandir;
 use function Safe\unlink;
 
-readonly class MarketDataFileService
+class MarketDataFileService
 {
     public function __construct(
-        private string $marketDataPath
+        private readonly string $marketDataPath
     ) {}
 
     /**

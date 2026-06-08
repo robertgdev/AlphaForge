@@ -10,6 +10,7 @@ use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
+use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -43,11 +44,13 @@ class OptimizeStrategyCommand extends Command
         {--runner=fork : Parallel runner mode (sync, fork, queue)}
         {--workers=auto : Number of parallel workers (auto = CPU core count)}
         {--resume= : Optimization ID to resume from checkpoint}
-        {--checkpoint-interval=0 : Save checkpoint every N iterations (0=disabled)}';
+        {--checkpoint-interval=0 : Save checkpoint every N iterations (0=disabled)}
+        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}';
 
     protected $description = 'Run strategy parameter optimization';
 
-    public function handle(Optimizer $optimizer, StrategyInputParser $inputParser): int
+    public function handle(Optimizer $optimizer, StrategyInputParser $inputParser,
+        DataAutoGenerator $dataAutoGenerator): int
     {
         $strategyAlias = $this->argument('strategy');
         $symbol = $this->argument('symbol');
@@ -80,6 +83,36 @@ class OptimizeStrategyCommand extends Command
 
         foreach ($dataTypeConfig->warnings as $warning) {
             $this->warn($warning);
+
+        // Auto-generate derived data when --auto-generate is set
+        if ($this->option('auto-generate')) {
+            $this->line("Auto-generate enabled — checking derived data for {$symbol} / {$timeframeValue}...");
+
+            $genResult = $dataAutoGenerator->autoGenerate(
+                $dataTypeConfig,
+                $exchange,
+                $symbol,
+                $timeframeValue,
+                executionTimeframe: null,
+                additionalTimeframes: [],
+                output: fn (string $msg) => $this->line("  {$msg}"),
+            );
+
+            foreach ($genResult['generated'] as $path) {
+                $this->line("  Generated: {$path}");
+            }
+
+            foreach ($genResult['errors'] as $err) {
+                $this->error($err);
+            }
+
+            if (! empty($genResult['errors'])) {
+                return self::FAILURE;
+            }
+
+            $this->newLine();
+        }
+
         }
 
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
