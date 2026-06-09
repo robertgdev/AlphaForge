@@ -285,6 +285,7 @@ php artisan alphaforge:data:update <exchange> <market> <timeframe> [enddate] [op
 | Option | Description |
 |--------|-------------|
 | `--with-dependencies` | Also update all derived data files (Renko, Heiken-Ashi, etc.) |
+| `--auto-generate` | Auto-generate missing derived data from source (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV) |
 
 **Examples:**
 
@@ -294,6 +295,9 @@ php artisan alphaforge:data:update binance BTC/USDT 1h
 
 # Update existing data up to a specific date
 php artisan alphaforge:data:update binance BTC/USDT 1h 2024-06-01
+
+# Auto-generate missing OHLCV data from a lower timeframe
+php artisan alphaforge:data:update binance BTC/USDT 1h --auto-generate
 
 # Update OHLCV data and cascade the update to all derived files
 php artisan alphaforge:data:update binance BTC/USDT 1h --with-dependencies
@@ -947,6 +951,7 @@ php artisan alphaforge:backtest:run <strategy> <symbols*> [options]
 | `--inputs=` | Strategy inputs as JSON string | `'{"fastPeriod":10}'` |
 | `--async` | Queue the backtest instead of running synchronously | - |
 | `--force` | Overwrite and re-run if a completed backtest with the same parameters already exists | - |
+| `--auto-generate` | Auto-generate missing derived data (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV) | - |
 
 **Examples:**
 
@@ -998,12 +1003,15 @@ php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=renko --br
 # Backtest against ATR-based Renko (ATR period = 14)
 php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=atr_renko --atr-period=14
 
+# Auto-generate missing Renko data and backtest
+php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=renko --brick-size=50 --auto-generate
+
 # Heiken-Ashi with dual-timeframe execution
 php artisan alphaforge:backtest:run sma_crossover BTCUSDT --data-type=heikenashi --timeframe=1h --execution-timeframe=1m
 ```
 
 **Notes:**
-- The derived data file must already exist (use `alphaforge:renko`, `alphaforge:renkoAtr`, or `alphaforge:heikenashi` to generate it)
+- The derived data file must already exist, or use `--auto-generate` to have it created automatically from available OHLCV source data
 - For `renko`, the `--brick-size` must match an existing file (e.g., `renko_100.stchx`)
 - For `atr_renko`, the `--atr-period` must match an existing file (e.g., `renko_atr_14.stchx`)
 - When using Renko data types with `--execution-timeframe`, the execution data is always loaded as raw OHLCV — Renko bricks drive strategy signals, but order execution (fills, SL/TP) is processed against the specified OHLCV timeframe candles
@@ -1314,7 +1322,7 @@ By default, optimization backtests run against raw OHLCV data (`--data-type=ohlc
 | `atr_renko` | ATR-based dynamic Renko bricks | `--atr-period=<period>` |
 
 **Notes:**
-- The derived data file must already exist (use `alphaforge:renko`, `alphaforge:renkoAtr`, or `alphaforge:heikenashi` to generate it)
+- The derived data file must already exist, or use `--auto-generate` to have it created automatically from available OHLCV source data
 - For `renko`, the `--brick-size` must match an existing file (e.g., `renko_100.stchx`)
 - For `atr_renko`, the `--atr-period` must match an existing file (e.g., `renko_atr_14.stchx`)
 - When using Renko data types with `--execution-timeframe`, the execution data is always loaded as raw OHLCV — Renko bricks drive strategy signals, but order execution (fills, SL/TP) is processed against the specified OHLCV timeframe candles
@@ -1943,7 +1951,7 @@ The `--data-type` option applies to **both phases** of the walk-forward analysis
 - **Phase 1 (Optimization)**: The data type, brick size, and ATR period are passed through to the optimizer, so each in-sample backtest uses the specified market data type
 - **Phase 2 (Forward Testing)**: Each OOS backtest also uses the same data type
 
-This ensures consistency — if your live strategy will use `--data-type=renko --brick-size=100`, your walk-forward validation should too. The `--brick-size` option is required when `--data-type=renko`, and `--atr-period` is required when `--data-type=atr_renko`.
+This ensures consistency — if your live strategy will use `--data-type=renko --brick-size=100`, your walk-forward validation should too. Use `--auto-generate` to automatically generate missing derived data files from available OHLCV source data. The `--brick-size` option is required when `--data-type=renko`, and `--atr-period` is required when `--data-type=atr_renko`.
 
 ##### Minimum Trade Count Filtering
 

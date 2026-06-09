@@ -12,6 +12,7 @@ use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
+use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Events\DownloadProgress;
 use App\AlphaForge\Services\MarketDataFileService;
@@ -33,7 +34,8 @@ class DataUpdateCommand extends Command
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {enddate? : The end date for update (Y-m-d or Y-m-d H:i:s, defaults to now)}
-        {--with-dependencies : Also update all derived data files (Renko, Heiken-Ashi, etc.)}';
+        {--with-dependencies : Also update all derived data files (Renko, Heiken-Ashi, etc.)}
+        {--auto-generate : Auto-generate derived data files that do not exist (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV)}';
 
     protected $description = 'Update market data to the latest available';
 
@@ -43,7 +45,8 @@ class DataUpdateCommand extends Command
         BinaryStorageInterface $binaryStorage,
         DataAvailabilityService $availabilityService,
         DateParsingService $dateParsingService,
-        Dispatcher $eventDispatcher
+        Dispatcher $eventDispatcher,
+        DataAutoGenerator $dataAutoGenerator
     ): int {
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
@@ -54,11 +57,41 @@ class DataUpdateCommand extends Command
         $filePath = $fileService->generateFilePath($exchange, $market, $timeframe);
 
         if (! file_exists($filePath)) {
-            error("No market data file found for {$exchange}/{$market}/{$timeframe}.");
-            $this->line('Use the import command first:');
-            $this->line("  php artisan alphaforge:data:import {$exchange} {$market} {$timeframe} <startdate>");
+            if ($this->option('auto-generate')) {
+                $this->line('Auto-generate enabled — trying to derive OHLCV data...');
+                $genResult = $dataAutoGenerator->autoGenerate(
+                    \App\AlphaForge\Backtesting\Dto\DataTypeConfig::fromOptions('ohlcv', null, null),
+                    $exchange,
+                    $market,
+                    $timeframe,
+                    additionalTimeframes: [],
+                    output: fn (string $msg) => $this->line("  {$msg}"),
+                );
 
-            return self::FAILURE;
+                foreach ($genResult['generated'] as $path) {
+                    $this->line("  Generated: {$path}");
+                }
+
+                foreach ($genResult['errors'] as $err) {
+                    error($err);
+                }
+
+                if (! empty($genResult['errors'])) {
+                    $this->line('Download source data first:');
+                    $this->line("  php artisan alphaforge:data:import {$exchange} {$market} <lower_timeframe> <startdate>");
+
+                    return self::FAILURE;
+                }
+
+                $this->newLine();
+            } else {
+                error("No market data file found for {$exchange}/{$market}/{$timeframe}.");
+                $this->line('Use the import command first:');
+                $this->line("  php artisan alphaforge:data:import {$exchange} {$market} {$timeframe} <startdate>");
+                $this->line('Or use --auto-generate to derive from a lower timeframe if available.');
+
+                return self::FAILURE;
+            }
         }
 
         try {
