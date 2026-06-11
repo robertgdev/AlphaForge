@@ -71,9 +71,12 @@ class WalkForwardExporter
     public function toJson(WalkForwardAnalysis $analysis): string
     {
         $data = [
-            'classification' => $analysis->classification,
-            'interpretation' => $analysis->interpretation,
+            'stability_classification' => $analysis->stabilityClassification,
+            'stability_interpretation' => $analysis->stabilityInterpretation,
+            'economic_performance' => $analysis->economicPerformance,
+            'economic_interpretation' => $analysis->economicInterpretation,
             'oos_is_ratio' => $analysis->oosIsRatio,
+            'oos_is_ratio_warning' => $analysis->oosIsRatioWarning,
             'robust_count' => $analysis->robustCount,
             'robust_ratio' => $analysis->robustRatio,
             'avg_degradation' => $analysis->avgDegradation,
@@ -83,6 +86,7 @@ class WalkForwardExporter
             'reliable_count' => $analysis->reliableCount,
             'reliable_ratio' => $analysis->reliableRatio,
             'min_trades' => $analysis->minTrades,
+            'suspicious_sharpe' => $analysis->suspiciousSharpe,
             'benchmark' => $analysis->benchmarkHasData ? [
                 'return_pct' => $analysis->benchmarkReturn,
                 'max_drawdown_pct' => $analysis->benchmarkMaxDrawdown,

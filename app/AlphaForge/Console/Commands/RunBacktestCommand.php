@@ -47,7 +47,8 @@ class RunBacktestCommand extends Command
         {--no-color : Disable colored output in the positions table}
         {--async : Queue the backtest instead of running synchronously}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
-        {--force : Overwrite existing completed backtest with same parameters}';
+        {--force : Overwrite existing completed backtest with same parameters}
+        {--trades=5 : Number of trades to display in terminal (0=none, all=all, default=5)}';
 
     /**
      * The console command description.
@@ -245,13 +246,13 @@ class RunBacktestCommand extends Command
             return $this->queueBacktest($backtestRunService, $data);
         }
 
-        return $this->runBacktestSync($backtestRunService, $resultFormatter, $data, $noColor);
+        return $this->runBacktestSync($backtestRunService, $resultFormatter, $data, $noColor, $this->option('trades'));
     }
 
     /**
      * Run the backtest synchronously.
      */
-    private function runBacktestSync(BacktestRunService $service, BacktestResultFormatter $formatter, array $data, bool $noColor = false): int
+    private function runBacktestSync(BacktestRunService $service, BacktestResultFormatter $formatter, array $data, bool $noColor = false, string $tradesOption = '5'): int
     {
         info('Running backtest synchronously...');
         $this->newLine();
@@ -265,7 +266,7 @@ class RunBacktestCommand extends Command
 
             $this->finishProgressBar();
 
-            $this->displayResults($result, $formatter, $noColor);
+            $this->displayResults($result, $formatter, $noColor, $tradesOption);
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
@@ -354,7 +355,7 @@ class RunBacktestCommand extends Command
      *
      * @param  array{backtest_run_id?: string, final_capital: float|int|string, initial_capital: float|int|string, execution_timeframe?: string|null, statistics?: array<string, mixed>, positions?: array<object|array<string, mixed>>}  $result
      */
-    private function displayResults(array $result, BacktestResultFormatter $formatter, bool $noColor = false): void
+    private function displayResults(array $result, BacktestResultFormatter $formatter, bool $noColor = false, string $tradesOption = '5'): void
     {
         info('Backtest Results');
         $this->newLine();
@@ -389,22 +390,37 @@ class RunBacktestCommand extends Command
             $closedPositions = array_filter($result['positions'], fn ($p) => (is_object($p) && isset($p->exitTime) && $p->exitTime !== null) || (is_array($p) && isset($p['exitTime']) && $p['exitTime'] !== null));
 
             if (! empty($closedPositions)) {
-                $this->line('<fg=yellow>Positions (Closed):</>');
-                $positionData = $formatter->formatPositions($closedPositions, (float) $result['initial_capital'], $noColor);
+                $totalClosed = count($closedPositions);
 
-                $table = new Table($this->output);
-                $table->setHeaders(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason']);
-                $table->setRows($positionData);
+                if ($tradesOption === 'none' || $tradesOption === '0') {
+                    $this->line("<fg=yellow>Positions (Closed):</> {$totalClosed} trades omitted.");
+                    $this->line('  Use <fg=gray>alphaforge:export:backtest '.($result['backtest_run_id'] ?? '{id}').'</> to export all trades.');
+                    $this->newLine();
+                } else {
+                    $limit = $tradesOption === 'all' ? $totalClosed : min((int) $tradesOption, $totalClosed);
+                    $displayPositions = array_slice(array_values($closedPositions), 0, $limit);
+                    $positionData = $formatter->formatPositions($displayPositions, (float) $result['initial_capital'], $noColor);
 
-                // Right-align numeric columns: Duration(4), Entry Price(5), Exit Price(6), PnL(7), Balance(8)
-                $rightAlign = new TableStyle;
-                $rightAlign->setPadType(STR_PAD_LEFT);
-                foreach ([4, 5, 6, 7, 8] as $colIndex) {
-                    $table->setColumnStyle($colIndex, $rightAlign);
+                    $this->line("<fg=yellow>Positions (Closed):</> {$totalClosed} trades");
+
+                    $table = new Table($this->output);
+                    $table->setHeaders(['Symbol', 'Direction', 'Entry Time', 'Exit Time', 'Duration', 'Entry Price', 'Exit Price', 'PnL', 'Balance', 'CloseReason']);
+                    $table->setRows($positionData);
+
+                    $rightAlign = new TableStyle;
+                    $rightAlign->setPadType(STR_PAD_LEFT);
+                    foreach ([4, 5, 6, 7, 8] as $colIndex) {
+                        $table->setColumnStyle($colIndex, $rightAlign);
+                    }
+
+                    $table->render();
+
+                    if ($limit < $totalClosed) {
+                        $this->line('  ... and '.($totalClosed - $limit).' more trades (use <fg=gray>alphaforge:export:backtest '.($result['backtest_run_id'] ?? '{id}').'</> to export all)');
+                    }
+
+                    $this->newLine();
                 }
-
-                $table->render();
-                $this->newLine();
             }
         }
 

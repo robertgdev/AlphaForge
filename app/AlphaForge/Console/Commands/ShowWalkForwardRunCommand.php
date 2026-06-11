@@ -121,17 +121,42 @@ class ShowWalkForwardRunCommand extends Command
         $this->line('<fg=yellow>Summary</>');
         $this->line(str_repeat('─', 40));
 
-        $classification = strtoupper($analysis->classification);
-        $this->line("  Classification: {$classification} — {$analysis->interpretation}");
-        $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
+        $stabilityLabel = strtoupper($analysis->stabilityClassification);
+        $this->line("  Parameter Stability: {$stabilityLabel} — {$analysis->stabilityInterpretation}");
+
+        $ecoLabel = strtoupper($analysis->economicPerformance);
+        $this->line("  Economic Performance: {$ecoLabel} — {$analysis->economicInterpretation}");
+
+        if ($analysis->economicPerformance === 'poor' && $analysis->stabilityClassification !== 'likely_overfit') {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ Stable optimization does not imply a profitable strategy.</>');
+            if ($analysis->benchmarkHasData) {
+                $this->line('  <fg=yellow>⚠ Out-of-sample returns materially lag buy-and-hold.</>');
+            }
+        }
+
+        if ($analysis->oosIsRatioWarning) {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'% — this ratio is inflated because both IS and OOS scores are near zero. Interpret with caution.</>');
+        } else {
+            $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
+        }
+
         $this->line('  Robust parameters (profitable OOS): '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
 
         if ($analysis->reliableCount > 0 || $analysis->minTrades > 0) {
             $this->line("  Statistically reliable (≥{$analysis->minTrades} trades, profitable OOS): {$analysis->reliableCount}/".count($analysis->results).' ('.number_format($analysis->reliableRatio * 100, 1).'%)');
         }
 
-        $this->line('  Median score degradation: '.number_format($analysis->medianDegradation, 1).'% (more robust measure)');
-        $this->line('  Average score degradation: '.number_format($analysis->avgDegradation, 1).'%');
+        $medianText = $analysis->medianDegradation < 0
+            ? '+'.number_format(abs($analysis->medianDegradation), 1).'% (OOS improvement vs IS)'
+            : number_format($analysis->medianDegradation, 1).'%';
+        $this->line('  Median score degradation: '.$medianText);
+
+        $avgText = $analysis->avgDegradation < 0
+            ? '+'.number_format(abs($analysis->avgDegradation), 1).'% (OOS improvement vs IS)'
+            : number_format($analysis->avgDegradation, 1).'%';
+        $this->line('  Average score degradation: '.$avgText);
 
         if ($analysis->rankCorrelation !== null) {
             $this->line('  IS-OOS Rank Correlation (Spearman): '.number_format($analysis->rankCorrelation, 3).' ('.$analysis->rankStabilityLabel.')');
@@ -140,6 +165,17 @@ class ShowWalkForwardRunCommand extends Command
         if ($analysis->lowTradeWarning) {
             $this->newLine();
             $this->line('  <fg=yellow>⚠ Low trade count — interpret statistical metrics with caution.</>');
+        }
+
+        if ($analysis->suspiciousSharpe) {
+            $sr = $analysis->bestOosResult
+                ? number_format((float) ($analysis->bestOosResult->oos_statistics['sharpe_ratio'] ?? 0), 2)
+                : 'N/A';
+            $rcp = $analysis->bestOosResult
+                ? number_format(abs((float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0)), 2)
+                : 'N/A';
+            $this->newLine();
+            $this->line("  <fg=yellow>⚠ High Sharpe ({$sr}) with negligible absolute return ({$rcp}%) may reflect low exposure rather than exceptional risk-adjusted performance.</>");
         }
 
         if (! empty($analysis->boundaryWarnings)) {

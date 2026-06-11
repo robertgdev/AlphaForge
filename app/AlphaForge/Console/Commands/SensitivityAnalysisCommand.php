@@ -122,6 +122,58 @@ class SensitivityAnalysisCommand extends Command
             $this->line("  <fg=green>Top driver: {$top}</> ({$topPct}% of score variance)");
             $this->line('  Consider focusing optimization on the highest-importance parameters.');
             $this->newLine();
+
+            $strongParams = [];
+            $moderateParams = [];
+            $weakParams = [];
+            foreach ($importance as $row) {
+                $pct = (float) $row['importance_pct'];
+                $name = $row['param'];
+                $bar = $this->importanceBar((float) $row['importance_pct']);
+                if ($pct >= 40) {
+                    $strongParams[] = "  {$bar}\n    <fg=green>{$name}:</> Strong influence. Small changes materially affect performance. Prioritize optimization.";
+                } elseif ($pct >= 15) {
+                    $moderateParams[] = "  {$bar}\n    {$name}: Moderate influence. Fine-tune with care.";
+                } else {
+                    $weakParams[] = "  {$bar}\n    {$name}: Weak influence. Likely safe to fix during future searches.";
+                }
+            }
+
+            if (! empty($strongParams)) {
+                $this->newLine();
+                foreach ($strongParams as $p) {
+                    $this->line($p);
+                }
+            }
+            if (! empty($moderateParams)) {
+                if (! empty($strongParams)) {
+                    $this->newLine();
+                }
+                foreach ($moderateParams as $p) {
+                    $this->line($p);
+                }
+            }
+            if (! empty($weakParams)) {
+                if (! empty($strongParams) || ! empty($moderateParams)) {
+                    $this->newLine();
+                }
+                foreach ($weakParams as $p) {
+                    $this->line($p);
+                }
+            }
+
+            $this->newLine();
+            if (! empty($strongParams)) {
+                $strongNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) $row['importance_pct']) >= 40));
+                $weakNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) $row['importance_pct']) < 15));
+                $this->line('  Recommendation: Focus optimization on '.implode(', ', $strongNames).'.');
+                if (! empty($weakNames)) {
+                    $this->line('  '.implode(', ', $weakNames).' can be fixed to reduce search dimensionality.');
+                }
+            } else {
+                $this->line('  Recommendation: Parameter importance is relatively balanced — consider simplifying the strategy if overfitting is suspected.');
+            }
+            $this->newLine();
         }
     }
 

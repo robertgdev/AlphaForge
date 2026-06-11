@@ -346,6 +346,8 @@ class WalkForwardCommand extends Command
 
         $this->displaySummary($analysis);
 
+        $this->displayResearchConclusion($analysis);
+
         $this->newLine();
         $this->line("  Walk-Forward Run ID: {$wfRun->id}");
         if ($wfRun->optimization_run_id) {
@@ -403,24 +405,50 @@ class WalkForwardCommand extends Command
         }
     }
 
+    private function formatDegradation(float $degradation): string
+    {
+        if ($degradation < 0) {
+            return '+'.number_format(abs($degradation), 1).'% (OOS improvement vs IS)';
+        }
+
+        return number_format($degradation, 1).'%';
+    }
+
     private function displaySummary(WalkForwardAnalysis $analysis): void
     {
         $this->newLine();
         $this->info('Walk-Forward Summary');
         $this->line(str_repeat('─', 40));
 
-        $classification = strtoupper($analysis->classification);
-        $this->line("  Classification: {$classification} — {$analysis->interpretation}");
+        $stabilityLabel = strtoupper($analysis->stabilityClassification);
+        $this->line("  Parameter Stability: {$stabilityLabel} — {$analysis->stabilityInterpretation}");
 
-        $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
+        $ecoLabel = strtoupper($analysis->economicPerformance);
+        $this->line("  Economic Performance: {$ecoLabel} — {$analysis->economicInterpretation}");
+
+        if ($analysis->economicPerformance === 'poor' && $analysis->stabilityClassification !== 'likely_overfit') {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ Stable optimization does not imply a profitable strategy.</>');
+            if ($analysis->benchmarkHasData) {
+                $this->line('  <fg=yellow>⚠ Out-of-sample returns materially lag buy-and-hold.</>');
+            }
+        }
+
+        if ($analysis->oosIsRatioWarning) {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'% — this ratio is inflated because both IS and OOS scores are near zero. Interpret with caution.</>');
+        } else {
+            $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
+        }
+
         $this->line('  Robust parameters (profitable OOS): '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
 
         if ($analysis->reliableCount > 0 || $analysis->minTrades > 0) {
             $this->line("  Statistically reliable (≥{$analysis->minTrades} trades, profitable OOS): {$analysis->reliableCount}/".count($analysis->results).' ('.number_format($analysis->reliableRatio * 100, 1).'%)');
         }
 
-        $this->line('  Median score degradation: '.number_format($analysis->medianDegradation, 1).'% (more robust measure)');
-        $this->line('  Average score degradation: '.number_format($analysis->avgDegradation, 1).'%');
+        $this->line('  Median score degradation: '.$this->formatDegradation($analysis->medianDegradation));
+        $this->line('  Average score degradation: '.$this->formatDegradation($analysis->avgDegradation));
 
         if ($analysis->rankCorrelation !== null) {
             $this->line('  IS-OOS Rank Correlation (Spearman): '.number_format($analysis->rankCorrelation, 3).' ('.$analysis->rankStabilityLabel.')');
@@ -429,6 +457,17 @@ class WalkForwardCommand extends Command
         if ($analysis->lowTradeWarning) {
             $this->newLine();
             $this->line('  <fg=yellow>⚠ Low trade count — interpret statistical metrics with caution.</>');
+        }
+
+        if ($analysis->suspiciousSharpe) {
+            $sr = $analysis->bestOosResult
+                ? number_format((float) ($analysis->bestOosResult->oos_statistics['sharpe_ratio'] ?? 0), 2)
+                : 'N/A';
+            $rcp = $analysis->bestOosResult
+                ? number_format(abs((float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0)), 2)
+                : 'N/A';
+            $this->newLine();
+            $this->line("  <fg=yellow>⚠ High Sharpe ({$sr}) with negligible absolute return ({$rcp}%) may reflect low exposure rather than exceptional risk-adjusted performance.</>");
         }
 
         if (! empty($analysis->boundaryWarnings)) {
@@ -472,5 +511,107 @@ class WalkForwardCommand extends Command
             $bhSharpe = number_format($analysis->benchmarkSharpe, 2);
             $this->line('  '.str_pad('Sharpe', 20).str_pad($stSharpe, 18).$bhSharpe);
         }
+    }
+
+    private function displayResearchConclusion(WalkForwardAnalysis $analysis): void
+    {
+        $this->newLine();
+        $this->line(str_repeat('=', 60));
+        $this->line('<fg=yellow>  RESEARCH CONCLUSION</>');
+        $this->line(str_repeat('=', 60));
+        $this->newLine();
+
+        $positives = [];
+        $warnings = [];
+
+        $stabilityOk = in_array($analysis->stabilityClassification, ['excellent', 'good', 'moderate'], true);
+        if ($stabilityOk) {
+            $positives[] = 'Parameter stability appears '.$analysis->stabilityClassification
+                .' ('.number_format($analysis->robustRatio * 100, 0).'% profitable OOS).';
+        } else {
+            $warnings[] = 'Parameter stability is '.$analysis->stabilityClassification
+                .' — optimization results may not generalize.';
+        }
+
+        if ($analysis->rankCorrelation !== null) {
+            $label = $analysis->rankStabilityLabel;
+            $rho = number_format($analysis->rankCorrelation, 2);
+            if ($analysis->rankCorrelation > 0.4) {
+                $positives[] = "IS→OOS rank correlation is {$label} (ρ = {$rho}).";
+            } else {
+                $warnings[] = "IS→OOS rank correlation is {$label} (ρ = {$rho}) — ranks are not predictive.";
+            }
+        }
+
+        if ($analysis->economicPerformance === 'strong') {
+            $positives[] = 'Economic performance is strong.';
+        } elseif ($analysis->economicPerformance === 'poor') {
+            $warnings[] = 'Despite above robustness, economic performance is weak.';
+            if ($analysis->bestOosResult && $analysis->benchmarkHasData) {
+                $stRet = (float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0);
+                $bhRet = $analysis->benchmarkReturn;
+                $warnings[] = '    Strategy return: '.($stRet >= 0 ? '+' : '').number_format($stRet, 2).'%';
+                $warnings[] = '    Buy & Hold return: '.($bhRet >= 0 ? '+' : '').number_format($bhRet, 2).'%';
+            }
+        }
+
+        if ($analysis->suspiciousSharpe) {
+            $warnings[] = 'The strategy appears underinvested.';
+            $warnings[] = 'High Sharpe is driven by extremely low volatility rather than strong absolute returns.';
+        }
+
+        if ($analysis->lowTradeWarning) {
+            $warnings[] = 'Low trade count limits statistical confidence.';
+        }
+
+        if (! empty($analysis->boundaryWarnings)) {
+            $warnings[] = count($analysis->boundaryWarnings).' parameter(s) cluster near search boundaries — consider expanding ranges.';
+        }
+
+        if ($analysis->oosIsRatioWarning) {
+            $warnings[] = 'OOS/IS ratio is inflated by near-zero scores — not meaningful.';
+        }
+
+        foreach ($positives as $p) {
+            $this->line("  <fg=green>✓</> {$p}");
+        }
+
+        if (! empty($positives) && ! empty($warnings)) {
+            $this->newLine();
+        }
+
+        foreach ($warnings as $w) {
+            $this->line("  <fg=yellow>⚠ {$w}</>");
+        }
+
+        $this->newLine();
+        $this->line('  <fg=yellow>Recommendation:</>');
+
+        if ($analysis->economicPerformance === 'poor' && $stabilityOk) {
+            if ($analysis->suspiciousSharpe) {
+                $this->line('  Do not deploy in current form. Investigate increasing market');
+                $this->line('  exposure or improving entry logic before further optimization.');
+            } else {
+                $this->line('  Do not deploy in current form. The strategy captures too little');
+                $this->line('  of the available market return to justify capital allocation.');
+            }
+        } elseif ($analysis->economicPerformance === 'strong' && $stabilityOk) {
+            $this->line('  Strategy shows promise. Proceed to paper trading / live testing');
+            if ($analysis->lowTradeWarning) {
+                $this->line('  with cautious position sizing. Collect more trade data to');
+                $this->line('  increase statistical confidence.');
+            } else {
+                $this->line('  with calibrated position sizing.');
+            }
+        } elseif (! $stabilityOk) {
+            $this->line('  Optimization shows signs of overfitting. Expand parameter range,');
+            $this->line('  simplify the parameter space, or increase iterations before');
+            $this->line('  proceeding to live testing.');
+        } else {
+            $this->line('  Review results carefully. Mixed signals warrant additional');
+            $this->line('  analysis before committing capital.');
+        }
+
+        $this->line(str_repeat('=', 60));
     }
 }

@@ -79,7 +79,16 @@ class BacktestResultFormatter
             $sharpeVal = (float) $stats['sharpe_ratio'];
             $color = $sharpeVal > 0 ? '<fg=green>' : '<fg=red>';
             $label = $lowTrades ? 'Sharpe Ratio (low confidence)' : 'Sharpe Ratio';
-            $formatted[$label] = $color.number_format($sharpeVal, 2).'</>';
+
+            $returnPct = abs((float) ($stats['total_return_percent'] ?? 0));
+            $suspiciousSharpe = $sharpeVal > 5.0 && $returnPct < 5.0;
+
+            if ($suspiciousSharpe) {
+                $label .= ' ⚠';
+                $formatted[$label] = $color.number_format($sharpeVal, 2).'</> <fg=yellow>(high Sharpe with minimal absolute returns — may reflect low exposure rather than exceptional risk-adjusted performance)</>';
+            } else {
+                $formatted[$label] = $color.number_format($sharpeVal, 2).'</>';
+            }
         }
         if (isset($stats['sortino_ratio'])) {
             $sortinoVal = (float) $stats['sortino_ratio'];

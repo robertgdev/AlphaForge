@@ -96,6 +96,10 @@ class MonteCarloCommand extends Command
         $this->newLine();
         $this->line('  <fg=gray>P5 through P95 are percentile confidence bands. The median is the most likely outcome.</>');
         $this->line('  <fg=gray>P(< 0) = probability that the resampled metric is below zero (loss/harm).</>');
+        $this->newLine();
+        $this->line('  <fg=gray>⚠ Monte Carlo assumes future trades resemble historical trades.</>');
+        $this->line('  <fg=gray>  It does not account for changing market dynamics or regime shifts.</>');
+        $this->line('  <fg=gray>  Percentiles reflect reordering of observed trade outcomes, not unseen scenarios.</>');
 
         return 0;
     }

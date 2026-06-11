@@ -12,6 +12,9 @@ use Illuminate\Support\Collection;
 class WalkForwardAnalyzer
 {
     private const LOW_TRADE_CNT_THRESHOLD = 30;
+    private const SMALL_RETURN_THRESHOLD = 2.0;
+    private const HIGH_SHARPE_THRESHOLD = 5.0;          // Sharpe above this with low return triggers suspicion
+    private const OOS_IS_RATIO_INFLATED_THRESHOLD = 120.0; // Ratio above this with tiny returns is misleading
 
     public function __construct(
         private readonly ?MarketDataLoader $marketDataLoader = null,
@@ -33,8 +36,8 @@ class WalkForwardAnalyzer
                 medianDegradation: 0.0,
                 bestOosRank: null,
                 bestOosResult: null,
-                classification: 'likely_overfit',
-                interpretation: 'No results available for analysis.',
+                stabilityClassification: 'likely_overfit',
+                stabilityInterpretation: 'No results available for analysis.',
                 rankCorrelation: null,
                 rankStabilityLabel: 'unstable',
                 reliableCount: 0,
@@ -78,8 +81,8 @@ class WalkForwardAnalyzer
         $rankCorrelation = $this->spearmanRankCorrelation($results);
         $rankStabilityLabel = $this->classifyRankStability($rankCorrelation);
 
-        $classification = $this->classifyRobustness($oosIsRatio, $robustRatioPct, $rankCorrelation);
-        $interpretation = $this->interpretClassification($classification);
+        $stabilityClassification = $this->classifyRobustness($oosIsRatio, $robustRatioPct, $rankCorrelation);
+        $stabilityInterpretation = $this->interpretClassification($stabilityClassification);
 
         $reliableCount = 0;
         if ($minTrades > 0) {
@@ -110,6 +113,13 @@ class WalkForwardAnalyzer
 
         $benchmark = $this->computeBenchmark($wfRun);
 
+        $oosIsRatioWarning = $this->detectInflatedOosIsRatio($oosIsRatio, $avgIsScore, $avgOosScore, $bestOosResult);
+
+        $economicPerformance = $this->classifyEconomicPerformance($bestOosResult, $benchmark);
+        $economicInterpretation = $this->interpretEconomicPerformance($economicPerformance, $bestOosResult, $benchmark);
+
+        $suspiciousSharpe = $this->detectSuspiciousSharpe($bestOosResult);
+
         /** @var list<WalkForwardResult> $resultList */
         $resultList = $results->all();
 
@@ -123,8 +133,11 @@ class WalkForwardAnalyzer
             medianDegradation: $medianDegradation,
             bestOosRank: $bestOosResult?->rank,
             bestOosResult: $bestOosResult,
-            classification: $classification,
-            interpretation: $interpretation,
+            oosIsRatioWarning: $oosIsRatioWarning,
+            stabilityClassification: $stabilityClassification,
+            stabilityInterpretation: $stabilityInterpretation,
+            economicPerformance: $economicPerformance,
+            economicInterpretation: $economicInterpretation,
             rankCorrelation: $rankCorrelation,
             rankStabilityLabel: $rankStabilityLabel,
             reliableCount: $reliableCount,
@@ -132,11 +145,110 @@ class WalkForwardAnalyzer
             minTrades: $minTrades,
             boundaryWarnings: $boundaryWarnings,
             lowTradeWarning: $lowTradeWarning,
+            suspiciousSharpe: $suspiciousSharpe,
             benchmarkReturn: $benchmark['return'] ?? 0.0,
             benchmarkMaxDrawdown: $benchmark['max_drawdown'] ?? 0.0,
             benchmarkSharpe: $benchmark['sharpe'] ?? 0.0,
             benchmarkHasData: $benchmark['has_data'] ?? false,
         );
+    }
+
+    /**
+     * Flag the OOS/IS ratio as inflated when returns are near zero.
+     * A ratio can explode when both numerator and denominator are tiny.
+     */
+    private function detectInflatedOosIsRatio(float $oosIsRatio, float $avgIsScore, float $avgOosScore, ?WalkForwardResult $bestOosResult): bool
+    {
+        if ($oosIsRatio < self::OOS_IS_RATIO_INFLATED_THRESHOLD) {
+            return false;
+        }
+
+        $strategyReturn = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
+
+        if ($strategyReturn < self::SMALL_RETURN_THRESHOLD) {
+            return true;
+        }
+
+        if (abs($avgIsScore) < 0.01 && abs($avgOosScore) < 0.01) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Classify economic performance relative to buy-and-hold benchmark.
+     */
+    private function classifyEconomicPerformance(?WalkForwardResult $bestOosResult, array $benchmark): string
+    {
+        if ($bestOosResult === null || ! ($benchmark['has_data'] ?? false)) {
+            return 'unknown';
+        }
+
+        $strategyReturn = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
+        $benchmarkReturn = abs((float) ($benchmark['return'] ?? 0));
+
+        if ($strategyReturn < self::SMALL_RETURN_THRESHOLD) {
+            return 'poor';
+        }
+
+        if ($benchmarkReturn <= 0) {
+            if ($strategyReturn >= self::SMALL_RETURN_THRESHOLD) {
+                return 'strong';
+            }
+
+            return 'moderate';
+        }
+
+        $ratio = $strategyReturn / $benchmarkReturn;
+
+        if ($ratio >= 0.5) {
+            return 'strong';
+        }
+        if ($ratio >= 0.1) {
+            return 'moderate';
+        }
+
+        return 'poor';
+    }
+
+    private function interpretEconomicPerformance(string $performance, ?WalkForwardResult $bestOosResult, array $benchmark): string
+    {
+        if ($performance === 'unknown') {
+            return 'insufficient data to assess economic performance';
+        }
+
+        if ($bestOosResult === null || ! ($benchmark['has_data'] ?? false)) {
+            return 'insufficient data to assess economic performance';
+        }
+
+        $strategyReturn = (float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0);
+        $benchmarkReturn = (float) ($benchmark['return'] ?? 0);
+
+        return match ($performance) {
+            'strong' => sprintf('strategy return (%s%%) is on par with or exceeds buy-and-hold (%s%%)',
+                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
+            'moderate' => sprintf('strategy return (%s%%) captures some of the market move but trails buy-and-hold (%s%%)',
+                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
+            'poor' => sprintf('strategy return (%s%%) is negligible relative to buy-and-hold (%s%%); economic performance is unattractive',
+                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * Detect suspiciously high Sharpe ratio alongside tiny absolute returns.
+     */
+    private function detectSuspiciousSharpe(?WalkForwardResult $bestOosResult): bool
+    {
+        if ($bestOosResult === null) {
+            return false;
+        }
+
+        $sharpe = (float) ($bestOosResult->oos_statistics['sharpe_ratio'] ?? 0);
+        $returnPct = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
+
+        return $sharpe > self::HIGH_SHARPE_THRESHOLD && $returnPct < self::SMALL_RETURN_THRESHOLD;
     }
 
     /**
