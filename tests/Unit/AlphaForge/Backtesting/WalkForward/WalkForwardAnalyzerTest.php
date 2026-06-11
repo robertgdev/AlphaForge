@@ -4,6 +4,7 @@ use App\AlphaForge\Backtesting\Model\WalkForwardResult;
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
+use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 
 function makeWfResult(int $rank, array $params, float $isScore, float $oosScore, float $degradation, int $oosTrades = 10): WalkForwardResult
 {
@@ -319,7 +320,7 @@ describe('WalkForwardAnalyzer', function () {
             ->and($analysis->rankCorrelation)->toBeLessThanOrEqual(1.0);
     });
 
-it('classifies as likely_overfit when robustRatio < 10%', function () {
+    it('classifies as likely_overfit when robustRatio < 10%', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, -0.5, 125.0, 10),
             makeWfResult(2, ['fast' => 20], 2.0, -0.3, 115.0, 10),
@@ -455,5 +456,97 @@ it('classifies as likely_overfit when robustRatio < 10%', function () {
         expect($analysis->results)->toHaveCount(50)
             ->and($analysis->rankCorrelation)->not->toBeNull()
             ->and($analysis->rankCorrelation)->toBeGreaterThan(0.5);
+    });
+});
+
+describe('WalkForwardAnalysis benchmark', function () {
+    it('includes benchmark fields in empty analysis', function () {
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn(collect());
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->benchmarkReturn)->toBe(0.0)
+            ->and($analysis->benchmarkMaxDrawdown)->toBe(0.0)
+            ->and($analysis->benchmarkSharpe)->toBe(0.0)
+            ->and($analysis->benchmarkHasData)->toBeFalse();
+    });
+
+    it('accepts benchmark constructor params', function () {
+        $analysis = new WalkForwardAnalysis(
+            walkForwardRun: Mockery::mock(WalkForwardRun::class),
+            results: [],
+            oosIsRatio: 0.0,
+            robustCount: 0,
+            robustRatio: 0.0,
+            avgDegradation: 0.0,
+            medianDegradation: 0.0,
+            bestOosRank: null,
+            bestOosResult: null,
+            classification: 'moderate',
+            interpretation: '',
+            benchmarkReturn: 12.5,
+            benchmarkMaxDrawdown: 5.3,
+            benchmarkSharpe: 1.2,
+            benchmarkHasData: true,
+        );
+
+        expect($analysis->benchmarkReturn)->toBe(12.5)
+            ->and($analysis->benchmarkMaxDrawdown)->toBe(5.3)
+            ->and($analysis->benchmarkSharpe)->toBe(1.2)
+            ->and($analysis->benchmarkHasData)->toBeTrue();
+    });
+
+    it('exports benchmark data in JSON when hasData is true', function () {
+        $analysis = new WalkForwardAnalysis(
+            walkForwardRun: Mockery::mock(WalkForwardRun::class),
+            results: [],
+            oosIsRatio: 0.0,
+            robustCount: 0,
+            robustRatio: 0.0,
+            avgDegradation: 0.0,
+            medianDegradation: 0.0,
+            bestOosRank: null,
+            bestOosResult: null,
+            classification: 'moderate',
+            interpretation: '',
+            benchmarkReturn: 15.0,
+            benchmarkMaxDrawdown: 10.0,
+            benchmarkSharpe: 1.5,
+            benchmarkHasData: true,
+        );
+
+        $exporter = new WalkForwardExporter;
+        $json = $exporter->toJson($analysis);
+        $data = json_decode($json, true);
+
+        expect($data['benchmark'])->not->toBeNull()
+            ->and($data['benchmark']['return_pct'])->toEqual(15.0)
+            ->and($data['benchmark']['max_drawdown_pct'])->toEqual(10.0)
+            ->and($data['benchmark']['sharpe'])->toEqual(1.5);
+    });
+
+    it('exports null benchmark when hasData is false', function () {
+        $analysis = new WalkForwardAnalysis(
+            walkForwardRun: Mockery::mock(WalkForwardRun::class),
+            results: [],
+            oosIsRatio: 0.0,
+            robustCount: 0,
+            robustRatio: 0.0,
+            avgDegradation: 0.0,
+            medianDegradation: 0.0,
+            bestOosRank: null,
+            bestOosResult: null,
+            classification: 'moderate',
+            interpretation: '',
+            benchmarkHasData: false,
+        );
+
+        $exporter = new WalkForwardExporter;
+        $json = $exporter->toJson($analysis);
+        $data = json_decode($json, true);
+
+        expect($data['benchmark'])->toBeNull();
     });
 });

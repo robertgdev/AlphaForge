@@ -169,5 +169,65 @@ describe('MonteCarloService', function () {
             $tr = $report->metrics['total_return_pct'];
             expect($tr->median)->toBeGreaterThan(0);
         });
+
+        it('returns INF profit factor when all trades are winners', function () {
+            $pnl = ['100', '200', '150'];
+            $service = new MonteCarloService($pnl, '10000');
+
+            $report = $service->analyze(10, seed: 42);
+            $pf = $report->metrics['profit_factor'];
+
+            expect($pf->median)->toBeInfinite()
+                ->and($pf->p75)->toBeInfinite()
+                ->and($pf->p95)->toBeInfinite();
+        });
+
+        it('returns 0 profit factor when all trades have zero PnL', function () {
+            $pnl = ['0', '0', '0'];
+            $service = new MonteCarloService($pnl, '10000');
+
+            $report = $service->analyze(10, seed: 42);
+            $pf = $report->metrics['profit_factor'];
+
+            expect($pf->median)->toBe(0.0);
+        });
+
+        it('isSignificant returns false when probNegative is above 5%', function () {
+            $pnl = array_merge(
+                array_fill(0, 5, '10'),
+                array_fill(0, 5, '-10'),
+            );
+            $service = new MonteCarloService($pnl, '10000');
+
+            $report = $service->analyze(200, seed: 1);
+            $tr = $report->metrics['total_return_pct'];
+
+            expect($tr->probNegative)->toBeGreaterThan(5.0)
+                ->and($tr->isSignificant())->toBeFalse();
+        });
+
+        it('isSignificant returns true when probNegative is zero and P5 is positive', function () {
+            $pnl = array_fill(0, 20, '50');
+            $service = new MonteCarloService($pnl, '10000');
+
+            $report = $service->analyze(100, seed: 1);
+            $tr = $report->metrics['total_return_pct'];
+
+            expect($tr->probNegative)->toBe(0.0)
+                ->and($tr->isSignificant())->toBeTrue();
+        });
+
+        it('isSignificant returns false when only one of two conditions is met', function () {
+            $pnl = array_fill(0, 20, '1');
+            $service = new MonteCarloService($pnl, '10000');
+
+            $report = $service->analyze(100, seed: 1);
+            $tr = $report->metrics['total_return_pct'];
+
+            expect($tr->probNegative)->toBe(0.0);
+            // probNegative = 0%, P5 > 0 → condition for isSignificant is met
+            // (met both: probNegative < 5% AND P5 > 0)
+            expect($tr->isSignificant())->toBeTrue();
+        });
     });
 });

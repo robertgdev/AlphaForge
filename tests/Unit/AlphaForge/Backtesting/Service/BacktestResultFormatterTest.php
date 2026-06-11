@@ -122,6 +122,69 @@ describe('BacktestResultFormatter', function () {
             expect($result['Total Return'])->toBe('50.00%');
         });
 
+        it('uses 4 decimal places for small positive returns', function () {
+            $stats = ['total_return_percent' => 0.1415];
+
+            $result = $this->formatter->formatStatistics($stats);
+
+            expect($result['Total Return'])->toBe('0.1415%');
+        });
+
+        it('uses 4 decimal places for small negative returns', function () {
+            $stats = ['total_return_percent' => -0.5678];
+
+            $result = $this->formatter->formatStatistics($stats);
+
+            expect($result['Total Return'])->toBe('-0.5678%');
+        });
+
+        it('uses 2 decimal places for large returns', function () {
+            $stats = ['total_return_percent' => 50.123];
+
+            $result = $this->formatter->formatStatistics($stats);
+
+            expect($result['Total Return'])->toBe('50.12%');
+        });
+
+        describe('low-trade-count warnings', function () {
+            it('adds low-confidence label to Sharpe Ratio when trade count < 30', function () {
+                $stats = ['total_trades' => 16, 'sharpe_ratio' => 4.02];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio (low confidence)')
+                    ->and($result)->not->toHaveKey('Sharpe Ratio');
+            });
+
+            it('adds low-confidence label to Sortino Ratio when trade count < 30', function () {
+                $stats = ['total_trades' => 16, 'sortino_ratio' => 6.45];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sortino Ratio (low confidence)')
+                    ->and($result)->not->toHaveKey('Sortino Ratio');
+            });
+
+            it('omits low-confidence label when trade count >= 30', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.5, 'sortino_ratio' => 2.0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio')
+                    ->and($result)->toHaveKey('Sortino Ratio')
+                    ->and($result)->not->toHaveKey('Sharpe Ratio (low confidence)')
+                    ->and($result)->not->toHaveKey('Sortino Ratio (low confidence)');
+            });
+
+            it('omits low-confidence label when trade count is 0', function () {
+                $stats = ['total_trades' => 0, 'sharpe_ratio' => 0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio');
+            });
+        });
+
         it('returns empty array for empty stats', function () {
             $result = $this->formatter->formatStatistics([]);
 

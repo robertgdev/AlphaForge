@@ -35,7 +35,7 @@ class ListWalkForwardRunsCommand extends Command
         }
 
         $this->table(
-            ['ID', 'Strategy', 'Symbol', 'Method', 'Split', 'Status', 'WFE', 'Best OOS', 'Created'],
+            ['ID', 'Strategy', 'Symbol', 'Method', 'Split', 'Status', 'OOS/IS Ratio', 'Best OOS', 'Created'],
             $runs->map(fn (WalkForwardRun $run) => [
                 substr($run->id, 0, 8),
                 $run->strategy_alias,

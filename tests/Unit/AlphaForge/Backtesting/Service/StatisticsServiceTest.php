@@ -685,4 +685,128 @@ describe('StatisticsService', function () {
                 ->and($result['sharpe_ratio'])->not->toBe($result['sortino_ratio']);
         });
     });
+
+    describe('CAGR', function () {
+        it('returns a small CAGR for a tiny return over months', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '50050',
+                exitTime: Carbon::parse('2024-01-02'),
+                realizedPnl: '7.00',
+            ));
+            $positions->push(new PositionDto(
+                id: '2',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '51000',
+                entryTime: Carbon::parse('2024-06-01'),
+                exitPrice: '51050',
+                exitTime: Carbon::parse('2024-06-13'),
+                realizedPnl: '7.15',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '10014.15');
+
+            $cagr = (float) $result['cagr'];
+            expect($cagr)->toBeGreaterThan(0.001)
+                ->and($cagr)->toBeLessThan(0.005);
+        });
+
+        it('returns zero CAGR when trading days is zero', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '51000',
+                exitTime: Carbon::parse('2024-01-01'),
+                realizedPnl: '100',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '10100');
+
+            expect($result['cagr'])->toBe('0');
+        });
+
+        it('computes positive CAGR for a positive annual return', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '51000',
+                exitTime: Carbon::parse('2024-01-15'),
+                realizedPnl: '500',
+            ));
+            $positions->push(new PositionDto(
+                id: '2',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '51000',
+                entryTime: Carbon::parse('2024-06-01'),
+                exitPrice: '52000',
+                exitTime: Carbon::parse('2025-01-01'),
+                realizedPnl: '500',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '11000');
+
+            $cagr = (float) $result['cagr'];
+            // 10% return over ~1 year should be close to 10%
+            expect($cagr)->toBeGreaterThan(0.08)
+                ->and($cagr)->toBeLessThan(0.12);
+        });
+
+        it('returns zero CAGR when initial capital is zero', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '51000',
+                exitTime: Carbon::parse('2024-06-13'),
+                realizedPnl: '100',
+            ));
+
+            $result = $this->service->calculate($positions, '0', '100');
+
+            expect($result['cagr'])->toBe('0');
+        });
+
+        it('returns zero CAGR when final capital equals initial capital', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.01',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '50000',
+                exitTime: Carbon::parse('2024-06-13'),
+                realizedPnl: '0',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '10000');
+
+            expect($result['cagr'])->toBe('0');
+        });
+    });
 });
