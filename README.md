@@ -1744,18 +1744,39 @@ After all iterations, reports percentile bands (P5 / P25 / Median / P75 / P95) a
 
 ```
 Metric           P5 (worst)  P25      Median    P75      P95 (best)  P(< 0)  Sig.
-Total Return %      -2.50%   1.20%    5.40%    9.80%     18.30%     8.2%    ~
-Win Rate %          40.00%  45.00%   50.00%   55.00%     60.00%     0.0%    ✓
-Max Drawdown %     -20.10%  -14.50%  -10.20%  -7.30%     -4.10%     N/A
-Profit Factor       0.8500   1.0500  1.1500   1.3200     1.6200    18.5%    ~
+Total Return %     0.20%    0.30%    0.36%    0.43%      0.51%     0.05%    ✓
+Win Rate %        75.47%   81.13%   84.91%   88.68%     92.45%     0.00%    ✓
+Max Drawdown %    -0.10%   -0.06%   -0.05%   -0.04%     -0.02%    99.95%    ✗
+Profit Factor      1.75     2.50     3.33     4.69       9.38      0.00%    ✓
+Avg Trade PnL     $0.37    $0.57    $0.69    $0.81      $0.97      0.05%    ✓
+Positive Trades % 75.47%   81.13%   84.91%   88.68%     92.45%     0.00%    ✓
 ```
 
-- The **median** is the most likely outcome if trade ordering were randomized
-- **P5–P95** span = 90% confidence interval
-- **P(< 0)** = probability of loss (lower is better)
-- **✓ Significant** = P(negative) < 5% AND P5 > 0
-- **~ Marginal** = P(negative) between 5% and 20%
-- **✗ Unreliable** = P(negative) > 20%
+**Reading the percentiles:**
+
+A bootstrap resample produces a *distribution* of possible outcomes — not a single number. Each column represents a point in that distribution:
+
+- **P5 (worst 5%)**: In 95% of scenarios, the outcome is *better* than this. Only 5% are worse. This is your "near-worst-case" floor.
+- **P25 (lower quartile)**: 75% of scenarios beat this number. A conservative estimate of what you can expect.
+- **Median (P50)**: Half of all scenarios are better, half are worse. This is the single most likely outcome.
+- **P75 (upper quartile)**: Only 25% of scenarios exceed this. An optimistic but realistic target.
+- **P95 (best 5%)**: Only 5% of scenarios achieve results this good or better. The best-case scenario for all practical purposes.
+
+**Width between P5 and P95** is the 90% confidence interval. A narrow interval (like 0.20%–0.51% total return) means the strategy's performance is *insensitive to trade ordering* — the edge is consistent trade-to-trade. A wide interval would indicate the strategy relies heavily on a few outlier trades landing in favorable positions.
+
+**The significance indicators:**
+
+- **✓ (green)**: `P(negative) < 5%` **AND** `P5 > 0`. The metric is statistically reliable. Even in the worst 5% of random trade orderings, the outcome is still positive. The strategy's edge is not driven by chance.
+- **~ (yellow)**: Marginal — P(negative) between 5% and 20%. There's a meaningful chance the metric could turn out negative under adverse trade ordering.
+- **✗ (red)**: `P(negative) > 20%`. More than 1 in 5 random orderings produce a negative outcome. The metric is unreliable.
+
+**P(< 0)** — the probability that the metric goes below zero across all bootstrap iterations. For Total Return %, this is the chance of losing money overall. For Win Rate %, it's the chance of having more losing trades than winning trades. Values under 5% are good.
+
+**Understanding the Max Drawdown column:** Max Drawdown is always negative — every sequence of trades will produce some peak-to-trough decline. The ✗ significance marker for drawdown is normal and expected. What matters is the *magnitude*: is P5 at -0.10% or -20%? A tight negative range with small magnitudes (like P5 = -0.10%) indicates the strategy has excellent risk control — even the worst trade orderings produce minimal drawdowns.
+
+**Key insight — consistency vs. dependence:** A strategy that produces narrow percentile bands (the difference between P5 and P95 is small) has a *consistent per-trade edge*. This means it doesn't rely on a few outlier wins — the equity curve would look similar regardless of the exact sequence. Conversely, a strategy with a huge gap between P5 (e.g., 2%) and P95 (e.g., 80%) is dominated by a few lucky trades. It might still be profitable on average, but its performance is fragile — it only works if the big winners happen to arrive in the right places.
+
+**Complementary analysis — walk-forward vs Monte Carlo:** Walk-forward analysis tests whether parameters found during in-sample optimization generalize to unseen out-of-sample data. It asks: "Will this parameter set work tomorrow?" Monte Carlo analysis tests whether the trade outcomes within a single dataset are statistically robust. It asks: "If the exact same trades happened in a different order, would the strategy still look good?" Both are needed for a complete assessment — walk-forward tests temporal robustness, Monte Carlo tests outcome stability.
 
 **Examples:**
 
