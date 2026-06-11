@@ -14,8 +14,22 @@ function makeWfResult(int $rank, array $params, float $isScore, float $oosScore,
     $result->is_score = $isScore;
     $result->oos_score = $oosScore;
     $result->score_degradation = $degradation;
-    $result->is_statistics = ['sharpe_ratio' => (string) $isScore, 'total_trades' => $isTrades];
-    $result->oos_statistics = ['sharpe_ratio' => (string) $oosScore, 'total_trades' => $oosTrades];
+    $result->is_statistics = ['sharpe_ratio' => (string) $isScore, 'total_return_percent' => $isScore * 50, 'total_trades' => $isTrades];
+    $result->oos_statistics = ['sharpe_ratio' => (string) $oosScore, 'total_return_percent' => $oosScore * 50, 'total_trades' => $oosTrades];
+
+    return $result;
+}
+
+function makeWfResultWithStats(int $rank, array $params, float $isScore, float $oosScore, float $degradation, float $oosReturn, float $oosSharpe, int $oosTrades = 10, int $isTrades = 20): WalkForwardResult
+{
+    $result = new WalkForwardResult;
+    $result->rank = $rank;
+    $result->parameters = $params;
+    $result->is_score = $isScore;
+    $result->oos_score = $oosScore;
+    $result->score_degradation = $degradation;
+    $result->is_statistics = ['sharpe_ratio' => (string) $isScore, 'total_return_percent' => $isScore * 50, 'total_trades' => $isTrades];
+    $result->oos_statistics = ['sharpe_ratio' => (string) $oosSharpe, 'total_return_percent' => $oosReturn, 'total_trades' => $oosTrades];
 
     return $result;
 }
@@ -31,15 +45,20 @@ describe('WalkForwardAnalyzer', function () {
         expect($analysis)->toBeInstanceOf(WalkForwardAnalysis::class)
             ->and($analysis->results)->toBe([])
             ->and($analysis->oosIsRatio)->toBe(0.0)
+            ->and($analysis->oosIsRatioWarning)->toBeFalse()
             ->and($analysis->robustCount)->toBe(0)
             ->and($analysis->robustRatio)->toBe(0.0)
             ->and($analysis->avgDegradation)->toBe(0.0)
             ->and($analysis->medianDegradation)->toBe(0.0)
             ->and($analysis->bestOosRank)->toBeNull()
             ->and($analysis->bestOosResult)->toBeNull()
-            ->and($analysis->classification)->toBe('likely_overfit')
+            ->and($analysis->stabilityClassification)->toBe('likely_overfit')
+            ->and($analysis->stabilityInterpretation)->toBe('No results available for analysis.')
+            ->and($analysis->economicPerformance)->toBe('moderate')
+            ->and($analysis->economicInterpretation)->toBe('')
             ->and($analysis->rankCorrelation)->toBeNull()
-            ->and($analysis->reliableCount)->toBe(0);
+            ->and($analysis->reliableCount)->toBe(0)
+            ->and($analysis->suspiciousSharpe)->toBeFalse();
     });
 
     it('computes walk-forward efficiency', function () {
@@ -151,8 +170,8 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('excellent')
-            ->and($analysis->interpretation)->toBe('strong evidence of generalization; IS rank strongly predicts OOS performance');
+        expect($analysis->stabilityClassification)->toBe('excellent')
+            ->and($analysis->stabilityInterpretation)->toBe('strong evidence of generalization; IS rank strongly predicts OOS performance');
     });
 
     it('classifies as likely_overfit when WFE < 10%', function () {
@@ -168,23 +187,8 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('likely_overfit')
-            ->and($analysis->interpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
-    });
-
-    it('classifies as moderate when at intermediate levels', function () {
-        $results = collect([
-            makeWfResult(1, ['fast' => 10], 2.0, 0.6, 70.0),
-            makeWfResult(2, ['fast' => 20], 1.5, 0.5, 66.7),
-        ]);
-
-        $wfRun = Mockery::mock(WalkForwardRun::class);
-        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
-
-        $analyzer = new WalkForwardAnalyzer;
-        $analysis = $analyzer->analyze($wfRun);
-
-        expect($analysis->classification)->toBe('moderate');
+expect($analysis->stabilityClassification)->toBe('likely_overfit')
+            ->and($analysis->stabilityInterpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
     });
 
     it('computes Spearman rank correlation', function () {
@@ -335,8 +339,8 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('likely_overfit')
-            ->and($analysis->interpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
+        expect($analysis->stabilityClassification)->toBe('likely_overfit')
+            ->and($analysis->stabilityInterpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
     });
 
     it('classifies as likely_overfit when constant IS and partially negative OOS', function () {
@@ -355,7 +359,7 @@ describe('WalkForwardAnalyzer', function () {
         $analysis = $analyzer->analyze($wfRun);
 
         expect($analysis->oosIsRatio)->toBeGreaterThan(20.0)
-            ->and($analysis->classification)->toBe('likely_overfit');
+            ->and($analysis->stabilityClassification)->toBe('likely_overfit');
     });
 
     it('classifies rank stability appropriately based on correlation', function () {
@@ -472,8 +476,8 @@ describe('robustness classification tiers', function () {
             $analyzer = new WalkForwardAnalyzer;
             $analysis = $analyzer->analyze($wfRun);
 
-            expect($analysis->classification)->toBe('good')
-                ->and($analysis->interpretation)->toBe('parameters generalize well to unseen data');
+            expect($analysis->stabilityClassification)->toBe('good')
+                ->and($analysis->stabilityInterpretation)->toBe('parameters generalize well to unseen data');
         });
 
         it('classifies as weak when Spearman is poor but OOS/IS and robustRatio are moderate', function () {
@@ -490,8 +494,8 @@ describe('robustness classification tiers', function () {
             $analyzer = new WalkForwardAnalyzer;
             $analysis = $analyzer->analyze($wfRun);
 
-            expect($analysis->classification)->toBe('weak')
-                ->and($analysis->interpretation)->toBe('limited generalization; results should be treated with caution');
+            expect($analysis->stabilityClassification)->toBe('weak')
+                ->and($analysis->stabilityInterpretation)->toBe('limited generalization; results should be treated with caution');
         });
     });
 
@@ -632,11 +636,11 @@ describe('robustness classification tiers', function () {
             $analysis = $analyzer->analyze($wfRun);
 
             expect($analysis->boundaryWarnings)->toBe([]);
+});
         });
     });
-});
 
-describe('WalkForwardAnalysis benchmark', function () {
+    describe('benchmark', function () {
     it('includes benchmark fields in empty analysis', function () {
         $wfRun = Mockery::mock(WalkForwardRun::class);
         $wfRun->shouldReceive('results->orderBy->get')->andReturn(collect());
@@ -661,8 +665,8 @@ describe('WalkForwardAnalysis benchmark', function () {
             medianDegradation: 0.0,
             bestOosRank: null,
             bestOosResult: null,
-            classification: 'moderate',
-            interpretation: '',
+            stabilityClassification: 'moderate',
+            stabilityInterpretation: '',
             benchmarkReturn: 12.5,
             benchmarkMaxDrawdown: 5.3,
             benchmarkSharpe: 1.2,
@@ -686,8 +690,8 @@ describe('WalkForwardAnalysis benchmark', function () {
             medianDegradation: 0.0,
             bestOosRank: null,
             bestOosResult: null,
-            classification: 'moderate',
-            interpretation: '',
+            stabilityClassification: 'moderate',
+            stabilityInterpretation: '',
             benchmarkReturn: 15.0,
             benchmarkMaxDrawdown: 10.0,
             benchmarkSharpe: 1.5,
@@ -715,8 +719,8 @@ describe('WalkForwardAnalysis benchmark', function () {
             medianDegradation: 0.0,
             bestOosRank: null,
             bestOosResult: null,
-            classification: 'moderate',
-            interpretation: '',
+            stabilityClassification: 'moderate',
+            stabilityInterpretation: '',
             benchmarkHasData: false,
         );
 

@@ -82,8 +82,8 @@ describe('WalkForwardExporter', function () {
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'good',
-            interpretation: 'parameters generalize well to unseen data',
+            stabilityClassification: 'good',
+            stabilityInterpretation: 'parameters generalize well to unseen data',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
         );
@@ -93,7 +93,7 @@ describe('WalkForwardExporter', function () {
 
         $data = json_decode($json, true);
         expect($data)->not->toBeNull()
-            ->and($data['classification'])->toBe('good')
+            ->and($data['stability_classification'])->toBe('good')
             ->and((float) $data['oos_is_ratio'])->toBe(75.0)
             ->and((float) $data['rank_correlation'])->toBe(0.85)
             ->and($data['results'])->toHaveCount(1)
@@ -122,8 +122,8 @@ describe('WalkForwardExporter', function () {
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'good',
-            interpretation: 'parameters generalize well to unseen data',
+            stabilityClassification: 'good',
+            stabilityInterpretation: 'parameters generalize well to unseen data',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
         );
@@ -328,22 +328,29 @@ describe('WalkForwardExporter', function () {
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'good',
-            interpretation: 'parameters generalize well to unseen data',
+            oosIsRatioWarning: true,
+            stabilityClassification: 'good',
+            stabilityInterpretation: 'parameters generalize well to unseen data',
+            economicPerformance: 'moderate',
+            economicInterpretation: 'captures some market move',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
             reliableCount: 1,
             reliableRatio: 1.0,
             minTrades: 10,
+            suspiciousSharpe: true,
         );
 
         $exporter = new WalkForwardExporter;
         $json = $exporter->toJson($analysis);
         $data = json_decode($json, true);
 
-        expect($data)->toHaveKey('classification')
-            ->and($data)->toHaveKey('interpretation')
+        expect($data)->toHaveKey('stability_classification')
+            ->and($data)->toHaveKey('stability_interpretation')
+            ->and($data)->toHaveKey('economic_performance')
+            ->and($data)->toHaveKey('economic_interpretation')
             ->and($data)->toHaveKey('oos_is_ratio')
+            ->and($data)->toHaveKey('oos_is_ratio_warning')
             ->and($data)->toHaveKey('robust_count')
             ->and($data)->toHaveKey('robust_ratio')
             ->and($data)->toHaveKey('avg_degradation')
@@ -353,9 +360,12 @@ describe('WalkForwardExporter', function () {
             ->and($data)->toHaveKey('reliable_count')
             ->and($data)->toHaveKey('reliable_ratio')
             ->and($data)->toHaveKey('min_trades')
+            ->and($data)->toHaveKey('suspicious_sharpe')
             ->and($data['reliable_count'])->toBe(1)
             ->and((float) $data['reliable_ratio'])->toBe(1.0)
-            ->and($data['min_trades'])->toBe(10);
+            ->and($data['min_trades'])->toBe(10)
+            ->and($data['suspicious_sharpe'])->toBeTrue()
+            ->and($data['oos_is_ratio_warning'])->toBeTrue();
     });
 
     it('exports empty JSON results array when no results', function () {

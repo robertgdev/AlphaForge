@@ -247,6 +247,44 @@ describe('BacktestResultFormatter', function () {
         });
     });
 
+    describe('suspicious Sharpe warning', function () {
+            it('adds warning when Sharpe > 5 and return < 5%', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 15.59, 'total_return_percent' => 0.44];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio ⚠')
+                    ->and($result['Sharpe Ratio ⚠'])->toContain('high Sharpe with minimal absolute returns');
+            });
+
+            it('does not add warning when Sharpe is moderate', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.5, 'total_return_percent' => 2.0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio')
+                    ->and($result)->not->toHaveKey('Sharpe Ratio ⚠');
+            });
+
+            it('does not add warning when return is high even with high Sharpe', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 8.0, 'total_return_percent' => 30.0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio')
+                    ->and($result)->not->toHaveKey('Sharpe Ratio ⚠');
+            });
+
+            it('does not combine low-trade warning and suspicious Sharpe', function () {
+                $stats = ['total_trades' => 16, 'sharpe_ratio' => 10.0, 'total_return_percent' => 1.0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Sharpe Ratio (low confidence) ⚠')
+                    ->and($result['Sharpe Ratio (low confidence) ⚠'])->toContain('high Sharpe with minimal absolute returns');
+            });
+        });
+
     describe('formatPositions', function () {
         it('formats array positions with color', function () {
             $positions = [

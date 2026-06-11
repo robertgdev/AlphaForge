@@ -19,13 +19,17 @@ describe('WalkForwardAnalysis', function () {
             medianDegradation: 30.0,
             bestOosRank: 2,
             bestOosResult: $bestResult,
-            classification: 'robust',
-            interpretation: 'parameters generalize well to unseen data',
+            oosIsRatioWarning: false,
+            stabilityClassification: 'good',
+            stabilityInterpretation: 'parameters generalize well to unseen data',
+            economicPerformance: 'moderate',
+            economicInterpretation: 'strategy captures some market move',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
             reliableCount: 7,
             reliableRatio: 0.7,
             minTrades: 10,
+            suspiciousSharpe: false,
         );
 
         expect($analysis->walkForwardRun)->toBe($wfRun)
@@ -37,13 +41,17 @@ describe('WalkForwardAnalysis', function () {
             ->and($analysis->medianDegradation)->toBe(30.0)
             ->and($analysis->bestOosRank)->toBe(2)
             ->and($analysis->bestOosResult)->toBe($bestResult)
-            ->and($analysis->classification)->toBe('robust')
-            ->and($analysis->interpretation)->toBe('parameters generalize well to unseen data')
+            ->and($analysis->stabilityClassification)->toBe('good')
+            ->and($analysis->stabilityInterpretation)->toBe('parameters generalize well to unseen data')
+            ->and($analysis->economicPerformance)->toBe('moderate')
+            ->and($analysis->economicInterpretation)->toBe('strategy captures some market move')
             ->and($analysis->rankCorrelation)->toBe(0.85)
             ->and($analysis->rankStabilityLabel)->toBe('stable')
             ->and($analysis->reliableCount)->toBe(7)
             ->and($analysis->reliableRatio)->toBe(0.7)
-            ->and($analysis->minTrades)->toBe(10);
+            ->and($analysis->minTrades)->toBe(10)
+            ->and($analysis->suspiciousSharpe)->toBeFalse()
+            ->and($analysis->oosIsRatioWarning)->toBeFalse();
     });
 
     it('allows null best OOS fields', function () {
@@ -65,6 +73,31 @@ describe('WalkForwardAnalysis', function () {
             ->and($analysis->bestOosResult)->toBeNull();
     });
 
+    it('supports economic performance and suspicious sharpe fields', function () {
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+
+        $analysis = new WalkForwardAnalysis(
+            walkForwardRun: $wfRun,
+            results: [],
+            oosIsRatio: 0.0,
+            robustCount: 0,
+            robustRatio: 0.0,
+            avgDegradation: 0.0,
+            medianDegradation: 0.0,
+            bestOosRank: null,
+            bestOosResult: null,
+            economicPerformance: 'poor',
+            economicInterpretation: 'strategy return is negligible',
+            suspiciousSharpe: true,
+            oosIsRatioWarning: true,
+        );
+
+        expect($analysis->economicPerformance)->toBe('poor')
+            ->and($analysis->economicInterpretation)->toBe('strategy return is negligible')
+            ->and($analysis->suspiciousSharpe)->toBeTrue()
+            ->and($analysis->oosIsRatioWarning)->toBeTrue();
+    });
+
     it('defaults new fields', function () {
         $wfRun = Mockery::mock(WalkForwardRun::class);
 
@@ -80,11 +113,16 @@ describe('WalkForwardAnalysis', function () {
             bestOosResult: null,
         );
 
-        expect($analysis->classification)->toBe('moderate')
+        expect($analysis->stabilityClassification)->toBe('moderate')
+            ->and($analysis->stabilityInterpretation)->toBe('')
+            ->and($analysis->economicPerformance)->toBe('moderate')
+            ->and($analysis->economicInterpretation)->toBe('')
             ->and($analysis->rankCorrelation)->toBeNull()
             ->and($analysis->rankStabilityLabel)->toBe('unstable')
             ->and($analysis->reliableCount)->toBe(0)
             ->and($analysis->reliableRatio)->toBe(0.0)
-            ->and($analysis->minTrades)->toBe(0);
+            ->and($analysis->minTrades)->toBe(0)
+            ->and($analysis->suspiciousSharpe)->toBeFalse()
+            ->and($analysis->oosIsRatioWarning)->toBeFalse();
     });
 });
