@@ -101,7 +101,59 @@ class MonteCarloCommand extends Command
         $this->line('  <fg=gray>  It does not account for changing market dynamics or regime shifts.</>');
         $this->line('  <fg=gray>  Percentiles reflect reordering of observed trade outcomes, not unseen scenarios.</>');
 
+        $this->renderInterpretation($report);
+
         return 0;
+    }
+
+    private function renderInterpretation(MonteCarloReport $report): void
+    {
+        $returnMetric = $report->metrics['total_return_pct'] ?? null;
+
+        if ($returnMetric === null) {
+            return;
+        }
+
+        $this->newLine();
+        $this->line('<fg=yellow>Monte Carlo Interpretation</>');
+        $this->line(str_repeat('─', 40));
+
+        $spread = $returnMetric->p95 - $returnMetric->p5;
+        $probLoss = $returnMetric->probNegative;
+        $median = $returnMetric->median;
+
+        $this->line('  '.number_format($returnMetric->p95 - $returnMetric->p5, 2).'% spread between worst 5% and best 5% of outcomes.');
+        $this->line('  Probability of losing money: '.number_format($probLoss, 1).'%.');
+        $this->line('  Expected median return: '.($median >= 0 ? '+' : '').number_format($median, 2).'%.');
+
+        $this->newLine();
+
+        if ($probLoss === 0.0 && $spread < 2.0) {
+            $this->line('  <fg=green>Conclusion:</> Trade ordering has little effect on outcomes.');
+            if ($median < 1.0) {
+                $this->line('  The strategy is consistently low-return rather than high-risk.');
+            } else {
+                $this->line('  The strategy produces consistent positive returns regardless of');
+                $this->line('  trade sequence, suggesting robust edge rather than path dependency.');
+            }
+        } elseif ($probLoss > 20.0) {
+            $this->line('  <fg=yellow>Conclusion:</> Trade ordering matters significantly.');
+            $this->line('  The strategy\'s outcome is sensitive to when specific trades occur,');
+            $this->line('  suggesting fragile edge or unfavorable win/loss distribution.');
+        } elseif ($spread > 5.0) {
+            $this->line('  <fg=yellow>Conclusion:</> Wide outcome range indicates trade outcome variance.');
+            $this->line('  Results are sensitive to trade sequence. A single outlier trade');
+            $this->line('  can materially change the bottom line.');
+        } elseif ($probLoss > 5.0) {
+            $this->line('  <fg=yellow>Conclusion:</> Marginal confidence in profitability.');
+            $this->line('  While the median outcome is positive, there is a meaningful');
+            $this->line('  probability of negative returns depending on trade order.');
+        } else {
+            $this->line('  <fg=green>Conclusion:</> The strategy shows reliable positive returns');
+            $this->line('  across most trade sequences with moderate outcome variance.');
+        }
+
+        $this->newLine();
     }
 
     private function renderJson(MonteCarloReport $report): void

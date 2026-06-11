@@ -393,7 +393,7 @@ class WalkForwardCommand extends Command
                 $params,
                 number_format($result->is_score ?? 0, 2),
                 number_format($result->oos_score ?? 0, 2),
-                number_format($result->score_degradation ?? 0, 1).'%',
+                $this->formatDegradation($result->score_degradation ?? 0),
             ];
         }
 
@@ -408,10 +408,10 @@ class WalkForwardCommand extends Command
     private function formatDegradation(float $degradation): string
     {
         if ($degradation < 0) {
-            return '+'.number_format(abs($degradation), 1).'% (OOS improvement vs IS)';
+            return '↑ +'.number_format(abs($degradation), 1).'%';
         }
 
-        return number_format($degradation, 1).'%';
+        return '↓ -'.number_format($degradation, 1).'%';
     }
 
     private function displaySummary(WalkForwardAnalysis $analysis): void
@@ -436,7 +436,7 @@ class WalkForwardCommand extends Command
 
         if ($analysis->oosIsRatioWarning) {
             $this->newLine();
-            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'% — this ratio is inflated because both IS and OOS scores are near zero. Interpret with caution.</>');
+            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: N/A — IS score too close to zero for meaningful comparison.</>');
         } else {
             $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
         }
@@ -589,8 +589,10 @@ class WalkForwardCommand extends Command
 
         if ($analysis->economicPerformance === 'poor' && $stabilityOk) {
             if ($analysis->suspiciousSharpe) {
-                $this->line('  Do not deploy in current form. Investigate increasing market');
-                $this->line('  exposure or improving entry logic before further optimization.');
+                $this->line('  The strategy spends most of the evaluation period out of the market.');
+                $this->line('  The primary issue appears to be insufficient participation rather than');
+                $this->line('  poor trade quality. Consider lowering the entry threshold or relaxing');
+                $this->line('  filters that prevent capital deployment.');
             } else {
                 $this->line('  Do not deploy in current form. The strategy captures too little');
                 $this->line('  of the available market return to justify capital allocation.');

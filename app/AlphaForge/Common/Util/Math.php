@@ -104,7 +104,7 @@ final class Math
      * @param  string  $value  The value
      * @param  string  $base  The base value
      * @param  int  $scale  Scale for bcmath
-     * @return string The percentage as a decimal (e.g., "0.1" for 10%)
+     * @return string The percentage (e.g., "10" for 10%)
      */
     public static function percentage(string $value, string $base, int $scale = 10): string
     {
@@ -112,6 +112,6 @@ final class Math
             return '0';
         }
 
-        return bcdiv($value, $base, $scale);
+        return bcmul(bcdiv($value, $base, $scale), '100', $scale);
     }
 }

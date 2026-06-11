@@ -43,8 +43,7 @@ class BacktestResultFormatter
 
         if (isset($stats['total_return_percent'])) {
             $returnPct = (float) $stats['total_return_percent'];
-            $precision = abs($returnPct) < 1.0 ? 4 : 2;
-            $formatted['Total Return'] = number_format($returnPct, $precision).'%';
+            $formatted['Total Return'] = number_format($returnPct, 2).'%';
         }
         if (isset($stats['cagr'])) {
             $cagrPct = number_format((float) $stats['cagr'] * 100, 2).'%';
@@ -101,6 +100,12 @@ class BacktestResultFormatter
         }
         if (isset($stats['trading_days'])) {
             $formatted['Trading Days'] = (string) (int) $stats['trading_days'];
+        }
+        if (isset($stats['time_in_market_percent']) && (float) $stats['time_in_market_percent'] > 0) {
+            $formatted['Time in Market'] = number_format((float) $stats['time_in_market_percent'], 2).'%';
+        }
+        if (isset($stats['idle_capital_percent']) && (float) $stats['idle_capital_percent'] > 0) {
+            $formatted['Idle Capital'] = number_format((float) $stats['idle_capital_percent'], 2).'%';
         }
 
         return $formatted;

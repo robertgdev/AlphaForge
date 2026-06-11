@@ -87,6 +87,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $alpha = '0';
         $beta = '0';
 
+        $exposure = $this->calculateExposure($barEquityCurve);
+
         return [
             'initial_capital' => $initialCapital,
             'final_capital' => $finalCapital,
@@ -122,6 +124,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
             'alpha' => $alpha,
             'beta' => $beta,
+
+            'time_in_market_percent' => $exposure['time_in_market_percent'],
+            'idle_capital_percent' => $exposure['idle_capital_percent'],
 
             'average_trade_duration' => $tradeAnalysis['avg_duration'],
             'max_consecutive_wins' => $tradeAnalysis['max_consecutive_wins'],
@@ -461,6 +466,39 @@ readonly class StatisticsService implements StatisticsServiceInterface
     }
 
     /**
+     * Calculate time-in-market and idle capital from bar equity curve.
+     *
+     * @param  Vector<string>|null  $barEquityCurve
+     * @return array{time_in_market_percent: string, idle_capital_percent: string}
+     */
+    private function calculateExposure(?Vector $barEquityCurve): array
+    {
+        if ($barEquityCurve === null || $barEquityCurve->count() < 2) {
+            return ['time_in_market_percent' => '0', 'idle_capital_percent' => '0'];
+        }
+
+        $activeBars = 0;
+        $totalBars = $barEquityCurve->count() - 1;
+
+        for ($i = 1; $i < $barEquityCurve->count(); $i++) {
+            if (bccomp($barEquityCurve->get($i), $barEquityCurve->get($i - 1), 12) !== 0) {
+                $activeBars++;
+            }
+        }
+
+        if ($totalBars <= 0) {
+            return ['time_in_market_percent' => '0', 'idle_capital_percent' => '0'];
+        }
+
+        $timeInMarket = bcdiv((string) ($activeBars * 100), (string) $totalBars, 4);
+
+        return [
+            'time_in_market_percent' => $timeInMarket,
+            'idle_capital_percent' => bcsub('100', $timeInMarket, 4),
+        ];
+    }
+
+    /**
      * Analyze trade patterns.
      *
      * @param  Vector<PositionDto>  $positions
@@ -571,6 +609,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'volatility' => '0',
             'alpha' => '0',
             'beta' => '0',
+            'time_in_market_percent' => '0',
+            'idle_capital_percent' => '0',
             'average_trade_duration' => 0,
             'max_consecutive_wins' => 0,
             'max_consecutive_losses' => 0,

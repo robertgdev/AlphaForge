@@ -137,7 +137,7 @@ class ShowWalkForwardRunCommand extends Command
 
         if ($analysis->oosIsRatioWarning) {
             $this->newLine();
-            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'% — this ratio is inflated because both IS and OOS scores are near zero. Interpret with caution.</>');
+            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: N/A — IS score too close to zero for meaningful comparison.</>');
         } else {
             $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
         }
@@ -149,13 +149,13 @@ class ShowWalkForwardRunCommand extends Command
         }
 
         $medianText = $analysis->medianDegradation < 0
-            ? '+'.number_format(abs($analysis->medianDegradation), 1).'% (OOS improvement vs IS)'
-            : number_format($analysis->medianDegradation, 1).'%';
+            ? '↑ +'.number_format(abs($analysis->medianDegradation), 1).'%'
+            : '↓ -'.number_format($analysis->medianDegradation, 1).'%';
         $this->line('  Median score degradation: '.$medianText);
 
         $avgText = $analysis->avgDegradation < 0
-            ? '+'.number_format(abs($analysis->avgDegradation), 1).'% (OOS improvement vs IS)'
-            : number_format($analysis->avgDegradation, 1).'%';
+            ? '↑ +'.number_format(abs($analysis->avgDegradation), 1).'%'
+            : '↓ -'.number_format($analysis->avgDegradation, 1).'%';
         $this->line('  Average score degradation: '.$avgText);
 
         if ($analysis->rankCorrelation !== null) {
@@ -247,7 +247,7 @@ class ShowWalkForwardRunCommand extends Command
                 $params,
                 number_format($result->is_score ?? 0, 2),
                 number_format($result->oos_score ?? 0, 2),
-                number_format($result->score_degradation ?? 0, 1).'%',
+                $this->formatDegradation($result->score_degradation ?? 0),
                 $isReturn,
                 $oosReturn,
                 $isDd,
@@ -292,5 +292,14 @@ class ShowWalkForwardRunCommand extends Command
         }
 
         $this->newLine();
+    }
+
+    private function formatDegradation(float $degradation): string
+    {
+        if ($degradation < 0) {
+            return '↑ +'.number_format(abs($degradation), 1).'%';
+        }
+
+        return '↓ -'.number_format($degradation, 1).'%';
     }
 }

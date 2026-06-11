@@ -251,7 +251,7 @@ class OptimizeStrategyCommand extends Command
                 $balance = number_format((float) ($p->statistics['final_capital'] ?? 0), 2);
                 $trades = (int) ($p->statistics['total_trades'] ?? 0);
                 $ddPct = (float) ($p->statistics['max_drawdown_percent'] ?? 0) * 100;
-                $retPct = (float) ($p->statistics['total_return_percent'] ?? 0) * 100;
+                $retPct = (float) ($p->statistics['total_return_percent'] ?? 0);
                 $volPct = (float) ($p->statistics['volatility'] ?? 0) * 100;
 
                 $this->line(sprintf(

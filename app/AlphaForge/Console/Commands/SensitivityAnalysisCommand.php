@@ -171,7 +171,9 @@ class SensitivityAnalysisCommand extends Command
                     $this->line('  '.implode(', ', $weakNames).' can be fixed to reduce search dimensionality.');
                 }
             } else {
-                $this->line('  Recommendation: Parameter importance is relatively balanced — consider simplifying the strategy if overfitting is suspected.');
+                $this->line('  No single parameter dominates performance. The strategy appears to rely');
+                $this->line('  on multiple interacting inputs, suggesting that optimization should');
+                $this->line('  consider them jointly rather than fixing any one parameter prematurely.');
             }
             $this->newLine();
         }
