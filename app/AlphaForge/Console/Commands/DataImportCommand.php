@@ -71,13 +71,17 @@ class DataImportCommand extends Command
             'Force Overwrite' => $force ? 'Yes' : 'No',
         ]);
 
-        $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) {
+        $downloading = false;
+
+        $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) use (&$downloading) {
+            if (! $downloading) {
+                $this->startProgressBar('Downloading...');
+                $downloading = true;
+            }
             $this->handleProgressEvent($event);
         });
 
         try {
-            $this->startProgressBar('Downloading...');
-
             $filePath = $downloader->download(
                 $exchange,
                 $market,
@@ -87,19 +91,25 @@ class DataImportCommand extends Command
                 $force
             );
 
-            $this->finishProgressBar();
+            if ($downloading) {
+                $this->finishProgressBar();
+            }
 
             info('Market data imported successfully!');
             $this->components->twoColumnDetail('File Path', $filePath);
 
             return self::SUCCESS;
         } catch (DownloaderException $e) {
-            $this->finishProgressBarOnError();
+            if ($downloading) {
+                $this->finishProgressBarOnError();
+            }
             error("Download failed: {$e->getMessage()}");
 
             return self::FAILURE;
         } catch (\Throwable $e) {
-            $this->finishProgressBarOnError();
+            if ($downloading) {
+                $this->finishProgressBarOnError();
+            }
             error("Unexpected error: {$e->getMessage()}");
 
             return self::FAILURE;
