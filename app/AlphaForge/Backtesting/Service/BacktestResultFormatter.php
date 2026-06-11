@@ -41,8 +41,20 @@ class BacktestResultFormatter
     {
         $formatted = [];
 
+        if (isset($stats['total_return_percent'])) {
+            $formatted['Total Return'] = number_format((float) $stats['total_return_percent'], 2).'%';
+        }
+        if (isset($stats['cagr'])) {
+            $cagrPct = number_format((float) $stats['cagr'] * 100, 2).'%';
+            $formatted['CAGR'] = $cagrPct;
+        }
         if (isset($stats['total_trades'])) {
-            $formatted['Total Trades'] = (string) (int) $stats['total_trades'];
+            $tradeCount = (int) $stats['total_trades'];
+            $label = 'Total Trades';
+            if ($tradeCount > 0 && $tradeCount < 30) {
+                $label = 'Total Trades ⚠';
+            }
+            $formatted[$label] = (string) $tradeCount;
         }
         if (isset($stats['winning_trades'])) {
             $formatted['Winning Trades'] = (string) (int) $stats['winning_trades'];
@@ -69,8 +81,11 @@ class BacktestResultFormatter
             $color = $sortinoVal > 0 ? '<fg=green>' : '<fg=red>';
             $formatted['Sortino Ratio'] = $color.number_format($sortinoVal, 2).'</>';
         }
-        if (isset($stats['total_return_percent'])) {
-            $formatted['Total Return'] = number_format((float) $stats['total_return_percent'], 2).'%';
+        if (isset($stats['volatility'])) {
+            $formatted['Volatility (Ann.)'] = number_format((float) $stats['volatility'] * 100, 2).'%';
+        }
+        if (isset($stats['trading_days'])) {
+            $formatted['Trading Days'] = (string) (int) $stats['trading_days'];
         }
 
         return $formatted;

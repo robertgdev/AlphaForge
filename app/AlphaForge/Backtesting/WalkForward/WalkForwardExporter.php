@@ -73,7 +73,7 @@ class WalkForwardExporter
         $data = [
             'classification' => $analysis->classification,
             'interpretation' => $analysis->interpretation,
-            'walk_forward_efficiency' => $analysis->walkForwardEfficiency,
+            'oos_is_ratio' => $analysis->oosIsRatio,
             'robust_count' => $analysis->robustCount,
             'robust_ratio' => $analysis->robustRatio,
             'avg_degradation' => $analysis->avgDegradation,

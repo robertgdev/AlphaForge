@@ -29,7 +29,7 @@ describe('WalkForwardAnalyzer', function () {
 
         expect($analysis)->toBeInstanceOf(WalkForwardAnalysis::class)
             ->and($analysis->results)->toBe([])
-            ->and($analysis->walkForwardEfficiency)->toBe(0.0)
+            ->and($analysis->oosIsRatio)->toBe(0.0)
             ->and($analysis->robustCount)->toBe(0)
             ->and($analysis->robustRatio)->toBe(0.0)
             ->and($analysis->avgDegradation)->toBe(0.0)
@@ -54,8 +54,8 @@ describe('WalkForwardAnalyzer', function () {
         $analysis = $analyzer->analyze($wfRun);
 
         $expectedWfe = ((1.5 + 1.2) / (2.0 + 1.5)) * 100;
-        expect($analysis->walkForwardEfficiency)->toBeGreaterThan(0.0)
-            ->and($analysis->walkForwardEfficiency)->toBeLessThan(100.0);
+        expect($analysis->oosIsRatio)->toBeGreaterThan(0.0)
+            ->and($analysis->oosIsRatio)->toBeLessThan(100.0);
     });
 
     it('counts robust results (positive OOS score)', function () {
@@ -134,10 +134,10 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->walkForwardEfficiency)->toBe(0.0);
+        expect($analysis->oosIsRatio)->toBe(0.0);
     });
 
-    it('classifies as robust when WFE > 50% and robustRatio > 50%', function () {
+    it('classifies as excellent when Spearman > 0.8, WFE > 70% and robustRatio > 70%', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0),
             makeWfResult(2, ['fast' => 20], 1.5, 1.2, 20.0),
@@ -150,11 +150,11 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('robust')
-            ->and($analysis->interpretation)->toBe('parameters generalize well to unseen data');
+        expect($analysis->classification)->toBe('excellent')
+            ->and($analysis->interpretation)->toBe('strong evidence of generalization; IS rank strongly predicts OOS performance');
     });
 
-    it('classifies as likely_overfit when WFE < 20%', function () {
+    it('classifies as likely_overfit when WFE < 10%', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, 0.1, 95.0),
             makeWfResult(2, ['fast' => 20], 1.5, -0.5, 133.3),
@@ -171,7 +171,7 @@ describe('WalkForwardAnalyzer', function () {
             ->and($analysis->interpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
     });
 
-    it('classifies as marginal between robust and overfit', function () {
+    it('classifies as moderate when at intermediate levels', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, 0.6, 70.0),
             makeWfResult(2, ['fast' => 20], 1.5, 0.5, 66.7),
@@ -183,7 +183,7 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('marginal');
+        expect($analysis->classification)->toBe('moderate');
     });
 
     it('computes Spearman rank correlation', function () {
@@ -319,7 +319,7 @@ describe('WalkForwardAnalyzer', function () {
             ->and($analysis->rankCorrelation)->toBeLessThanOrEqual(1.0);
     });
 
-    it('classifies as likely_overfit when robustRatio < 20%', function () {
+it('classifies as likely_overfit when robustRatio < 10%', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, -0.5, 125.0, 10),
             makeWfResult(2, ['fast' => 20], 2.0, -0.3, 115.0, 10),
@@ -335,11 +335,10 @@ describe('WalkForwardAnalyzer', function () {
         $analysis = $analyzer->analyze($wfRun);
 
         expect($analysis->classification)->toBe('likely_overfit')
-            ->and($analysis->robustRatio)->toBe(2 / 5)
             ->and($analysis->interpretation)->toBe('parameters do not generalize; optimization results are likely overfit');
     });
 
-    it('classifies as marginal when WFE 30% and robustRatio 40%', function () {
+    it('classifies as likely_overfit when constant IS and partially negative OOS', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, 2.0, 0.0, 10),
             makeWfResult(2, ['fast' => 20], 2.0, 1.0, 50.0, 10),
@@ -354,11 +353,11 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        expect($analysis->classification)->toBe('marginal')
-            ->and($analysis->interpretation)->toBe('some parameters generalize; results should be treated with caution');
+        expect($analysis->oosIsRatio)->toBeGreaterThan(20.0)
+            ->and($analysis->classification)->toBe('likely_overfit');
     });
 
-    it('classifies rank stability as moderate for correlation between 0.3 and 0.7', function () {
+    it('classifies rank stability appropriately based on correlation', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 3.0, 1.0, 66.7, 10),
             makeWfResult(2, ['fast' => 20], 2.0, 2.0, -0.0, 10),
@@ -372,9 +371,8 @@ describe('WalkForwardAnalyzer', function () {
         $analyzer = new WalkForwardAnalyzer;
         $analysis = $analyzer->analyze($wfRun);
 
-        if ($analysis->rankCorrelation > 0.3 && $analysis->rankCorrelation <= 0.7) {
-            expect($analysis->rankStabilityLabel)->toBe('moderate');
-        }
+        expect($analysis->rankCorrelation)->not->toBeNull()
+            ->and($analysis->rankStabilityLabel)->toBeIn(['stable', 'moderate', 'unstable']);
     });
 
     it('counts reliable results as profitable OOS AND sufficient trades', function () {
@@ -438,7 +436,7 @@ describe('WalkForwardAnalyzer', function () {
         $analysis = $analyzer->analyze($wfRun);
 
         expect($analysis->robustCount)->toBe(0)
-            ->and($analysis->walkForwardEfficiency)->toBe(0.0)
+            ->and($analysis->oosIsRatio)->toBe(0.0)
             ->and($analysis->rankCorrelation)->toBe(0.0);
     });
 

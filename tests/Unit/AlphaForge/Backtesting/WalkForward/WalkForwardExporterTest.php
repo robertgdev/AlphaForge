@@ -11,7 +11,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [],
-            walkForwardEfficiency: 0.0,
+            oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
             avgDegradation: 0.0,
@@ -40,7 +40,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
@@ -75,14 +75,14 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'robust',
+            classification: 'good',
             interpretation: 'parameters generalize well to unseen data',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
@@ -93,8 +93,8 @@ describe('WalkForwardExporter', function () {
 
         $data = json_decode($json, true);
         expect($data)->not->toBeNull()
-            ->and($data['classification'])->toBe('robust')
-            ->and((float) $data['walk_forward_efficiency'])->toBe(75.0)
+            ->and($data['classification'])->toBe('good')
+            ->and((float) $data['oos_is_ratio'])->toBe(75.0)
             ->and((float) $data['rank_correlation'])->toBe(0.85)
             ->and($data['results'])->toHaveCount(1)
             ->and($data['results'][0]['rank'])->toBe(1)
@@ -115,14 +115,14 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'robust',
+            classification: 'good',
             interpretation: 'parameters generalize well to unseen data',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
@@ -158,7 +158,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1, $result2],
-            walkForwardEfficiency: 71.4,
+            oosIsRatio: 71.4,
             robustCount: 2,
             robustRatio: 1.0,
             avgDegradation: 29.15,
@@ -191,7 +191,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
@@ -220,7 +220,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
@@ -249,7 +249,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
@@ -290,7 +290,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1, $result2],
-            walkForwardEfficiency: 71.4,
+            oosIsRatio: 71.4,
             robustCount: 2,
             robustRatio: 1.0,
             avgDegradation: 29.15,
@@ -321,14 +321,14 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,
             medianDegradation: 25.0,
             bestOosRank: 1,
             bestOosResult: $result1,
-            classification: 'robust',
+            classification: 'good',
             interpretation: 'parameters generalize well to unseen data',
             rankCorrelation: 0.85,
             rankStabilityLabel: 'stable',
@@ -343,7 +343,7 @@ describe('WalkForwardExporter', function () {
 
         expect($data)->toHaveKey('classification')
             ->and($data)->toHaveKey('interpretation')
-            ->and($data)->toHaveKey('walk_forward_efficiency')
+            ->and($data)->toHaveKey('oos_is_ratio')
             ->and($data)->toHaveKey('robust_count')
             ->and($data)->toHaveKey('robust_ratio')
             ->and($data)->toHaveKey('avg_degradation')
@@ -363,7 +363,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [],
-            walkForwardEfficiency: 0.0,
+            oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
             avgDegradation: 0.0,
@@ -393,7 +393,7 @@ describe('WalkForwardExporter', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$result1],
-            walkForwardEfficiency: 75.0,
+            oosIsRatio: 75.0,
             robustCount: 1,
             robustRatio: 1.0,
             avgDegradation: 25.0,

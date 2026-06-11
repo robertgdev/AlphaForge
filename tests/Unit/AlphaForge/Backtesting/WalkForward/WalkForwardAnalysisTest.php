@@ -12,7 +12,7 @@ describe('WalkForwardAnalysis', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [$bestResult],
-            walkForwardEfficiency: 55.0,
+            oosIsRatio: 55.0,
             robustCount: 8,
             robustRatio: 0.8,
             avgDegradation: 35.0,
@@ -30,7 +30,7 @@ describe('WalkForwardAnalysis', function () {
 
         expect($analysis->walkForwardRun)->toBe($wfRun)
             ->and($analysis->results)->toBe([$bestResult])
-            ->and($analysis->walkForwardEfficiency)->toBe(55.0)
+            ->and($analysis->oosIsRatio)->toBe(55.0)
             ->and($analysis->robustCount)->toBe(8)
             ->and($analysis->robustRatio)->toBe(0.8)
             ->and($analysis->avgDegradation)->toBe(35.0)
@@ -52,7 +52,7 @@ describe('WalkForwardAnalysis', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [],
-            walkForwardEfficiency: 0.0,
+            oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
             avgDegradation: 0.0,
@@ -71,7 +71,7 @@ describe('WalkForwardAnalysis', function () {
         $analysis = new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: [],
-            walkForwardEfficiency: 0.0,
+            oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
             avgDegradation: 0.0,
@@ -80,7 +80,7 @@ describe('WalkForwardAnalysis', function () {
             bestOosResult: null,
         );
 
-        expect($analysis->classification)->toBe('marginal')
+        expect($analysis->classification)->toBe('moderate')
             ->and($analysis->rankCorrelation)->toBeNull()
             ->and($analysis->rankStabilityLabel)->toBe('unstable')
             ->and($analysis->reliableCount)->toBe(0)

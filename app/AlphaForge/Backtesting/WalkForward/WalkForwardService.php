@@ -186,8 +186,17 @@ class WalkForwardService
         $totalTests = $topBacktestRuns->count();
         $completed = 0;
         $results = [];
+        $seenParams = [];
+        $rank = 0;
 
-        foreach ($topBacktestRuns as $rank => $backtestRun) {
+        foreach ($topBacktestRuns as $backtestRun) {
+            $paramKey = json_encode($backtestRun->strategy_inputs);
+            if (isset($seenParams[$paramKey])) {
+                continue;
+            }
+            $seenParams[$paramKey] = true;
+            $rank++;
+
             $isScore = (float) ($backtestRun->statistics['optimization_score'] ?? 0);
 
             $oosResult = $this->backtester->run(
@@ -211,9 +220,9 @@ class WalkForwardService
             $oosScore = $objective->score($oosResult['statistics']);
             $scoreDegradation = $this->computeDegradation($isScore, $oosScore);
 
-            $wfResult = WalkForwardResult::create([
-                'walk_forward_run_id' => $wfRun->id,
-                'rank' => $rank + 1,
+$wfResult = WalkForwardResult::create([
+                    'walk_forward_run_id' => $wfRun->id,
+                    'rank' => $rank,
                 'parameters' => $backtestRun->strategy_inputs,
                 'is_final_capital' => $backtestRun->final_capital,
                 'is_statistics' => $backtestRun->statistics,

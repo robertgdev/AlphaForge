@@ -8,24 +8,27 @@ use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 readonly class WalkForwardAnalysis
 {
     /**
-     * @param  WalkForwardResult[]  $results
+     * @param  WalkForwardResult[]         $results
+     * @param  array<int, array{param: string, direction: string, boundary: float, pct: float}> $boundaryWarnings
      */
     public function __construct(
         public WalkForwardRun $walkForwardRun,
         public array $results,
-        public float $walkForwardEfficiency,
+        public float $oosIsRatio,
         public int $robustCount,
         public float $robustRatio,
         public float $avgDegradation,
         public float $medianDegradation,
         public ?int $bestOosRank,
         public ?WalkForwardResult $bestOosResult,
-        public string $classification = 'marginal',
+        public string $classification = 'moderate',
         public string $interpretation = '',
         public ?float $rankCorrelation = null,
         public string $rankStabilityLabel = 'unstable',
         public int $reliableCount = 0,
         public float $reliableRatio = 0.0,
         public int $minTrades = 0,
+        public array $boundaryWarnings = [],
+        public bool $lowTradeWarning = false,
     ) {}
 }

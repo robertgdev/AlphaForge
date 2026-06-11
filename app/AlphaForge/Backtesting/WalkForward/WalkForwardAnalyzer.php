@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 
 class WalkForwardAnalyzer
 {
+    private const LOW_TRADE_CNT_THRESHOLD = 30;
+
     public function analyze(WalkForwardRun $wfRun, int $minTrades = 0): WalkForwardAnalysis
     {
         /** @var \Illuminate\Database\Eloquent\Collection<int, WalkForwardResult> $results */
@@ -17,7 +19,7 @@ class WalkForwardAnalyzer
             return new WalkForwardAnalysis(
                 walkForwardRun: $wfRun,
                 results: [],
-                walkForwardEfficiency: 0.0,
+                oosIsRatio: 0.0,
                 robustCount: 0,
                 robustRatio: 0.0,
                 avgDegradation: 0.0,
@@ -31,6 +33,8 @@ class WalkForwardAnalyzer
                 reliableCount: 0,
                 reliableRatio: 0.0,
                 minTrades: $minTrades,
+                boundaryWarnings: [],
+                lowTradeWarning: false,
             );
         }
 
@@ -46,7 +50,7 @@ class WalkForwardAnalyzer
         $avgIsScore = array_sum($isScores) / count($isScores);
         $avgOosScore = array_sum($oosScores) / count($oosScores);
 
-        $wfe = $avgIsScore != 0.0
+        $oosIsRatio = $avgIsScore != 0.0
             ? ($avgOosScore / $avgIsScore) * 100
             : 0.0;
 
@@ -58,11 +62,13 @@ class WalkForwardAnalyzer
             $results->sortByDesc('oos_score')->first()?->rank
         ));
 
-        $classification = $this->classifyRobustness($wfe, $profitableOos->count() / $results->count() * 100);
-        $interpretation = $this->interpretClassification($classification);
+        $robustRatioPct = $results->count() > 0 ? $profitableOos->count() / $results->count() * 100 : 0.0;
 
         $rankCorrelation = $this->spearmanRankCorrelation($results);
         $rankStabilityLabel = $this->classifyRankStability($rankCorrelation);
+
+        $classification = $this->classifyRobustness($oosIsRatio, $robustRatioPct, $rankCorrelation);
+        $interpretation = $this->interpretClassification($classification);
 
         $reliableCount = 0;
         if ($minTrades > 0) {
@@ -75,13 +81,29 @@ class WalkForwardAnalyzer
 
         $reliableRatio = $results->count() > 0 ? $reliableCount / $results->count() : 0.0;
 
+        $lowTradeWarning = false;
+        if ($bestOosResult !== null) {
+            $oosTrades = (int) ($bestOosResult->oos_statistics['total_trades'] ?? 0);
+            $isTrades = (int) ($bestOosResult->is_statistics['total_trades'] ?? 0);
+            if ($oosTrades < self::LOW_TRADE_CNT_THRESHOLD || $isTrades < self::LOW_TRADE_CNT_THRESHOLD) {
+                $lowTradeWarning = true;
+            }
+        }
+
+        try {
+            $parameterRanges = $wfRun->parameter_ranges ?? [];
+        } catch (\BadMethodCallException) {
+            $parameterRanges = [];
+        }
+        $boundaryWarnings = $this->boundaryWarnings($results, $parameterRanges);
+
         /** @var list<WalkForwardResult> $resultList */
         $resultList = $results->all();
 
         return new WalkForwardAnalysis(
             walkForwardRun: $wfRun,
             results: $resultList,
-            walkForwardEfficiency: $wfe,
+            oosIsRatio: $oosIsRatio,
             robustCount: $profitableOos->count(),
             robustRatio: $results->count() > 0 ? $profitableOos->count() / $results->count() : 0.0,
             avgDegradation: $avgDegradation,
@@ -95,30 +117,122 @@ class WalkForwardAnalyzer
             reliableCount: $reliableCount,
             reliableRatio: $reliableRatio,
             minTrades: $minTrades,
+            boundaryWarnings: $boundaryWarnings,
+            lowTradeWarning: $lowTradeWarning,
         );
     }
 
-    private function classifyRobustness(float $wfe, float $robustRatioPercent): string
+    /**
+     * Multi-factor robustness classification using rank correlation, WFE, and profitable ratio.
+     */
+    private function classifyRobustness(float $oosIsRatio, float $robustRatioPercent, ?float $spearman): string
     {
-        if ($wfe > 50 && $robustRatioPercent > 50) {
-            return 'robust';
+        $spearman = $spearman ?? 0.0;
+
+        if ($spearman > 0.8 && $oosIsRatio > 70 && $robustRatioPercent > 70) {
+            return 'excellent';
         }
 
-        if ($wfe < 20 || $robustRatioPercent < 20) {
+        if ($spearman > 0.6 && $oosIsRatio > 50 && $robustRatioPercent > 50) {
+            return 'good';
+        }
+
+        if ($spearman > 0.4 && $oosIsRatio > 30 && $robustRatioPercent > 30) {
+            return 'moderate';
+        }
+
+        if ($spearman < 0.2 || $oosIsRatio < 10 || $robustRatioPercent < 10) {
             return 'likely_overfit';
         }
 
-        return 'marginal';
+        return 'weak';
     }
 
     private function interpretClassification(string $classification): string
     {
         return match ($classification) {
-            'robust' => 'parameters generalize well to unseen data',
-            'marginal' => 'some parameters generalize; results should be treated with caution',
+            'excellent' => 'strong evidence of generalization; IS rank strongly predicts OOS performance',
+            'good' => 'parameters generalize well to unseen data',
+            'moderate' => 'partial generalization; some parameters carry over; treat with caution',
+            'weak' => 'limited generalization; results should be treated with caution',
             'likely_overfit' => 'parameters do not generalize; optimization results are likely overfit',
             default => 'unknown classification',
         };
+    }
+
+    /**
+     * Check if top-N parameters cluster near search boundaries.
+     *
+     * @param  \Illuminate\Support\Collection<int, WalkForwardResult>  $results
+     * @param  array<string, mixed>  $parameterRanges
+     * @return array<int, array{param: string, direction: string, boundary: float, pct: float}>
+     */
+    private function boundaryWarnings($results, array $parameterRanges): array
+    {
+        if (empty($parameterRanges) || $results->isEmpty()) {
+            return [];
+        }
+
+        $warnings = [];
+        $totalResults = $results->count();
+        $topN = min($totalResults, 10);
+
+        foreach ($parameterRanges as $param => $range) {
+            if (! is_array($range) || ! isset($range['min'], $range['max'])) {
+                continue;
+            }
+
+            $min = (float) $range['min'];
+            $max = (float) $range['max'];
+            $span = $max - $min;
+
+            if ($span <= 0) {
+                continue;
+            }
+
+            $nearMin = 0;
+            $nearMax = 0;
+
+            for ($i = 0; $i < $topN; $i++) {
+                $result = $results->get($i);
+                if (! $result || ! isset($result->parameters[$param])) {
+                    continue;
+                }
+
+                $val = (float) $result->parameters[$param];
+                $pct = ($val - $min) / $span;
+
+                if ($pct <= 0.10) {
+                    $nearMin++;
+                }
+                if ($pct >= 0.90) {
+                    $nearMax++;
+                }
+            }
+
+            $minPct = ($nearMin / $topN) * 100;
+            $maxPct = ($nearMax / $topN) * 100;
+
+            if ($minPct >= 50) {
+                $warnings[] = [
+                    'param' => $param,
+                    'direction' => 'min',
+                    'boundary' => $min,
+                    'pct' => round($minPct, 0),
+                ];
+            }
+
+            if ($maxPct >= 50) {
+                $warnings[] = [
+                    'param' => $param,
+                    'direction' => 'max',
+                    'boundary' => $max,
+                    'pct' => round($maxPct, 0),
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     private function classifyRankStability(?float $correlation): string

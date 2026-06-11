@@ -412,18 +412,32 @@ class WalkForwardCommand extends Command
         $classification = strtoupper($analysis->classification);
         $this->line("  Classification: {$classification} — {$analysis->interpretation}");
 
-        $this->line('  Walk-Forward Efficiency: '.number_format($analysis->walkForwardEfficiency, 1).'%');
+        $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
         $this->line('  Robust parameters (profitable OOS): '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
 
         if ($analysis->reliableCount > 0 || $analysis->minTrades > 0) {
             $this->line("  Statistically reliable (≥{$analysis->minTrades} trades, profitable OOS): {$analysis->reliableCount}/".count($analysis->results).' ('.number_format($analysis->reliableRatio * 100, 1).'%)');
         }
 
+        $this->line('  Median score degradation: '.number_format($analysis->medianDegradation, 1).'% (more robust measure)');
         $this->line('  Average score degradation: '.number_format($analysis->avgDegradation, 1).'%');
-        $this->line('  Median score degradation: '.number_format($analysis->medianDegradation, 1).'%');
 
         if ($analysis->rankCorrelation !== null) {
             $this->line('  IS-OOS Rank Correlation (Spearman): '.number_format($analysis->rankCorrelation, 3).' ('.$analysis->rankStabilityLabel.')');
+        }
+
+        if ($analysis->lowTradeWarning) {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ Low trade count — interpret statistical metrics with caution.</>');
+        }
+
+        if (! empty($analysis->boundaryWarnings)) {
+            $this->newLine();
+            $this->line('  <fg=yellow>⚠ Parameter boundary warnings:</>');
+            foreach ($analysis->boundaryWarnings as $w) {
+                $dirLabel = $w['direction'] === 'min' ? 'min' : 'max';
+                $this->line("    - {$w['param']}: {$w['pct']}% of top results at {$dirLabel} ({$w['boundary']}); consider expanding the search range.");
+            }
         }
 
         if ($analysis->bestOosResult) {

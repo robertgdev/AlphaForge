@@ -50,6 +50,12 @@ class MonteCarloCommand extends Command
         }
         $this->newLine();
 
+        if ($report->totalTrades > 0 && $report->totalTrades < 30) {
+            $this->line("  <fg=yellow>⚠ Only {$report->totalTrades} trades observed — Monte Carlo confidence is limited.</>");
+            $this->line('  <fg=gray>  Resampling few observations cannot manufacture statistical certainty.</>');
+            $this->newLine();
+        }
+
         if (! $report->hasTrades()) {
             $this->line('  <fg=yellow>No trades available for analysis.</>');
             $this->line('  Monte Carlo requires at least one closed trade. Run a backtest with trades first.');
