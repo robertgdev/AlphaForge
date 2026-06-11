@@ -15,6 +15,14 @@ describe('WalkForwardAnalysis', function () {
             oosIsRatio: 55.0,
             robustCount: 8,
             robustRatio: 0.8,
+            beatBuyHoldCount: 1,
+            beatBuyHoldRatio: 0.1,
+            returnGt10Count: 2,
+            returnGt10Ratio: 0.2,
+            sharpeBeatBenchmarkCount: 5,
+            sharpeBeatBenchmarkRatio: 0.5,
+            medianIsScore: 3.5,
+            medianOosScore: 2.8,
             avgDegradation: 35.0,
             medianDegradation: 30.0,
             bestOosRank: 2,
@@ -30,6 +38,9 @@ describe('WalkForwardAnalysis', function () {
             reliableRatio: 0.7,
             minTrades: 10,
             suspiciousSharpe: false,
+            timeInMarket: 55.66,
+            exposureAdjustedTarget: 27.44,
+            captureRatio: 3.4,
         );
 
         expect($analysis->walkForwardRun)->toBe($wfRun)
@@ -37,6 +48,14 @@ describe('WalkForwardAnalysis', function () {
             ->and($analysis->oosIsRatio)->toBe(55.0)
             ->and($analysis->robustCount)->toBe(8)
             ->and($analysis->robustRatio)->toBe(0.8)
+            ->and($analysis->beatBuyHoldCount)->toBe(1)
+            ->and($analysis->beatBuyHoldRatio)->toBe(0.1)
+            ->and($analysis->returnGt10Count)->toBe(2)
+            ->and($analysis->returnGt10Ratio)->toBe(0.2)
+            ->and($analysis->sharpeBeatBenchmarkCount)->toBe(5)
+            ->and($analysis->sharpeBeatBenchmarkRatio)->toBe(0.5)
+            ->and($analysis->medianIsScore)->toBe(3.5)
+            ->and($analysis->medianOosScore)->toBe(2.8)
             ->and($analysis->avgDegradation)->toBe(35.0)
             ->and($analysis->medianDegradation)->toBe(30.0)
             ->and($analysis->bestOosRank)->toBe(2)
@@ -51,7 +70,10 @@ describe('WalkForwardAnalysis', function () {
             ->and($analysis->reliableRatio)->toBe(0.7)
             ->and($analysis->minTrades)->toBe(10)
             ->and($analysis->suspiciousSharpe)->toBeFalse()
-            ->and($analysis->oosIsRatioWarning)->toBeFalse();
+            ->and($analysis->oosIsRatioWarning)->toBeFalse()
+            ->and($analysis->timeInMarket)->toBe(55.66)
+            ->and($analysis->exposureAdjustedTarget)->toBe(27.44)
+            ->and($analysis->captureRatio)->toBe(3.4);
     });
 
     it('allows null best OOS fields', function () {
@@ -63,6 +85,14 @@ describe('WalkForwardAnalysis', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,
@@ -82,6 +112,14 @@ describe('WalkForwardAnalysis', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,
@@ -107,6 +145,14 @@ describe('WalkForwardAnalysis', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,

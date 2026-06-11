@@ -497,6 +497,60 @@ expect($analysis->stabilityClassification)->toBe('likely_overfit')
             ->and($analysis->rankCorrelation)->toBeGreaterThan(0.5);
     });
 
+    it('computes median IS and OOS scores', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 5.0, 4.0, 20.0),
+            makeWfResult(2, ['fast' => 20], 3.0, 2.5, 16.7),
+            makeWfResult(3, ['fast' => 30], 1.0, 1.0, 0.0),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->medianIsScore)->toBe(3.0)
+            ->and($analysis->medianOosScore)->toBe(2.5);
+    });
+
+    it('counts returnGt10 from OOS total_return_percent', function () {
+        $result1 = makeWfResultWithStats(1, ['fast' => 10], 2.0, 1.5, 25.0, 15.0, 1.5);
+        $result2 = makeWfResultWithStats(2, ['fast' => 20], 1.5, 1.2, 20.0, 5.0, 1.2);
+        $result3 = makeWfResultWithStats(3, ['fast' => 30], 1.0, 0.5, 50.0, -2.0, 0.5);
+
+        $results = collect([$result1, $result2, $result3]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->returnGt10Count)->toBe(1)
+            ->and($analysis->returnGt10Ratio)->toBe(1 / 3);
+    });
+
+    it('has zero for new counts and exposure fields when no data', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->beatBuyHoldCount)->toBe(0)
+            ->and($analysis->beatBuyHoldRatio)->toBe(0.0)
+            ->and($analysis->sharpeBeatBenchmarkCount)->toBe(0)
+            ->and($analysis->sharpeBeatBenchmarkRatio)->toBe(0.0)
+            ->and($analysis->timeInMarket)->toBe(0.0)
+            ->and($analysis->exposureAdjustedTarget)->toBe(0.0)
+            ->and($analysis->captureRatio)->toBe(0.0);
+    });
+
 describe('robustness classification tiers', function () {
         it('classifies as good when Spearman > 0.6, OOS/IS > 50%, and robustRatio > 50%', function () {
             $results = collect([
@@ -696,6 +750,14 @@ describe('robustness classification tiers', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,
@@ -721,6 +783,14 @@ describe('robustness classification tiers', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,
@@ -750,6 +820,14 @@ describe('robustness classification tiers', function () {
             oosIsRatio: 0.0,
             robustCount: 0,
             robustRatio: 0.0,
+            beatBuyHoldCount: 0,
+            beatBuyHoldRatio: 0.0,
+            returnGt10Count: 0,
+            returnGt10Ratio: 0.0,
+            sharpeBeatBenchmarkCount: 0,
+            sharpeBeatBenchmarkRatio: 0.0,
+            medianIsScore: 0.0,
+            medianOosScore: 0.0,
             avgDegradation: 0.0,
             medianDegradation: 0.0,
             bestOosRank: null,
