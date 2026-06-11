@@ -428,6 +428,41 @@ expect($analysis->stabilityClassification)->toBe('likely_overfit')
         expect($analysis->reliableCount)->toBe(0);
     });
 
+    it('flags inflated OOS/IS ratio when scores near zero', function () {
+        $result = new WalkForwardResult;
+        $result->rank = 1;
+        $result->parameters = ['fast' => 10];
+        $result->is_score = 0.003;
+        $result->oos_score = 0.006;
+        $result->score_degradation = -100.0;
+        $result->is_statistics = ['sharpe_ratio' => '0.003', 'total_return_percent' => 0.15, 'total_trades' => 50];
+        $result->oos_statistics = ['sharpe_ratio' => '0.006', 'total_return_percent' => 0.30, 'total_trades' => 50];
+
+        $results = collect([$result]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->oosIsRatioWarning)->toBeTrue();
+    });
+
+    it('does not flag OOS/IS ratio when returns are meaningful', function () {
+        $results = collect([
+            makeWfResult(1, ['fast' => 10], 2.0, 1.6, 20.0, 50),
+        ]);
+
+        $wfRun = Mockery::mock(WalkForwardRun::class);
+        $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+        $analyzer = new WalkForwardAnalyzer;
+        $analysis = $analyzer->analyze($wfRun);
+
+        expect($analysis->oosIsRatioWarning)->toBeFalse();
+    });
+
     it('handles all results with zero OOS score', function () {
         $results = collect([
             makeWfResult(1, ['fast' => 10], 2.0, 0.0, 100.0, 10),

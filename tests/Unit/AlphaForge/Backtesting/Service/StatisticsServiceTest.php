@@ -64,7 +64,7 @@ describe('StatisticsService', function () {
             $result = $this->service->calculate($positions, '10000', '11000');
 
             expect(bccomp($result['total_return'], '1000', 8))->toBe(0)
-                ->and(bccomp($result['total_return_percent'], '0.1', 4))->toBe(0);
+                ->and(bccomp($result['total_return_percent'], '10.0', 2))->toBe(0);
         });
     });
 
@@ -807,6 +807,82 @@ describe('StatisticsService', function () {
             $result = $this->service->calculate($positions, '10000', '10000');
 
             expect($result['cagr'])->toBe('0');
+        });
+    });
+
+    describe('exposure metrics', function () {
+        it('computes time in market and idle capital from bar equity curve', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.02',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '55000',
+                exitTime: Carbon::parse('2024-01-02'),
+                realizedPnl: '1000',
+            ));
+
+            // 6 bars, 2 with equity change = 40% time in market
+            $barEquity = new Vector;
+            $barEquity->push('10000');   // bar 0
+            $barEquity->push('10000');   // idle
+            $barEquity->push('10500');   // active (position open)
+            $barEquity->push('10500');   // idle
+            $barEquity->push('11000');   // active
+            $barEquity->push('11000');   // idle
+
+            $result = $this->service->calculate($positions, '10000', '11000', null, 252, $barEquity);
+
+            expect(bccomp($result['time_in_market_percent'], '40.0000', 2))->toBe(0)
+                ->and((float) $result['idle_capital_percent'])->toBeGreaterThan(50.0);
+        });
+
+        it('returns zero exposure when no bar equity curve provided', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.02',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '55000',
+                exitTime: Carbon::parse('2024-01-02'),
+                realizedPnl: '1000',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '11000');
+
+            expect($result['time_in_market_percent'])->toBe('0')
+                ->and($result['idle_capital_percent'])->toBe('0');
+        });
+
+        it('returns full time in market when every bar has equity change', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.02',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01'),
+                exitPrice: '55000',
+                exitTime: Carbon::parse('2024-01-02'),
+                realizedPnl: '1000',
+            ));
+
+            $barEquity = new Vector;
+            for ($i = 0; $i <= 12; $i++) {
+                $barEquity->push((string) (10000 + $i * 100));
+            }
+
+            $result = $this->service->calculate($positions, '10000', '11200', null, 252, $barEquity);
+
+            expect(bccomp($result['time_in_market_percent'], '100', 2))->toBe(0)
+                ->and(bccomp($result['idle_capital_percent'], '0', 2))->toBe(0);
         });
     });
 });

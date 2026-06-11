@@ -112,6 +112,6 @@ final class Math
             return '0';
         }
 
-        return bcmul(bcdiv($value, $base, $scale), '100', $scale);
+        return bcmul(bcdiv($value, $base, $scale + 6), '100', $scale);
     }
 }

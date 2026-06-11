@@ -72,4 +72,30 @@ describe('Math utility', function () {
             expect($covariance)->toBe('0.000000');
         });
     });
+
+    describe('percentage', function () {
+        it('returns actual percentage multiplied by 100', function () {
+            $result = Math::percentage('500', '10000', 4);
+
+            expect($result)->toBe('5.0000');
+        });
+
+        it('handles fractional returns', function () {
+            $result = Math::percentage('4396', '1000000', 4);
+
+            expect($result)->toBe('0.4396');
+        });
+
+        it('returns zero for zero base', function () {
+            $result = Math::percentage('100', '0');
+
+            expect($result)->toBe('0');
+        });
+
+        it('handles small returns', function () {
+            $result = Math::percentage('44.24', '10000', 4);
+
+            expect($result)->toBe('0.4424');
+        });
+    });
 });

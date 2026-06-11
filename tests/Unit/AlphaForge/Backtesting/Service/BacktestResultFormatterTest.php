@@ -122,20 +122,20 @@ describe('BacktestResultFormatter', function () {
             expect($result['Total Return'])->toBe('50.00%');
         });
 
-        it('uses 4 decimal places for small positive returns', function () {
+        it('uses 2 decimal places for small positive returns', function () {
             $stats = ['total_return_percent' => 0.1415];
 
             $result = $this->formatter->formatStatistics($stats);
 
-            expect($result['Total Return'])->toBe('0.1415%');
+            expect($result['Total Return'])->toBe('0.14%');
         });
 
-        it('uses 4 decimal places for small negative returns', function () {
+        it('uses 2 decimal places for small negative returns', function () {
             $stats = ['total_return_percent' => -0.5678];
 
             $result = $this->formatter->formatStatistics($stats);
 
-            expect($result['Total Return'])->toBe('-0.5678%');
+            expect($result['Total Return'])->toBe('-0.57%');
         });
 
         it('uses 2 decimal places for large returns', function () {
@@ -243,6 +243,40 @@ describe('BacktestResultFormatter', function () {
 
                 expect($result)->toHaveKey('Total Trades')
                     ->and($result)->not->toHaveKey('Total Trades ⚠');
+            });
+
+            it('formats time in market as percentage', function () {
+                $stats = ['time_in_market_percent' => 12.50];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Time in Market')
+                    ->and($result['Time in Market'])->toBe('12.50%');
+            });
+
+            it('formats idle capital as percentage', function () {
+                $stats = ['idle_capital_percent' => 87.50];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Idle Capital')
+                    ->and($result['Idle Capital'])->toBe('87.50%');
+            });
+
+            it('hides time in market when zero', function () {
+                $stats = ['time_in_market_percent' => 0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->not->toHaveKey('Time in Market');
+            });
+
+            it('hides idle capital when zero', function () {
+                $stats = ['idle_capital_percent' => 0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->not->toHaveKey('Idle Capital');
             });
         });
     });
