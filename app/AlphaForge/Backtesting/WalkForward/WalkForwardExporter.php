@@ -83,6 +83,11 @@ class WalkForwardExporter
             'reliable_count' => $analysis->reliableCount,
             'reliable_ratio' => $analysis->reliableRatio,
             'min_trades' => $analysis->minTrades,
+            'benchmark' => $analysis->benchmarkHasData ? [
+                'return_pct' => $analysis->benchmarkReturn,
+                'max_drawdown_pct' => $analysis->benchmarkMaxDrawdown,
+                'sharpe' => $analysis->benchmarkSharpe,
+            ] : null,
             'results' => array_map(function ($r) {
                 return [
                     'rank' => $r->rank,

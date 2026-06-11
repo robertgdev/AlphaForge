@@ -42,7 +42,9 @@ class BacktestResultFormatter
         $formatted = [];
 
         if (isset($stats['total_return_percent'])) {
-            $formatted['Total Return'] = number_format((float) $stats['total_return_percent'], 2).'%';
+            $returnPct = (float) $stats['total_return_percent'];
+            $precision = abs($returnPct) < 1.0 ? 4 : 2;
+            $formatted['Total Return'] = number_format($returnPct, $precision).'%';
         }
         if (isset($stats['cagr'])) {
             $cagrPct = number_format((float) $stats['cagr'] * 100, 2).'%';
@@ -71,15 +73,19 @@ class BacktestResultFormatter
         if (isset($stats['max_drawdown_percent'])) {
             $formatted['Max Drawdown'] = number_format((float) $stats['max_drawdown_percent'] * 100, 2).'%';
         }
+        $lowTrades = ((int) ($stats['total_trades'] ?? 999)) < 30 && ((int) ($stats['total_trades'] ?? 0)) > 0;
+
         if (isset($stats['sharpe_ratio'])) {
             $sharpeVal = (float) $stats['sharpe_ratio'];
             $color = $sharpeVal > 0 ? '<fg=green>' : '<fg=red>';
-            $formatted['Sharpe Ratio'] = $color.number_format($sharpeVal, 2).'</>';
+            $label = $lowTrades ? 'Sharpe Ratio (low confidence)' : 'Sharpe Ratio';
+            $formatted[$label] = $color.number_format($sharpeVal, 2).'</>';
         }
         if (isset($stats['sortino_ratio'])) {
             $sortinoVal = (float) $stats['sortino_ratio'];
             $color = $sortinoVal > 0 ? '<fg=green>' : '<fg=red>';
-            $formatted['Sortino Ratio'] = $color.number_format($sortinoVal, 2).'</>';
+            $label = $lowTrades ? 'Sortino Ratio (low confidence)' : 'Sortino Ratio';
+            $formatted[$label] = $color.number_format($sortinoVal, 2).'</>';
         }
         if (isset($stats['volatility'])) {
             $formatted['Volatility (Ann.)'] = number_format((float) $stats['volatility'] * 100, 2).'%';

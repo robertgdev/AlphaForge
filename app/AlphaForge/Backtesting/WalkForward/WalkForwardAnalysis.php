@@ -8,8 +8,8 @@ use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 readonly class WalkForwardAnalysis
 {
     /**
-     * @param  WalkForwardResult[]         $results
-     * @param  array<int, array{param: string, direction: string, boundary: float, pct: float}> $boundaryWarnings
+     * @param  WalkForwardResult[]  $results
+     * @param  array<int, array{param: string, direction: string, boundary: float, pct: float}>  $boundaryWarnings
      */
     public function __construct(
         public WalkForwardRun $walkForwardRun,
@@ -30,5 +30,9 @@ readonly class WalkForwardAnalysis
         public int $minTrades = 0,
         public array $boundaryWarnings = [],
         public bool $lowTradeWarning = false,
+        public float $benchmarkReturn = 0.0,
+        public float $benchmarkMaxDrawdown = 0.0,
+        public float $benchmarkSharpe = 0.0,
+        public bool $benchmarkHasData = false,
     ) {}
 }

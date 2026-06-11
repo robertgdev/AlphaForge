@@ -151,6 +151,31 @@ class ShowWalkForwardRunCommand extends Command
             }
         }
 
+        if ($analysis->benchmarkHasData) {
+            $this->newLine();
+            $this->line('  <fg=yellow>Buy & Hold Benchmark (OOS Period)</>');
+            $this->line('  '.str_repeat('─', 60));
+            $this->line('  '.str_pad('Metric', 20).str_pad('Strategy (OOS)', 18).'Buy & Hold');
+            $this->line('  '.str_repeat('─', 60));
+            $stReturn = $analysis->bestOosResult
+                ? number_format((float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0), 2).'%'
+                : 'N/A';
+            $bhReturn = number_format($analysis->benchmarkReturn, 2).'%';
+            $this->line('  '.str_pad('Return', 20).str_pad($stReturn, 18).$bhReturn);
+
+            $stMaxDD = $analysis->bestOosResult
+                ? number_format((float) ($analysis->bestOosResult->oos_statistics['max_drawdown_percent'] ?? 0) * 100, 2).'%'
+                : 'N/A';
+            $bhMaxDD = number_format($analysis->benchmarkMaxDrawdown, 2).'%';
+            $this->line('  '.str_pad('Max Drawdown', 20).str_pad($stMaxDD, 18).$bhMaxDD);
+
+            $stSharpe = $analysis->bestOosResult
+                ? number_format((float) ($analysis->bestOosResult->oos_statistics['sharpe_ratio'] ?? 0), 2)
+                : 'N/A';
+            $bhSharpe = number_format($analysis->benchmarkSharpe, 2);
+            $this->line('  '.str_pad('Sharpe', 20).str_pad($stSharpe, 18).$bhSharpe);
+        }
+
         $this->newLine();
     }
 

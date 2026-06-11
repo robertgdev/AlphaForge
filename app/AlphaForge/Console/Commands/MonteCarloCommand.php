@@ -90,9 +90,9 @@ class MonteCarloCommand extends Command
         );
 
         $this->newLine();
-        $this->line('  <fg=green>✓</> Significant (P(negative) < 5% and P5 > 0)');
-        $this->line('  <fg=yellow>~</> Marginal');
-        $this->line('  <fg=red>✗</> Unreliable (P(negative) > 20%)');
+        $this->line('  <fg=green>✓</> Significant (P(negative) < 5% AND P5 > 0 — the metric is reliably positive)');
+        $this->line('  <fg=yellow>~</> Marginal (P(negative) 5–20%)');
+        $this->line('  <fg=red>✗</> Unreliable (P(negative) > 20% — high probability of negative outcomes)');
         $this->newLine();
         $this->line('  <fg=gray>P5 through P95 are percentile confidence bands. The median is the most likely outcome.</>');
         $this->line('  <fg=gray>P(< 0) = probability that the resampled metric is below zero (loss/harm).</>');
@@ -116,7 +116,7 @@ class MonteCarloCommand extends Command
                 'median' => $metric->median,
                 'p75' => $metric->p75,
                 'p95' => $metric->p95,
-                'prob_negative' => $metric->probNegative,
+                'prob_negative_pct' => $metric->probNegative,
                 'significant' => $metric->isSignificant(),
             ];
         }
@@ -128,7 +128,7 @@ class MonteCarloCommand extends Command
     {
         return match ($metric) {
             'total_return_pct', 'max_drawdown_pct', 'win_rate', 'positive_trades' => fn ($v) => number_format($v, 2).'%',
-            'profit_factor' => fn ($v) => number_format($v, 4),
+            'profit_factor' => fn ($v) => is_infinite((float) $v) ? '∞' : number_format((float) $v, 4),
             'avg_trade_pnl' => fn ($v) => number_format($v, 2),
             default => fn ($v) => (string) $v,
         };

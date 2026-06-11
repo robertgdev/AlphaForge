@@ -428,6 +428,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
     /**
      * Calculate CAGR (Compound Annual Growth Rate).
+     *
+     * Annualizes using calendar days elapsed between first and last trade.
+     * A 365.25-day year is used for consistency regardless of bar frequency.
      */
     private function calculateCAGR(
         string $initialCapital,
@@ -439,13 +442,17 @@ readonly class StatisticsService implements StatisticsServiceInterface
             return '0';
         }
 
-        $years = bcdiv((string) $tradingDays, (string) $tradingDaysPerYear, 12);
+        $years = bcdiv((string) $tradingDays, '365.25', 12);
 
         if (bccomp($years, '0', 12) <= 0) {
             return '0';
         }
 
         $ratio = bcdiv($finalCapital, $initialCapital, 12);
+
+        if (bccomp($ratio, '0', 12) <= 0) {
+            return '0';
+        }
 
         $lnRatio = log((float) $ratio);
         $cagr = exp($lnRatio / (float) $years) - 1;

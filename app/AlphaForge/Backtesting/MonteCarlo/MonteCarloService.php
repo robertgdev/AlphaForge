@@ -216,7 +216,7 @@ class MonteCarloService
         }
 
         if ($grossLoss <= 0.0001) {
-            return $grossProfit > 0 ? 999.0 : 0.0;
+            return $grossProfit > 0 ? INF : 0.0;
         }
 
         return round($grossProfit / $grossLoss, 4);
