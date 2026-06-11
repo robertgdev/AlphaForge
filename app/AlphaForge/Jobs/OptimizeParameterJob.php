@@ -53,7 +53,7 @@ class OptimizeParameterJob implements ShouldQueue
             'commission_config' => $config->commissionConfig,
             'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
             'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
-            'data_type' => $config->dataType ?? 'ohlcv',
+            'data_type' => $config->dataType,
             'brick_size' => $config->brickSize,
             'atr_period' => $config->atrPeriod,
             'status' => 'running',

@@ -15,6 +15,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Safe\DateTimeImmutable;
 
+use function Safe\json_encode;
+
 class WalkForwardService
 {
     public function __construct(

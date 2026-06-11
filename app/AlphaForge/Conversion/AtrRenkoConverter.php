@@ -8,6 +8,7 @@ use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Services\MarketDataPathBuilder;
 use Generator;
+use TaLibHybrid\TaLibHybrid;
 
 /**
  * Service for converting OHLC data to ATR-based Renko bricks.

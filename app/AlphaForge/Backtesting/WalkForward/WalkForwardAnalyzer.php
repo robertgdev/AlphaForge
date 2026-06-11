@@ -121,7 +121,7 @@ class WalkForwardAnalyzer
 
         try {
             $parameterRanges = $wfRun->parameter_ranges ?? [];
-        } catch (\BadMethodCallException) {
+        } catch (\BadMethodCallException) { /** @phpstan-ignore catch.neverThrown */
             $parameterRanges = [];
         }
         $boundaryWarnings = $this->boundaryWarnings($results, $parameterRanges);

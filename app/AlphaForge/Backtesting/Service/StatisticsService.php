@@ -486,10 +486,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             }
         }
 
-        if ($totalBars <= 0) {
-            return ['time_in_market_percent' => '0', 'idle_capital_percent' => '0'];
-        }
-
         $timeInMarket = bcdiv((string) ($activeBars * 100), (string) $totalBars, 4);
 
         return [
