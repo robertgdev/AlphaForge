@@ -6,6 +6,7 @@ use App\AlphaForge\Data\Exception\StorageException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use Generator;
 
 /**
@@ -13,15 +14,10 @@ use Generator;
  */
 class RenkoConverter
 {
-    /**
-     * @param  BinaryStorageInterface  $binaryStorage  The binary storage service for reading/writing files
-     * @param  MarketDataFileService  $fileService  The file service for generating file paths
-     * @param  string  $marketDataPath  The base path for market data storage
-     */
     public function __construct(
         private readonly BinaryStorageInterface $binaryStorage,
         private readonly MarketDataFileService $fileService,
-        private readonly string $marketDataPath
+        private readonly MarketDataPathBuilder $pathBuilder,
     ) {}
 
     /**
@@ -87,34 +83,7 @@ class RenkoConverter
         string $timeframe,
         float $brickSize
     ): string {
-        $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-        $brickSizeStr = $this->formatBrickSize($brickSize);
-
-        return sprintf(
-            '%s/%s/%s/%s/renko_%s.stchx',
-            rtrim($this->marketDataPath, '/'),
-            strtolower($exchange),
-            $sanitizedSymbol,
-            $timeframe,
-            $brickSizeStr
-        );
-    }
-
-    /**
-     * Format brick size for filename (avoiding special characters).
-     *
-     * @param  float  $brickSize  The brick size
-     * @return string The formatted brick size string
-     */
-    private function formatBrickSize(float $brickSize): string
-    {
-        $str = (string) $brickSize;
-
-        if (floor($brickSize) === $brickSize) {
-            return (string) (int) $brickSize;
-        }
-
-        return str_replace('.', '_', $str);
+        return $this->pathBuilder->build($exchange, $market, $timeframe, 'renko', $brickSize);
     }
 
     /**

@@ -7,6 +7,7 @@ use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 
 beforeEach(function () {
     $this->tempDir = sys_get_temp_dir().'/alphaforge_deps_test_'.uniqid();
@@ -68,13 +69,13 @@ function createUpToDateOhlcvForDeps(BinaryStorage $storage, MarketDataFileServic
 
 function createHeikenAshiForDeps(BinaryStorage $storage, string $tempDir, string $exchange, string $market, string $timeframe): void
 {
-    $converter = new HeikenAshiConverter($storage, new MarketDataFileService($tempDir), $tempDir);
+    $converter = new HeikenAshiConverter($storage, new MarketDataFileService($tempDir), new MarketDataPathBuilder($tempDir));
     $converter->convert($exchange, $market, $timeframe);
 }
 
 function createRenkoForDeps(BinaryStorage $storage, string $tempDir, string $exchange, string $market, string $timeframe, float $brickSize): void
 {
-    $converter = new RenkoConverter($storage, new MarketDataFileService($tempDir), $tempDir);
+    $converter = new RenkoConverter($storage, new MarketDataFileService($tempDir), new MarketDataPathBuilder($tempDir));
     $converter->convert($exchange, $market, $timeframe, $brickSize);
 }
 
@@ -178,7 +179,7 @@ describe('DataUpdateCommand --with-dependencies', function () {
 
         createHeikenAshiForDeps($this->binaryStorage, $this->tempDir, $this->exchange, $this->market, $this->timeframe);
 
-        $haConverter = new HeikenAshiConverter($this->binaryStorage, $this->fileService, $this->tempDir);
+        $haConverter = new HeikenAshiConverter($this->binaryStorage, $this->fileService, new MarketDataPathBuilder($this->tempDir));
         $haPath = $haConverter->generateHeikenAshiFilePath($this->exchange, $this->market, $this->timeframe);
 
         $haHeaderBefore = $this->binaryStorage->readHeader($haPath);

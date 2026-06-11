@@ -4,6 +4,7 @@ namespace App\AlphaForge\Backtesting\Optimization;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use Carbon\Carbon;
 use RuntimeException;
 
@@ -11,7 +12,7 @@ class MarketDataLoader
 {
     public function __construct(
         private readonly BinaryStorageInterface $binaryStorage,
-        private readonly string $marketDataPath,
+        private readonly MarketDataPathBuilder $pathBuilder,
     ) {}
 
     /**
@@ -205,45 +206,6 @@ class MarketDataLoader
         ?float $brickSize = null,
         ?int $atrPeriod = null,
     ): string {
-        $sanitizedSymbol = $this->sanitizeSymbol($symbol);
-
-        $basePath = sprintf(
-            '%s/%s/%s/%s',
-            $this->marketDataPath,
-            strtolower($exchange),
-            $sanitizedSymbol,
-            $timeframe->value
-        );
-
-        return match ($dataType) {
-            'heikenashi' => $basePath.'/heikenashi.stchx',
-            'renko' => $basePath.'/renko_'.$this->formatBrickSize($brickSize ?? 10.0).'.stchx',
-            'atr_renko' => $basePath.'/renko_atr_'.($atrPeriod ?? 14).'.stchx',
-            default => $basePath.'/ohlcv.stchx',
-        };
-    }
-
-    private function formatBrickSize(float $brickSize): string
-    {
-        if (floor($brickSize) === $brickSize) {
-            return (string) (int) $brickSize;
-        }
-
-        return str_replace('.', '_', (string) $brickSize);
-    }
-
-    private function sanitizeSymbol(string $symbol): string
-    {
-        if (! str_contains($symbol, '/') && ! str_contains($symbol, '_')) {
-            $knownQuotes = ['USDT', 'USDC', 'BUSD', 'FDUSD', 'TUSD', 'DAI', 'BTC', 'ETH', 'EUR', 'GBP', 'JPY', 'AUD', 'BNB'];
-            foreach ($knownQuotes as $quote) {
-                if (str_ends_with($symbol, $quote) && strlen($symbol) > strlen($quote)) {
-                    $symbol = substr($symbol, 0, -strlen($quote)).'/'.$quote;
-                    break;
-                }
-            }
-        }
-
-        return str_replace('/', '_', strtoupper($symbol));
+        return $this->pathBuilder->build($exchange, $symbol, $timeframe, $dataType, $brickSize, $atrPeriod);
     }
 }

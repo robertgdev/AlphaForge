@@ -59,6 +59,10 @@ class ExportOptimizeCommand extends Command
             : $this->renderCsv($run, $results);
 
         if ($outputPath) {
+            $dir = dirname($outputPath);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
             file_put_contents($outputPath, $output);
             $this->line('<fg=green>Exported '.$results->count()." results to {$outputPath}</>");
         } else {

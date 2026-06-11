@@ -51,6 +51,10 @@ class ExportTradesCommand extends Command
             : $this->renderCsv($run, $trades);
 
         if ($outputPath) {
+            $dir = dirname($outputPath);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
             file_put_contents($outputPath, $output);
             $this->line('<fg=green>Exported '.count($trades)." trades to {$outputPath}</>");
         } else {

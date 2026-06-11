@@ -6,8 +6,8 @@ use App\AlphaForge\Data\Exception\StorageException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use Generator;
-use TaLibHybrid\TaLibHybrid;
 
 /**
  * Service for converting OHLC data to ATR-based Renko bricks.
@@ -19,15 +19,10 @@ use TaLibHybrid\TaLibHybrid;
  */
 class AtrRenkoConverter
 {
-    /**
-     * @param  BinaryStorageInterface  $binaryStorage  The binary storage service for reading/writing files
-     * @param  MarketDataFileService  $fileService  The file service for generating file paths
-     * @param  string  $marketDataPath  The base path for market data storage
-     */
     public function __construct(
         private readonly BinaryStorageInterface $binaryStorage,
         private readonly MarketDataFileService $fileService,
-        private readonly string $marketDataPath
+        private readonly MarketDataPathBuilder $pathBuilder,
     ) {}
 
     /**
@@ -98,16 +93,7 @@ class AtrRenkoConverter
         string $timeframe,
         int $atrPeriod
     ): string {
-        $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-
-        return sprintf(
-            '%s/%s/%s/%s/renko_atr_%d.stchx',
-            rtrim($this->marketDataPath, '/'),
-            strtolower($exchange),
-            $sanitizedSymbol,
-            $timeframe,
-            $atrPeriod
-        );
+        return $this->pathBuilder->build($exchange, $market, $timeframe, 'atr_renko', atrPeriod: $atrPeriod);
     }
 
     /**

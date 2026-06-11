@@ -5,6 +5,7 @@ use App\AlphaForge\Data\Exception\StorageException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
@@ -16,7 +17,7 @@ beforeEach(function () {
     $this->converter = new HeikenAshiConverter(
         $this->binaryStorage,
         $this->fileService,
-        $this->tempDir
+        new MarketDataPathBuilder($this->tempDir),
     );
 });
 

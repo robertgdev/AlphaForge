@@ -358,6 +358,10 @@ class WalkForwardCommand extends Command
     private function outputResult(string $content, ?string $outputPath): void
     {
         if ($outputPath) {
+            $dir = dirname($outputPath);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
             file_put_contents($outputPath, $content);
             $this->info("Output written to {$outputPath}");
         } else {

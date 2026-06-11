@@ -6,6 +6,7 @@ use App\AlphaForge\Data\Exception\StorageException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use Generator;
 
 class HeikenAshiConverter
@@ -13,7 +14,7 @@ class HeikenAshiConverter
     public function __construct(
         private readonly BinaryStorageInterface $binaryStorage,
         private readonly MarketDataFileService $fileService,
-        private readonly string $marketDataPath
+        private readonly MarketDataPathBuilder $pathBuilder,
     ) {}
 
     public function convert(
@@ -148,15 +149,7 @@ class HeikenAshiConverter
         string $market,
         string $timeframe
     ): string {
-        $sanitizedSymbol = str_replace('/', '_', strtoupper($market));
-
-        return sprintf(
-            '%s/%s/%s/%s/heikenashi.stchx',
-            rtrim($this->marketDataPath, '/'),
-            strtolower($exchange),
-            $sanitizedSymbol,
-            $timeframe
-        );
+        return $this->pathBuilder->build($exchange, $market, $timeframe, 'heikenashi');
     }
 
     private function convertOhlcvToHeikenAshi(

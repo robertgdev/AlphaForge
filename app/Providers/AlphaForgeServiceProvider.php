@@ -47,6 +47,7 @@ use App\AlphaForge\Data\Service\Exchange\ExchangeFactory;
 use App\AlphaForge\Data\Service\MarketDataService;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Services\MarketDataPathBuilder;
 use App\AlphaForge\Strategy\Service\StrategyRegistry;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
@@ -114,6 +115,13 @@ class AlphaForgeServiceProvider extends ServiceProvider
             );
         });
 
+        // Bind MarketDataPathBuilder as singleton
+        $this->app->singleton(MarketDataPathBuilder::class, function ($app) {
+            return new MarketDataPathBuilder(
+                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
+            );
+        });
+
         // Bind Backtester with configuration
         $this->app->bind(Backtester::class, function ($app) {
             return new Backtester(
@@ -122,7 +130,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
                 $app->make(StatisticsServiceInterface::class),
                 $app->make(SeriesMetricServiceInterface::class),
                 $app->make(MultiTimeframeDataServiceInterface::class),
-                config('alphaforge.storage.market_data_path', storage_path('app/market'))
+                $app->make(MarketDataPathBuilder::class),
             );
         });
 
@@ -137,7 +145,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
         $this->app->singleton(MarketDataLoader::class, function ($app) {
             return new MarketDataLoader(
                 $app->make(BinaryStorageInterface::class),
-                config('alphaforge.storage.market_data_path', storage_path('app/market')),
+                $app->make(MarketDataPathBuilder::class),
             );
         });
         $this->app->singleton(Optimizer::class);
@@ -151,7 +159,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
             return new RenkoConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
+                $app->make(MarketDataPathBuilder::class),
             );
         });
 
@@ -160,7 +168,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
             return new AtrRenkoConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
+                $app->make(MarketDataPathBuilder::class),
             );
         });
 
@@ -169,7 +177,7 @@ class AlphaForgeServiceProvider extends ServiceProvider
             return new HeikenAshiConverter(
                 $app->make(BinaryStorageInterface::class),
                 $app->make(MarketDataFileService::class),
-                config('alphaforge.storage.market_data_path', storage_path('app/marketdata'))
+                $app->make(MarketDataPathBuilder::class),
             );
         });
 
