@@ -14,7 +14,7 @@ class LightweightOptimizationRunner implements OptimizationRunnerInterface
 
     public function runSingle(BacktestConfiguration $config, MarketDataSnapshot $data): array
     {
-        return $this->backtester->runWithPreloadedData(
+        $result = $this->backtester->runWithPreloadedData(
             strategyAlias: $config->strategyAlias,
             symbols: $config->symbols,
             timeframe: $config->timeframe,
@@ -26,6 +26,12 @@ class LightweightOptimizationRunner implements OptimizationRunnerInterface
             data: $data,
             executionTimeframe: $config->executionTimeframe,
         );
+
+        return [
+            'params' => $config->strategyInputs,
+            'statistics' => $result['statistics'],
+            'final_capital' => (string) ($result['final_capital'] ?? '0'),
+        ];
     }
 
     public function runBatch(array $configs, MarketDataSnapshot $data): array

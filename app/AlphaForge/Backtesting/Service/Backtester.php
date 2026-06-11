@@ -548,11 +548,13 @@ class Backtester
         ?float $brickSize = null,
         ?int $atrPeriod = null,
     ): string {
+        $sanitizedSymbol = $this->sanitizeSymbol($symbol);
+
         $basePath = sprintf(
             '%s/%s/%s/%s',
             $this->marketDataPath,
-            $exchange,
-            strtoupper($symbol),
+            strtolower($exchange),
+            $sanitizedSymbol,
             $timeframe->value
         );
 
@@ -571,6 +573,21 @@ class Backtester
         }
 
         return str_replace('.', '_', (string) $brickSize);
+    }
+
+    private function sanitizeSymbol(string $symbol): string
+    {
+        if (! str_contains($symbol, '/') && ! str_contains($symbol, '_')) {
+            $knownQuotes = ['USDT', 'USDC', 'BUSD', 'FDUSD', 'TUSD', 'DAI', 'BTC', 'ETH', 'EUR', 'GBP', 'JPY', 'AUD', 'BNB'];
+            foreach ($knownQuotes as $quote) {
+                if (str_ends_with($symbol, $quote) && strlen($symbol) > strlen($quote)) {
+                    $symbol = substr($symbol, 0, -strlen($quote)).'/'.$quote;
+                    break;
+                }
+            }
+        }
+
+        return str_replace('/', '_', strtoupper($symbol));
     }
 
     private function filterByDateRange(OhlcvSeries $ohlcv, ?Carbon $startDate, ?Carbon $endDate): OhlcvSeries

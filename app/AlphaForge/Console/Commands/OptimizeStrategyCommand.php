@@ -277,7 +277,13 @@ class OptimizeStrategyCommand extends Command
         $checkpointInterval = (int) $this->option('checkpoint-interval');
         $resumeFromId = $this->option('resume');
 
-        $optimizationRun = $optimizer->optimize($config, $progressCallback, $checkpointInterval, $resumeFromId);
+        try {
+            $optimizationRun = $optimizer->optimize($config, $progressCallback, $checkpointInterval, $resumeFromId);
+        } catch (\Throwable $e) {
+            $this->error('Optimization failed: '.$e->getMessage());
+
+            return 1;
+        }
 
         $progressBar?->finish();
         if ($progressLevel === 2 && $dotCount > 0 && $dotCount % 80 !== 0) {
