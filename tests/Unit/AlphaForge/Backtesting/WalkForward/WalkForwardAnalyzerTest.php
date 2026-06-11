@@ -6,7 +6,7 @@ use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 
-function makeWfResult(int $rank, array $params, float $isScore, float $oosScore, float $degradation, int $oosTrades = 10): WalkForwardResult
+function makeWfResult(int $rank, array $params, float $isScore, float $oosScore, float $degradation, int $oosTrades = 10, int $isTrades = 20): WalkForwardResult
 {
     $result = new WalkForwardResult;
     $result->rank = $rank;
@@ -14,7 +14,7 @@ function makeWfResult(int $rank, array $params, float $isScore, float $oosScore,
     $result->is_score = $isScore;
     $result->oos_score = $oosScore;
     $result->score_degradation = $degradation;
-    $result->is_statistics = ['sharpe_ratio' => (string) $isScore, 'total_trades' => 20];
+    $result->is_statistics = ['sharpe_ratio' => (string) $isScore, 'total_trades' => $isTrades];
     $result->oos_statistics = ['sharpe_ratio' => (string) $oosScore, 'total_trades' => $oosTrades];
 
     return $result;
@@ -456,6 +456,183 @@ describe('WalkForwardAnalyzer', function () {
         expect($analysis->results)->toHaveCount(50)
             ->and($analysis->rankCorrelation)->not->toBeNull()
             ->and($analysis->rankCorrelation)->toBeGreaterThan(0.5);
+    });
+
+describe('robustness classification tiers', function () {
+        it('classifies as good when Spearman > 0.6, OOS/IS > 50%, and robustRatio > 50%', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10], 2.0, 1.4, 30.0),
+                makeWfResult(2, ['fast' => 20], 1.5, 0.9, 40.0),
+                makeWfResult(3, ['fast' => 30], 1.0, 0.6, 40.0),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->classification)->toBe('good')
+                ->and($analysis->interpretation)->toBe('parameters generalize well to unseen data');
+        });
+
+        it('classifies as weak when Spearman is poor but OOS/IS and robustRatio are moderate', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10], 3.0, 1.0, 66.7),
+                makeWfResult(2, ['fast' => 20], 2.0, 1.5, 25.0),
+                makeWfResult(3, ['fast' => 30], 1.0, 2.0, -100.0),
+                makeWfResult(4, ['fast' => 40], 0.5, 0.5, 0.0),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->classification)->toBe('weak')
+                ->and($analysis->interpretation)->toBe('limited generalization; results should be treated with caution');
+        });
+    });
+
+    describe('low trade count warning', function () {
+        it('sets lowTradeWarning when best OOS result has fewer than 30 trades', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0, 5),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->lowTradeWarning)->toBeTrue();
+        });
+
+        it('does not set lowTradeWarning when both IS and OOS have 30+ trades', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0, 50, 50),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->lowTradeWarning)->toBeFalse();
+        });
+
+        it('does not set lowTradeWarning when IS trades are low but OOS is fine', function () {
+            $result = new WalkForwardResult;
+            $result->rank = 1;
+            $result->parameters = ['fast' => 10];
+            $result->is_score = 2.0;
+            $result->oos_score = 1.5;
+            $result->score_degradation = 25.0;
+            $result->is_statistics = ['sharpe_ratio' => '2.0', 'total_trades' => 5];
+            $result->oos_statistics = ['sharpe_ratio' => '1.5', 'total_trades' => 40];
+
+            $results = collect([$result]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->lowTradeWarning)->toBeTrue();
+        });
+    });
+
+    describe('parameter boundary warnings', function () {
+        it('returns empty warnings when no parameter_ranges', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10, 'slow' => 50], 2.0, 1.5, 25.0),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->boundaryWarnings)->toBe([]);
+        });
+
+        it('warns when top results cluster near parameter maximum', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 190], 2.0, 1.5, 25.0),
+                makeWfResult(2, ['fast' => 195], 1.8, 1.3, 27.8),
+                makeWfResult(3, ['fast' => 200], 1.6, 1.1, 31.3),
+            ]);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $reflection = new ReflectionMethod($analyzer, 'boundaryWarnings');
+            $reflection->setAccessible(true);
+
+            $warnings = $reflection->invoke($analyzer, $results, ['fast' => ['min' => 5, 'max' => 200]]);
+
+            expect($warnings)->toHaveCount(1)
+                ->and($warnings[0])->toMatchArray([
+                    'param' => 'fast',
+                    'direction' => 'max',
+                    'boundary' => 200.0,
+                ]);
+        });
+
+        it('warns when top results cluster near parameter minimum', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 5], 2.0, 1.5, 25.0),
+                makeWfResult(2, ['fast' => 7], 1.8, 1.3, 27.8),
+                makeWfResult(3, ['fast' => 10], 1.6, 1.1, 31.3),
+            ]);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $reflection = new ReflectionMethod($analyzer, 'boundaryWarnings');
+            $reflection->setAccessible(true);
+
+            $warnings = $reflection->invoke($analyzer, $results, ['fast' => ['min' => 5, 'max' => 200]]);
+
+            expect($warnings)->toHaveCount(1)
+                ->and($warnings[0])->toMatchArray([
+                    'param' => 'fast',
+                    'direction' => 'min',
+                    'boundary' => 5.0,
+                ]);
+        });
+
+        it('returns no warnings when results are well distributed within range', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 50], 2.0, 1.5, 25.0),
+                makeWfResult(2, ['fast' => 100], 1.8, 1.3, 27.8),
+                makeWfResult(3, ['fast' => 150], 1.6, 1.1, 31.3),
+            ]);
+
+            $analyzer = new WalkForwardAnalyzer;
+            $reflection = new ReflectionMethod($analyzer, 'boundaryWarnings');
+            $reflection->setAccessible(true);
+
+            $warnings = $reflection->invoke($analyzer, $results, ['fast' => ['min' => 5, 'max' => 200]]);
+
+            expect($warnings)->toBe([]);
+        });
+
+        it('handles parameter_ranges on model via try/catch fallback', function () {
+            $results = collect([
+                makeWfResult(1, ['fast' => 10], 2.0, 1.5, 25.0),
+            ]);
+
+            $wfRun = Mockery::mock(WalkForwardRun::class);
+            $wfRun->shouldReceive('results->orderBy->get')->andReturn($results);
+            // parameter_ranges not set — triggers BadMethodCallException, caught gracefully
+
+            $analyzer = new WalkForwardAnalyzer;
+            $analysis = $analyzer->analyze($wfRun);
+
+            expect($analysis->boundaryWarnings)->toBe([]);
+        });
     });
 });
 

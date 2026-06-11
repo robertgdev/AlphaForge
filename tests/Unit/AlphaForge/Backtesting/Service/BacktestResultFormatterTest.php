@@ -198,6 +198,53 @@ describe('BacktestResultFormatter', function () {
 
             expect($result)->toBeEmpty();
         });
+
+        describe('additional statistics keys', function () {
+            it('formats CAGR as percentage', function () {
+                $stats = ['cagr' => 0.0525];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('CAGR')
+                    ->and($result['CAGR'])->toBe('5.25%');
+            });
+
+            it('formats volatility as annualized percentage', function () {
+                $stats = ['volatility' => 0.1234];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Volatility (Ann.)')
+                    ->and($result['Volatility (Ann.)'])->toBe('12.34%');
+            });
+
+            it('formats trading days as integer', function () {
+                $stats = ['trading_days' => 180];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Trading Days')
+                    ->and($result['Trading Days'])->toBe('180');
+            });
+
+            it('adds warning marker to Total Trades when count is low', function () {
+                $stats = ['total_trades' => 16];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Total Trades ⚠')
+                    ->and($result)->not->toHaveKey('Total Trades');
+            });
+
+            it('does not add warning marker when trade count >= 30', function () {
+                $stats = ['total_trades' => 50];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Total Trades')
+                    ->and($result)->not->toHaveKey('Total Trades ⚠');
+            });
+        });
     });
 
     describe('formatPositions', function () {
