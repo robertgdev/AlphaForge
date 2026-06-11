@@ -45,6 +45,7 @@ class OptimizeParameterJob implements ShouldQueue
             'strategy_alias' => $config->strategyAlias,
             'symbols' => $config->symbols,
             'timeframe' => $config->timeframe->value,
+            'execution_timeframe' => $config->executionTimeframe?->value,
             'exchange' => $config->dataSourceExchangeId,
             'initial_capital' => (string) $config->initialCapital,
             'stake_currency' => $config->stakeCurrency,
@@ -52,6 +53,9 @@ class OptimizeParameterJob implements ShouldQueue
             'commission_config' => $config->commissionConfig,
             'start_date' => $config->startDate ? Carbon::instance($config->startDate) : null,
             'end_date' => $config->endDate ? Carbon::instance($config->endDate) : null,
+            'data_type' => $config->dataType ?? 'ohlcv',
+            'brick_size' => $config->brickSize,
+            'atr_period' => $config->atrPeriod,
             'status' => 'running',
         ]);
 

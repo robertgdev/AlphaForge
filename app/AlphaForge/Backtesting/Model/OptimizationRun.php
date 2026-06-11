@@ -97,7 +97,7 @@ class OptimizationRun extends Model
      */
     public function backtestRuns(): HasMany
     {
-        return $this->hasMany(BacktestRun::class);
+        return $this->hasMany(BacktestRun::class, 'optimization_id');
     }
 
     public function isPending(): bool

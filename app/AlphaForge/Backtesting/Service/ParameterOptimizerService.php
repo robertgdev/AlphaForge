@@ -178,6 +178,9 @@ class ParameterOptimizerService
             'commission_config' => $commissionConfig,
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'data_type' => 'ohlcv',
+            'brick_size' => null,
+            'atr_period' => null,
             'status' => 'running',
         ]);
 

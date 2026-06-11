@@ -71,7 +71,7 @@ class BacktestRun extends Model
      */
     public function optimization(): BelongsTo
     {
-        return $this->belongsTo(OptimizationRun::class);
+        return $this->belongsTo(OptimizationRun::class, 'optimization_id');
     }
 
     public function isPending(): bool
