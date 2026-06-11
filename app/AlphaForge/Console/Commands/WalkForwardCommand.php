@@ -434,19 +434,21 @@ class WalkForwardCommand extends Command
             }
         }
 
-        if ($analysis->oosIsRatioWarning) {
-            $this->newLine();
-            $this->line('  <fg=yellow>⚠ OOS/IS Ratio: N/A — IS score too close to zero for meaningful comparison.</>');
-        } else {
-            $this->line('  OOS/IS Ratio: '.number_format($analysis->oosIsRatio, 1).'%');
+        $this->newLine();
+        $this->line('  Robust parameters:');
+        $this->line('    Positive OOS return:       '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
+        if ($analysis->benchmarkHasData) {
+            $this->line('    Beat buy-and-hold:         '.$analysis->beatBuyHoldCount.'/'.count($analysis->results).' ('.number_format($analysis->beatBuyHoldRatio * 100, 1).'%)');
+            $this->line('    Sharpe > benchmark:        '.$analysis->sharpeBeatBenchmarkCount.'/'.count($analysis->results).' ('.number_format($analysis->sharpeBeatBenchmarkRatio * 100, 1).'%)');
         }
-
-        $this->line('  Robust parameters (profitable OOS): '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
+        $this->line('    Return > 10%:              '.$analysis->returnGt10Count.'/'.count($analysis->results).' ('.number_format($analysis->returnGt10Ratio * 100, 1).'%)');
 
         if ($analysis->reliableCount > 0 || $analysis->minTrades > 0) {
-            $this->line("  Statistically reliable (≥{$analysis->minTrades} trades, profitable OOS): {$analysis->reliableCount}/".count($analysis->results).' ('.number_format($analysis->reliableRatio * 100, 1).'%)');
+            $this->line("    Statistically reliable (≥{$analysis->minTrades} trades, profitable OOS): {$analysis->reliableCount}/".count($analysis->results).' ('.number_format($analysis->reliableRatio * 100, 1).'%)');
         }
 
+        $this->line('  Median IS score: '.number_format($analysis->medianIsScore, 2));
+        $this->line('  Median OOS score: '.number_format($analysis->medianOosScore, 2));
         $this->line('  Median score degradation: '.$this->formatDegradation($analysis->medianDegradation));
         $this->line('  Average score degradation: '.$this->formatDegradation($analysis->avgDegradation));
 
@@ -510,6 +512,13 @@ class WalkForwardCommand extends Command
                 : 'N/A';
             $bhSharpe = number_format($analysis->benchmarkSharpe, 2);
             $this->line('  '.str_pad('Sharpe', 20).str_pad($stSharpe, 18).$bhSharpe);
+
+            if ($analysis->timeInMarket > 0) {
+                $this->line(str_repeat('─', 60));
+                $this->line('  '.str_pad('Time in Market', 20).str_pad(number_format($analysis->timeInMarket, 2).'%', 18).'');
+                $this->line('  '.str_pad('Exposure-adj Target', 20).str_pad(number_format($analysis->exposureAdjustedTarget, 2).'%', 18).'');
+                $this->line('  '.str_pad('Capture Ratio', 20).str_pad(number_format($analysis->captureRatio, 1).'%', 18).'');
+            }
         }
     }
 
@@ -593,6 +602,15 @@ class WalkForwardCommand extends Command
                 $this->line('  The primary issue appears to be insufficient participation rather than');
                 $this->line('  poor trade quality. Consider lowering the entry threshold or relaxing');
                 $this->line('  filters that prevent capital deployment.');
+            } elseif ($analysis->benchmarkHasData && $analysis->timeInMarket > 0) {
+                $stRet = $analysis->bestOosResult
+                    ? (float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0)
+                    : 0.0;
+                $bhRet = $analysis->benchmarkReturn;
+                $this->line('  The strategy exhibits reasonable parameter stability but poor capital');
+                $this->line('  efficiency. It spends '.number_format($analysis->timeInMarket, 2).'% of the time');
+                $this->line('  invested yet captures only '.number_format($stRet, 2).'% return during a');
+                $this->line('  period where buy-and-hold returned '.number_format($bhRet, 2).'%.');
             } else {
                 $this->line('  Do not deploy in current form. The strategy captures too little');
                 $this->line('  of the available market return to justify capital allocation.');

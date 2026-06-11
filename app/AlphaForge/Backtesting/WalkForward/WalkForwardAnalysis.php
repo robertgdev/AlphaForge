@@ -17,6 +17,14 @@ readonly class WalkForwardAnalysis
         public float $oosIsRatio,
         public int $robustCount,
         public float $robustRatio,
+        public int $beatBuyHoldCount,
+        public float $beatBuyHoldRatio,
+        public int $returnGt10Count,
+        public float $returnGt10Ratio,
+        public int $sharpeBeatBenchmarkCount,
+        public float $sharpeBeatBenchmarkRatio,
+        public float $medianIsScore,
+        public float $medianOosScore,
         public float $avgDegradation,
         public float $medianDegradation,
         public ?int $bestOosRank,
@@ -38,5 +46,8 @@ readonly class WalkForwardAnalysis
         public float $benchmarkMaxDrawdown = 0.0,
         public float $benchmarkSharpe = 0.0,
         public bool $benchmarkHasData = false,
+        public float $timeInMarket = 0.0,
+        public float $exposureAdjustedTarget = 0.0,
+        public float $captureRatio = 0.0,
     ) {}
 }

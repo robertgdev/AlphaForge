@@ -15,6 +15,7 @@ class WalkForwardAnalyzer
     private const SMALL_RETURN_THRESHOLD = 2.0;
     private const HIGH_SHARPE_THRESHOLD = 5.0;          // Sharpe above this with low return triggers suspicion
     private const OOS_IS_RATIO_INFLATED_THRESHOLD = 120.0; // Ratio above this with tiny returns is misleading
+    private const MEANINGFUL_RETURN_PCT = 10.0;         // Threshold for economically meaningful return
 
     public function __construct(
         private readonly ?MarketDataLoader $marketDataLoader = null,
@@ -32,6 +33,14 @@ class WalkForwardAnalyzer
                 oosIsRatio: 0.0,
                 robustCount: 0,
                 robustRatio: 0.0,
+                beatBuyHoldCount: 0,
+                beatBuyHoldRatio: 0.0,
+                returnGt10Count: 0,
+                returnGt10Ratio: 0.0,
+                sharpeBeatBenchmarkCount: 0,
+                sharpeBeatBenchmarkRatio: 0.0,
+                medianIsScore: 0.0,
+                medianOosScore: 0.0,
                 avgDegradation: 0.0,
                 medianDegradation: 0.0,
                 bestOosRank: null,
@@ -49,6 +58,9 @@ class WalkForwardAnalyzer
                 benchmarkMaxDrawdown: 0.0,
                 benchmarkSharpe: 0.0,
                 benchmarkHasData: false,
+                timeInMarket: 0.0,
+                exposureAdjustedTarget: 0.0,
+                captureRatio: 0.0,
             );
         }
 
@@ -60,6 +72,9 @@ class WalkForwardAnalyzer
         $oosScores = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_score ?? 0.0))->values()->all();
         /** @var list<float> $degradations */
         $degradations = $results->map(fn (WalkForwardResult $r) => (float) ($r->score_degradation ?? 0.0))->values()->all();
+
+        $medianIsScore = $this->median($isScores);
+        $medianOosScore = $this->median($oosScores);
 
         $avgIsScore = array_sum($isScores) / count($isScores);
         $avgOosScore = array_sum($oosScores) / count($oosScores);
@@ -113,6 +128,44 @@ class WalkForwardAnalyzer
 
         $benchmark = $this->computeBenchmark($wfRun);
 
+        $beatBuyHoldCount = 0;
+        $returnGt10Count = 0;
+        $sharpeBeatBenchmarkCount = 0;
+        $totalResults = $results->count();
+
+        if ($benchmark['has_data']) {
+            foreach ($results as $r) {
+                $oosReturn = (float) ($r->oos_statistics['total_return_percent'] ?? 0);
+                $oosSharpe = (float) ($r->oos_statistics['sharpe_ratio'] ?? 0);
+                if ($oosReturn > $benchmark['return']) {
+                    $beatBuyHoldCount++;
+                }
+                if ($oosSharpe > $benchmark['sharpe']) {
+                    $sharpeBeatBenchmarkCount++;
+                }
+            }
+        }
+
+        foreach ($results as $r) {
+            $oosReturn = (float) ($r->oos_statistics['total_return_percent'] ?? 0);
+            if ($oosReturn > self::MEANINGFUL_RETURN_PCT) {
+                $returnGt10Count++;
+            }
+        }
+
+        $timeInMarket = $bestOosResult !== null
+            ? (float) ($bestOosResult->oos_statistics['time_in_market_percent'] ?? 0)
+            : 0.0;
+        $exposureAdjustedTarget = 0.0;
+        $captureRatio = 0.0;
+
+        if ($benchmark['has_data'] && $timeInMarket > 0) {
+            $exposureAdjustedTarget = $benchmark['return'] * ($timeInMarket / 100);
+            $captureRatio = $exposureAdjustedTarget > 0.001
+                ? (($bestOosResult !== null ? (float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0) : 0.0) / $exposureAdjustedTarget) * 100
+                : 0.0;
+        }
+
         $oosIsRatioWarning = $this->detectInflatedOosIsRatio($oosIsRatio, $avgIsScore, $avgOosScore, $bestOosResult);
 
         $economicPerformance = $this->classifyEconomicPerformance($bestOosResult, $benchmark);
@@ -129,6 +182,14 @@ class WalkForwardAnalyzer
             oosIsRatio: $oosIsRatio,
             robustCount: $profitableOos->count(),
             robustRatio: $results->count() > 0 ? $profitableOos->count() / $results->count() : 0.0,
+            beatBuyHoldCount: $beatBuyHoldCount,
+            beatBuyHoldRatio: $totalResults > 0 ? $beatBuyHoldCount / $totalResults : 0.0,
+            returnGt10Count: $returnGt10Count,
+            returnGt10Ratio: $totalResults > 0 ? $returnGt10Count / $totalResults : 0.0,
+            sharpeBeatBenchmarkCount: $sharpeBeatBenchmarkCount,
+            sharpeBeatBenchmarkRatio: $totalResults > 0 ? $sharpeBeatBenchmarkCount / $totalResults : 0.0,
+            medianIsScore: $medianIsScore,
+            medianOosScore: $medianOosScore,
             avgDegradation: $avgDegradation,
             medianDegradation: $medianDegradation,
             bestOosRank: $bestOosResult?->rank,
@@ -150,6 +211,9 @@ class WalkForwardAnalyzer
             benchmarkMaxDrawdown: $benchmark['max_drawdown'] ?? 0.0,
             benchmarkSharpe: $benchmark['sharpe'] ?? 0.0,
             benchmarkHasData: $benchmark['has_data'] ?? false,
+            timeInMarket: $timeInMarket,
+            exposureAdjustedTarget: $exposureAdjustedTarget,
+            captureRatio: $captureRatio,
         );
     }
 

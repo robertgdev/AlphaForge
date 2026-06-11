@@ -64,6 +64,8 @@ class MonteCarloCommand extends Command
             return 0;
         }
 
+        $this->renderSummaryBlock($report);
+
         $this->line('<fg=yellow>Metric Distribution (5% / 25% / Median / 75% / 95% percentiles)</>');
         $this->newLine();
 
@@ -104,6 +106,41 @@ class MonteCarloCommand extends Command
         $this->renderInterpretation($report);
 
         return 0;
+    }
+
+    private function renderSummaryBlock(MonteCarloReport $report): void
+    {
+        $returnMetric = $report->metrics['total_return_pct'] ?? null;
+        $pfMetric = $report->metrics['profit_factor'] ?? null;
+        $ddMetric = $report->metrics['max_drawdown_pct'] ?? null;
+
+        $this->line('<fg=yellow>Monte Carlo Summary ('.number_format($report->iterations).' resamples)</>');
+        $this->line(str_repeat('─', 40));
+
+        if ($returnMetric !== null) {
+            $this->line('  Return (5%-95%)        '.number_format($returnMetric->p5, 2).'% → '.number_format($returnMetric->p95, 2).'%');
+            $this->line('  Median return          '.number_format($returnMetric->median, 2).'%');
+            $this->line('  Probability of loss    '.number_format($returnMetric->probNegative, 1).'%');
+        }
+
+        if ($pfMetric !== null) {
+            $this->newLine();
+            $pfMedian = is_infinite((float) $pfMetric->median) ? '∞' : number_format((float) $pfMetric->median, 2);
+            $pfLower = is_infinite((float) $pfMetric->p5) ? '∞' : number_format((float) $pfMetric->p5, 2);
+            $pfUpper = is_infinite((float) $pfMetric->p95) ? '∞' : number_format((float) $pfMetric->p95, 2);
+            $this->line('  Profit factor');
+            $this->line('    Median               '.$pfMedian);
+            $this->line('    5%-95% range         '.$pfLower.' → '.$pfUpper);
+        }
+
+        if ($ddMetric !== null) {
+            $this->newLine();
+            $this->line('  Maximum drawdown');
+            $this->line('    Median               '.number_format($ddMetric->median, 2).'%');
+            $this->line('    95th percentile      '.number_format($ddMetric->p95, 2).'%');
+        }
+
+        $this->newLine();
     }
 
     private function renderInterpretation(MonteCarloReport $report): void

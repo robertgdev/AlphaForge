@@ -35,7 +35,7 @@ class ListWalkForwardRunsCommand extends Command
         }
 
         $this->table(
-            ['ID', 'Strategy', 'Symbol', 'Method', 'Split', 'Status', 'OOS/IS Ratio', 'Best OOS', 'Created'],
+            ['ID', 'Strategy', 'Symbol', 'Method', 'Split', 'Status', 'OOS Score', 'Best OOS', 'Created'],
             $runs->map(fn (WalkForwardRun $run) => [
                 substr($run->id, 0, 8),
                 $run->strategy_alias,
@@ -54,22 +54,16 @@ class ListWalkForwardRunsCommand extends Command
 
     private function formatWfe(WalkForwardRun $run): string
     {
-        $isStats = $run->best_is_statistics;
         $oosStats = $run->best_oos_statistics;
 
-        if (! $isStats || ! $oosStats) {
+        if (! $oosStats) {
             return '-';
         }
 
         $metric = $run->optimization_objective ?? 'sharpe_ratio';
-        $isVal = (float) ($isStats[$metric] ?? 0);
         $oosVal = (float) ($oosStats[$metric] ?? 0);
 
-        if ($isVal == 0.0) {
-            return '-';
-        }
-
-        return number_format(($oosVal / $isVal) * 100, 1).'%';
+        return number_format($oosVal, 2);
     }
 
     private function formatBestOos(WalkForwardRun $run): string
