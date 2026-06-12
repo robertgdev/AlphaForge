@@ -60,10 +60,12 @@ class ParameterSensitivityService
 
         $results = [];
         foreach ($paramNames as $param) {
+            $rawPct = ($variances[$param] / $totalVariance) * 100;
             $results[] = [
                 'param' => $param,
                 'variance' => round($variances[$param], 6),
-                'importance_pct' => round(($variances[$param] / $totalVariance) * 100, 1),
+                'importance_pct' => round($rawPct, 1),
+                'raw_importance_pct' => $rawPct,
             ];
         }
 

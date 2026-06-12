@@ -367,6 +367,13 @@ class RunBacktestCommand extends Command
 
         if ($summary['execution_timeframe'] !== null) {
             $this->components->twoColumnDetail('Execution Timeframe', $summary['execution_timeframe']);
+            $this->newLine();
+            $this->line('  <fg=gray>Execution Model:</>');
+            $this->line("  <fg=gray>  \xE2\x80\xA2 Signals generated on completed {$result['timeframe']} bars.</>");
+            $this->line("  <fg=gray>  \xE2\x80\xA2 Orders executed using {$summary['execution_timeframe']} market data.</>");
+            $this->line("  <fg=gray>  \xE2\x80\xA2 Stop-loss and take-profit evaluated on {$summary['execution_timeframe']} candles.</>");
+            $this->line('  <fg=gray>  • No intraminute tick simulation.</>');
+            $this->newLine();
         }
 
         $pnl = $summary['pnl'];

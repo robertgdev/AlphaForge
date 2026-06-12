@@ -1461,6 +1461,7 @@ php artisan alphaforge:optimize:portfolio <strategy> <symbol> [symbol]... [optio
 | `--timeframe=` | Bar timeframe (e.g., `1h`, `4h`, `1d`) | `1h` |
 | `--initial-capital=` | Initial capital per symbol | `10000` |
 | `--start-date=` | Start date (`YYYY-MM-DD`) | Earliest available |
+| `--execution-timeframe=` | Lower timeframe for order/position execution (e.g., `1m`, `5m`) | - |
 | `--end-date=` | End date (`YYYY-MM-DD`) | Latest available |
 | `--top-n=` | Number of top results to persist | `10` |
 | `--use-strategy-ranges` | Use `#[Input]` attribute ranges from the strategy class | Manual ranges |
@@ -1529,6 +1530,10 @@ php artisan alphaforge:optimize:portfolio rsi_reversal BTCUSDT ETHUSDT SOLUSDT \
 # Grid search with strategy-defined parameter ranges
 php artisan alphaforge:optimize:portfolio bb_reversal BTCUSDT ETHUSDT \
     --method=grid --use-strategy-ranges
+
+# With dual-timeframe execution (H1 signals, M1 execution across all symbols)
+php artisan alphaforge:optimize:portfolio sma_crossover BTCUSDT ETHUSDT SOLUSDT \
+    --timeframe=1h --execution-timeframe=1m
 ```
 
 **Architecture notes:**

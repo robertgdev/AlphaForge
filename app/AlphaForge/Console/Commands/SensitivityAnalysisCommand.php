@@ -99,11 +99,12 @@ class SensitivityAnalysisCommand extends Command
 
         $tableData = array_map(function ($row) {
             $bar = $this->importanceBar((float) $row['importance_pct']);
+            $display = $this->formatImportancePct((float) $row['importance_pct'], (float) ($row['raw_importance_pct'] ?? 0));
 
             return [
                 $row['param'],
                 number_format($row['variance'], 6),
-                number_format($row['importance_pct'], 1).'%',
+                $display,
                 $bar,
             ];
         }, $importance);
@@ -116,10 +117,12 @@ class SensitivityAnalysisCommand extends Command
         if (count($importance) > 1) {
             $top = $importance[0]['param'];
             $bottom = $importance[count($importance) - 1]['param'];
-            $topPct = $importance[0]['importance_pct'];
+            $topPct = (float) $importance[0]['importance_pct'];
+            $topRawPct = (float) ($importance[0]['raw_importance_pct'] ?? 0);
+            $topDisplay = $this->formatImportancePct($topPct, $topRawPct);
 
             $this->newLine();
-            $this->line("  <fg=green>Top driver: {$top}</> ({$topPct}% of score variance)");
+            $this->line("  <fg=green>Top driver: {$top}</> ({$topDisplay} of score variance)");
             $this->line('  Consider focusing optimization on the highest-importance parameters.');
             $this->newLine();
 
@@ -127,12 +130,12 @@ class SensitivityAnalysisCommand extends Command
             $moderateParams = [];
             $weakParams = [];
             foreach ($importance as $row) {
-                $pct = (float) $row['importance_pct'];
+                $rawPct = (float) ($row['raw_importance_pct'] ?? 0);
                 $name = $row['param'];
-                $bar = $this->importanceBar((float) $row['importance_pct']);
-                if ($pct >= 40) {
+                $bar = $this->importanceBar($rawPct);
+                if ($rawPct >= 40) {
                     $strongParams[] = "  {$bar}\n    <fg=green>{$name}:</> Strong influence. Small changes materially affect performance. Prioritize optimization.";
-                } elseif ($pct >= 15) {
+                } elseif ($rawPct >= 15) {
                     $moderateParams[] = "  {$bar}\n    {$name}: Moderate influence. Fine-tune with care.";
                 } else {
                     $weakParams[] = "  {$bar}\n    {$name}: Weak influence. Likely safe to fix during future searches.";
@@ -164,8 +167,8 @@ class SensitivityAnalysisCommand extends Command
 
             $this->newLine();
             if (! empty($strongParams)) {
-                $strongNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) $row['importance_pct']) >= 40));
-                $weakNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) $row['importance_pct']) < 15));
+                $strongNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) ($row['raw_importance_pct'] ?? 0)) >= 40));
+                $weakNames = array_map(fn ($row) => $row['param'], array_filter($importance, fn ($row) => ((float) ($row['raw_importance_pct'] ?? 0)) < 15));
                 $this->line('  Recommendation: Focus optimization on '.implode(', ', $strongNames).'.');
                 if (! empty($weakNames)) {
                     $this->line('  '.implode(', ', $weakNames).' can be fixed to reduce search dimensionality.');
@@ -339,5 +342,14 @@ class SensitivityAnalysisCommand extends Command
         }
 
         return '<fg=gray>'.str_repeat('▒', max(1, $filled)).'</>';
+    }
+
+    private function formatImportancePct(float $rounded, float $raw): string
+    {
+        if ($rounded === 0.0 && $raw > 0) {
+            return '<0.1%';
+        }
+
+        return number_format($rounded, 1).'%';
     }
 }

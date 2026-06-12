@@ -29,6 +29,7 @@ class OptimizeStrategyCommand extends Command
         {--stake-currency=USDT : Stake currency}
         {--start-date= : Start date (Y-m-d)}
         {--end-date= : End date (Y-m-d)}
+        {--execution-timeframe= : Lower timeframe for order/position execution (e.g., 1m, 5m)}
         {--params= : Parameter ranges as JSON}
         {--use-strategy-ranges : Use strategy\'s defined min/max ranges}
         {--method=random : Optimization method (grid, random, genetic)}
@@ -60,6 +61,7 @@ class OptimizeStrategyCommand extends Command
         $stakeCurrency = $this->option('stake-currency');
         $startDateOption = $this->option('start-date');
         $endDateOption = $this->option('end-date');
+        $executionTimeframeValue = $this->option('execution-timeframe');
         $paramsJson = $this->option('params');
         $useStrategyRanges = $this->option('use-strategy-ranges');
         $methodValue = $this->option('method');
@@ -93,7 +95,7 @@ class OptimizeStrategyCommand extends Command
                 $exchange,
                 $symbol,
                 $timeframeValue,
-                executionTimeframe: null,
+                executionTimeframe: $executionTimeframeValue,
                 additionalTimeframes: [],
                 output: fn (string $msg) => $this->line("  {$msg}"),
             );
@@ -120,6 +122,22 @@ class OptimizeStrategyCommand extends Command
             $this->error("Invalid timeframe: $timeframeValue");
 
             return 1;
+        }
+
+        $executionTimeframe = null;
+        if ($executionTimeframeValue) {
+            $executionTimeframe = TimeframeEnum::tryFrom($executionTimeframeValue);
+            if (! $executionTimeframe) {
+                $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
+
+                return 1;
+            }
+
+            if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
+                $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                return 1;
+            }
         }
 
         $method = OptimizationMethod::tryFrom($methodValue);
@@ -165,6 +183,10 @@ class OptimizeStrategyCommand extends Command
         $this->line("  Strategy: $strategyAlias");
         $this->line("  Symbol: $symbol");
         $this->line("  Timeframe: {$timeframe->value}");
+        if ($executionTimeframe !== null) {
+            $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+        }
         $this->line("  Method: {$method->value}");
         $this->line("  Objective: $objective");
 
@@ -202,6 +224,7 @@ class OptimizeStrategyCommand extends Command
         $config->dataType = $dataTypeConfig->dataType;
         $config->brickSize = $dataTypeConfig->brickSize;
         $config->atrPeriod = $dataTypeConfig->atrPeriod;
+        $config->executionTimeframe = $executionTimeframe;
         $config->runnerMode = $runnerMode;
         $config->workerCount = $workerCount;
 

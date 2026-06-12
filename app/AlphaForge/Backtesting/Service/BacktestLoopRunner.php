@@ -336,8 +336,6 @@ class BacktestLoopRunner
                     $this->updatePositionWaterMarks($execBar);
                 }
 
-                $this->recordBarEquity($execBar, $symbol);
-
                 $execIndex++;
             }
 
@@ -345,6 +343,8 @@ class BacktestLoopRunner
 
             $signalBar = $this->getCurrentBar();
             $this->processSignals($signals, $signalBar, $symbol);
+
+            $this->recordBarEquity($signalBar, $symbol);
         }
 
         // Process remaining execution bars up to end of last signal bar
@@ -370,8 +370,6 @@ class BacktestLoopRunner
                 $this->checkPositionExits($execBar);
                 $this->updatePositionWaterMarks($execBar);
             }
-
-            $this->recordBarEquity($execBar, $symbol);
 
             $execIndex++;
         }

@@ -202,7 +202,35 @@ describe('Console Command Signatures', function () {
                 ->and($defaultProps['signature'])->toContain('--data-type=')
                 ->and($defaultProps['signature'])->toContain('--brick-size=')
                 ->and($defaultProps['signature'])->toContain('--atr-period=')
-                ->and($defaultProps['signature'])->toContain('--progress=');
+                ->and($defaultProps['signature'])->toContain('--progress=')
+                ->and($defaultProps['signature'])->toContain('--execution-timeframe=');
+        });
+    });
+
+    describe('PortfolioOptimizeCommand', function () {
+        it('has correct command signature', function () {
+            $ref = new ReflectionClass(\App\AlphaForge\Console\Commands\PortfolioOptimizeCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('alphaforge:optimize:portfolio')
+                ->and($defaultProps['signature'])->toContain('{strategy')
+                ->and($defaultProps['signature'])->toContain('{symbols*')
+                ->and($defaultProps['signature'])->toContain('--method=')
+                ->and($defaultProps['signature'])->toContain('--timeframe=')
+                ->and($defaultProps['signature'])->toContain('--execution-timeframe=')
+                ->and($defaultProps['signature'])->toContain('--start-date=')
+                ->and($defaultProps['signature'])->toContain('--end-date=');
+        });
+
+        it('has description', function () {
+            $ref = new ReflectionClass(\App\AlphaForge\Console\Commands\PortfolioOptimizeCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['description'])->not->toBeEmpty();
+        });
+
+        it('extends Command', function () {
+            expect(is_a(\App\AlphaForge\Console\Commands\PortfolioOptimizeCommand::class, Command::class, true))->toBeTrue();
         });
     });
 

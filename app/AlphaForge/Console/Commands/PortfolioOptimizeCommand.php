@@ -5,6 +5,7 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Optimization\MultiSymbolOptimizer;
 use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
+use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Illuminate\Console\Command;
 
 class PortfolioOptimizeCommand extends Command
@@ -20,6 +21,7 @@ class PortfolioOptimizeCommand extends Command
         {--exchange=binance : Exchange for market data}
         {--initial-capital=10000 : Initial capital}
         {--start-date= : Start date (YYYY-MM-DD)}
+        {--execution-timeframe= : Lower timeframe for order/position execution (e.g., 1m, 5m)}
         {--end-date= : End date (YYYY-MM-DD)}
         {--top-n=10 : Number of top results to keep}
         {--use-strategy-ranges : Use strategy-defined parameter ranges}
@@ -38,14 +40,43 @@ class PortfolioOptimizeCommand extends Command
             return 1;
         }
 
+        $timeframeValue = $this->option('timeframe');
+        $timeframe = TimeframeEnum::tryFrom($timeframeValue);
+        if (! $timeframe) {
+            $this->error("Invalid timeframe: $timeframeValue");
+
+            return 1;
+        }
+
+        $executionTimeframeValue = $this->option('execution-timeframe');
+        $executionTimeframe = null;
+        if ($executionTimeframeValue) {
+            $executionTimeframe = TimeframeEnum::tryFrom($executionTimeframeValue);
+            if (! $executionTimeframe) {
+                $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
+
+                return 1;
+            }
+
+            if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
+                $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                return 1;
+            }
+        }
+
         $this->line('<fg=yellow>=== Portfolio Optimization ===</>');
         $this->line("  Strategy: {$strategyAlias}");
         $this->line('  Symbols: '.implode(', ', $symbols));
         $this->line('  Method: '.$this->option('method'));
         $this->line("  Iterations: {$this->option('iterations')}");
+        if ($executionTimeframe !== null) {
+            $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+        }
         $this->newLine();
 
-        $config = $this->buildConfig($strategyAlias, $symbols);
+        $config = $this->buildConfig($strategyAlias, $symbols, $executionTimeframe);
 
         $this->line('<fg=green>Running optimization...</>');
         $startTime = microtime(true);
@@ -71,7 +102,7 @@ class PortfolioOptimizeCommand extends Command
     /**
      * @param  array<string>  $symbols
      */
-    private function buildConfig(string $strategyAlias, array $symbols): OptimizationConfig
+    private function buildConfig(string $strategyAlias, array $symbols, ?TimeframeEnum $executionTimeframe): OptimizationConfig
     {
         $data = [
             'strategy_alias' => $strategyAlias,
@@ -92,6 +123,9 @@ class PortfolioOptimizeCommand extends Command
         }
         if ($this->option('end-date')) {
             $data['end_date'] = $this->option('end-date');
+        }
+        if ($executionTimeframe !== null) {
+            $data['execution_timeframe'] = $executionTimeframe;
         }
 
         return OptimizationConfig::fromArray($data);

@@ -25,5 +25,12 @@ describe('OptimizeStrategyCommand Data Type Options', function () {
 
             expect($defaultProps['signature'])->toContain('--atr-period=');
         });
+
+        it('has --execution-timeframe option', function () {
+            $ref = new ReflectionClass(OptimizeStrategyCommand::class);
+            $defaultProps = $ref->getDefaultProperties();
+
+            expect($defaultProps['signature'])->toContain('--execution-timeframe=');
+        });
     });
 });

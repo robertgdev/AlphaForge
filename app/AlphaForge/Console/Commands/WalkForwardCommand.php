@@ -208,6 +208,7 @@ class WalkForwardCommand extends Command
 
         if ($executionTimeframe !== null) {
             $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
         }
 
         $this->line("  Method: {$method->value}");
