@@ -17,10 +17,7 @@ abstract class BaseSignalStrategy implements StrategyInterface
     use DefaultExitRules;
 
     #[Input(
-        description: 'Position size as percentage of capital',
-        min: 0.1,
-        max: 100.0,
-        step: 0.5
+        description: 'Position size as percentage of capital (not optimised -- fixed per run)',
     )]
     protected float $positionSizePercent = 1.0;
 
