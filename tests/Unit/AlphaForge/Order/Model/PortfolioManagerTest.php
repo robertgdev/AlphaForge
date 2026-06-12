@@ -320,6 +320,82 @@ describe('PortfolioManager', function () {
 
             expect($closedPosition->commission)->toBe($expectedTotalCommission);
         });
+
+        it('returns cost basis plus realized PnL to cash on long close with profit', function () {
+            $order = new PendingOrder(
+                id: 'order_1',
+                symbol: 'BTC/USDT',
+                direction: DirectionEnum::LONG,
+                type: OrderTypeEnum::Market,
+                stakeAmount: '1000',
+                createdAt: Carbon::now()
+            );
+
+            $result = $this->manager->executeOrder($order, '50000', Carbon::now());
+            $cashAfterEntry = $this->manager->getCashBalance();
+            $closedPosition = $this->manager->closePosition($result->position->id, '55000', Carbon::now());
+            $cashAfterClose = $this->manager->getCashBalance();
+
+            expect(bccomp($cashAfterEntry, '9000.000000000000', 12))->toBe(0);
+            expect(bccomp($cashAfterClose, bcadd('9000.000000000000', bcadd('1000', $closedPosition->realizedPnl, 12), 12), 12))->toBe(0);
+        });
+
+        it('returns cost basis plus realized PnL to cash on long close with loss', function () {
+            $order = new PendingOrder(
+                id: 'order_1',
+                symbol: 'BTC/USDT',
+                direction: DirectionEnum::LONG,
+                type: OrderTypeEnum::Market,
+                stakeAmount: '1000',
+                createdAt: Carbon::now()
+            );
+
+            $result = $this->manager->executeOrder($order, '50000', Carbon::now());
+            $cashAfterEntry = $this->manager->getCashBalance();
+            $closedPosition = $this->manager->closePosition($result->position->id, '45000', Carbon::now());
+            $cashAfterClose = $this->manager->getCashBalance();
+
+            expect(bccomp($cashAfterEntry, '9000.000000000000', 12))->toBe(0);
+            expect(bccomp($cashAfterClose, bcadd('9000.000000000000', bcadd('1000', $closedPosition->realizedPnl, 12), 12), 12))->toBe(0);
+        });
+
+        it('returns cost basis plus realized PnL to cash on short close with profit', function () {
+            $order = new PendingOrder(
+                id: 'order_2',
+                symbol: 'BTC/USDT',
+                direction: DirectionEnum::SHORT,
+                type: OrderTypeEnum::Market,
+                stakeAmount: '1000',
+                createdAt: Carbon::now()
+            );
+
+            $result = $this->manager->executeOrder($order, '50000', Carbon::now());
+            $cashAfterEntry = $this->manager->getCashBalance();
+            $closedPosition = $this->manager->closePosition($result->position->id, '45000', Carbon::now());
+            $cashAfterClose = $this->manager->getCashBalance();
+
+            expect(bccomp($cashAfterEntry, '9000.000000000000', 12))->toBe(0);
+            expect(bccomp($cashAfterClose, bcadd('9000.000000000000', bcadd('1000', $closedPosition->realizedPnl, 12), 12), 12))->toBe(0);
+        });
+
+        it('returns cost basis plus realized PnL to cash on short close with loss', function () {
+            $order = new PendingOrder(
+                id: 'order_2',
+                symbol: 'BTC/USDT',
+                direction: DirectionEnum::SHORT,
+                type: OrderTypeEnum::Market,
+                stakeAmount: '1000',
+                createdAt: Carbon::now()
+            );
+
+            $result = $this->manager->executeOrder($order, '50000', Carbon::now());
+            $cashAfterEntry = $this->manager->getCashBalance();
+            $closedPosition = $this->manager->closePosition($result->position->id, '55000', Carbon::now());
+            $cashAfterClose = $this->manager->getCashBalance();
+
+            expect(bccomp($cashAfterEntry, '9000.000000000000', 12))->toBe(0);
+            expect(bccomp($cashAfterClose, bcadd('9000.000000000000', bcadd('1000', $closedPosition->realizedPnl, 12), 12), 12))->toBe(0);
+        });
     });
 
     describe('commission calculation', function () {
