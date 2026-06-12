@@ -8,8 +8,9 @@ final readonly class StrategyGrader
      * Grade a walk-forward analysis with a composite 1-5 star score.
      *
      * Weights: economic 40%, robustness 30%, risk 20%, optimization 10%.
+     * Robustness acts as a floor: overall rating cannot exceed the robustness band.
      *
-     * @return array{score: float, stars: string, label: string, breakdown: array<string, float>}
+     * @return array{score: float, stars: string, label: string, stars_by_category: array<string, string>, breakdown: array<string, float>}
      */
     public static function grade(WalkForwardAnalysis $analysis): array
     {
@@ -23,27 +24,21 @@ final readonly class StrategyGrader
         $maxScore = self::determineGate($analysis);
         $total = min($total, $maxScore);
 
-        if ($total >= 80) {
-            $stars = '★★★★★';
-            $label = '(5/5) Exceptional across performance, robustness, and risk';
-        } elseif ($total >= 60) {
-            $stars = '★★★★☆';
-            $label = '(4/5) Strong strategy; merits further validation';
-        } elseif ($total >= 40) {
-            $stars = '★★★☆☆';
-            $label = '(3/5) Promising research candidate';
-        } elseif ($total >= 20) {
-            $stars = '★★☆☆☆';
-            $label = '(2/5) Some merit but not investment-worthy';
-        } else {
-            $stars = '★☆☆☆☆';
-            $label = '(1/5) Poor; likely unusable';
-        }
+        $total = min($total, self::robustnessFloor($robustness));
+
+        $overallStars = self::scoreToStars($total);
+        $overallLabel = self::scoreToLabel($total);
 
         return [
             'score' => round($total, 1),
-            'stars' => $stars,
-            'label' => $label,
+            'stars' => $overallStars,
+            'label' => $overallLabel,
+            'stars_by_category' => [
+                'economic' => self::scoreToStars($economic),
+                'robustness' => self::scoreToStars($robustness),
+                'risk' => self::scoreToStars($risk),
+                'optimization' => self::scoreToStars($optimization),
+            ],
             'breakdown' => [
                 'economic' => round($economic, 0),
                 'robustness' => round($robustness, 0),
@@ -51,6 +46,71 @@ final readonly class StrategyGrader
                 'optimization' => round($optimization, 0),
             ],
         ];
+    }
+
+    /**
+     * Robustness acts as a ceiling on the final score.
+     * A strategy with weak/likely_overfit robustness should not exceed 2 stars
+     * regardless of how good the other metrics look.
+     */
+    private static function robustnessFloor(float $robustness): float
+    {
+        if ($robustness >= 80) {
+            return 100;
+        }
+        if ($robustness >= 60) {
+            return 79;
+        }
+        if ($robustness >= 40) {
+            return 59;
+        }
+        if ($robustness >= 20) {
+            return 39;
+        }
+
+        return 19;
+    }
+
+    /**
+     * Convert a 0-100 score to a 1-5 star string (unicode ★).
+     */
+    private static function scoreToStars(float $score): string
+    {
+        if ($score >= 80) {
+            return '★★★★★';
+        }
+        if ($score >= 60) {
+            return '★★★★☆';
+        }
+        if ($score >= 40) {
+            return '★★★☆☆';
+        }
+        if ($score >= 20) {
+            return '★★☆☆☆';
+        }
+
+        return '★☆☆☆☆';
+    }
+
+    /**
+     * Convert a 0-100 score to a human-readable label.
+     */
+    private static function scoreToLabel(float $score): string
+    {
+        if ($score >= 80) {
+            return '(5/5) Exceptional across performance, robustness, and risk';
+        }
+        if ($score >= 60) {
+            return '(4/5) Strong strategy; merits further validation';
+        }
+        if ($score >= 40) {
+            return '(3/5) Promising research candidate';
+        }
+        if ($score >= 20) {
+            return '(2/5) Some merit but not investment-worthy';
+        }
+
+        return '(1/5) Poor; likely unusable';
     }
 
     private static function gradeEconomic(WalkForwardAnalysis $analysis): float

@@ -266,9 +266,25 @@ class ShowWalkForwardRunCommand extends Command
         $this->newLine();
 
         $grade = \App\AlphaForge\Backtesting\WalkForward\StrategyGrader::grade($analysis);
-        $this->line('<fg=yellow>Final Score: '.$grade['stars'].' '.$grade['label'].'</>');
+        $this->line('<fg=yellow>Final Score:</>');
+        $this->line('  Overall:      '.self::colorizeStars($grade['stars']).' '.$grade['label']);
         $this->line('  ('.number_format($grade['score'], 1).'/100)');
-        $this->line('  Economic: '.number_format($grade['breakdown']['economic'], 0).'% · Robustness: '.number_format($grade['breakdown']['robustness'], 0).'% · Risk: '.number_format($grade['breakdown']['risk'], 0).'% · Optimization: '.number_format($grade['breakdown']['optimization'], 0).'%');
+        $this->line('  Economic:     '.self::colorizeStars($grade['stars_by_category']['economic']).' '.number_format($grade['breakdown']['economic'], 0).'%');
+        $this->line('  Robustness:   '.self::colorizeStars($grade['stars_by_category']['robustness']).' '.number_format($grade['breakdown']['robustness'], 0).'%');
+        $this->line('  Risk:         '.self::colorizeStars($grade['stars_by_category']['risk']).' '.number_format($grade['breakdown']['risk'], 0).'%');
+        $this->line('  Optimization: '.self::colorizeStars($grade['stars_by_category']['optimization']).' '.number_format($grade['breakdown']['optimization'], 0).'%');
+    }
+
+    private static function colorizeStars(string $stars): string
+    {
+        $count = mb_substr_count($stars, '★');
+
+        return match (true) {
+            $count >= 4 => '<fg=green>'.$stars.'</>',
+            $count >= 3 => '<fg=yellow>'.$stars.'</>',
+            $count >= 2 => '<fg=#FF8800>'.$stars.'</>',
+            default => '<fg=red>'.$stars.'</>',
+        };
     }
 
     private function displayTopResults(WalkForwardAnalysis $analysis, int $topCount): void
