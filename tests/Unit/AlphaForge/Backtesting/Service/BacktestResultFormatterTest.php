@@ -94,7 +94,7 @@ describe('BacktestResultFormatter', function () {
                 ->and($result)->toHaveKey('Win Rate')
                 ->and($result)->toHaveKey('Profit Factor')
                 ->and($result)->toHaveKey('Max Drawdown')
-                ->and($result)->toHaveKey('Sharpe Ratio')
+                ->and($result)->toHaveKey('Portfolio Sharpe')
                 ->and($result)->toHaveKey('Total Return');
         });
 
@@ -147,22 +147,22 @@ describe('BacktestResultFormatter', function () {
         });
 
         describe('low-trade-count warnings', function () {
-            it('adds low-confidence label to Sharpe Ratio when trade count < 30', function () {
+            it('adds low-confidence label to Portfolio Sharpe when trade count < 30', function () {
                 $stats = ['total_trades' => 16, 'sharpe_ratio' => 4.02];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio (low confidence)')
-                    ->and($result)->not->toHaveKey('Sharpe Ratio');
+                expect($result)->toHaveKey('Portfolio Sharpe (low confidence)')
+                    ->and($result)->not->toHaveKey('Portfolio Sharpe');
             });
 
-            it('adds low-confidence label to Sortino Ratio when trade count < 30', function () {
+            it('adds low-confidence label to Portfolio Sortino when trade count < 30', function () {
                 $stats = ['total_trades' => 16, 'sortino_ratio' => 6.45];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sortino Ratio (low confidence)')
-                    ->and($result)->not->toHaveKey('Sortino Ratio');
+                expect($result)->toHaveKey('Portfolio Sortino (low confidence)')
+                    ->and($result)->not->toHaveKey('Portfolio Sortino');
             });
 
             it('omits low-confidence label when trade count >= 30', function () {
@@ -170,10 +170,10 @@ describe('BacktestResultFormatter', function () {
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio')
-                    ->and($result)->toHaveKey('Sortino Ratio')
-                    ->and($result)->not->toHaveKey('Sharpe Ratio (low confidence)')
-                    ->and($result)->not->toHaveKey('Sortino Ratio (low confidence)');
+                expect($result)->toHaveKey('Portfolio Sharpe')
+                    ->and($result)->toHaveKey('Portfolio Sortino')
+                    ->and($result)->not->toHaveKey('Portfolio Sharpe (low confidence)')
+                    ->and($result)->not->toHaveKey('Portfolio Sortino (low confidence)');
             });
 
             it('omits low-confidence label when trade count is 0', function () {
@@ -181,7 +181,7 @@ describe('BacktestResultFormatter', function () {
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio');
+                expect($result)->toHaveKey('Portfolio Sharpe');
             });
         });
 
@@ -281,41 +281,54 @@ describe('BacktestResultFormatter', function () {
         });
     });
 
-    describe('suspicious Sharpe warning', function () {
-            it('adds warning when Sharpe > 5 and return < 5%', function () {
-                $stats = ['total_trades' => 50, 'sharpe_ratio' => 15.59, 'total_return_percent' => 0.44];
+    describe('suspicious Sharpe warning (on Active Sharpe)', function () {
+            it('shows Portfolio Sharpe + Active Sharpe with warning when active > 5 and return < 5%', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 0.4, 'active_sharpe_ratio' => 15.59, 'total_return_percent' => 0.44];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio ⚠')
-                    ->and($result['Sharpe Ratio ⚠'])->toContain('high Sharpe with minimal absolute returns');
+                expect($result)->toHaveKey('Portfolio Sharpe')
+                    ->and($result)->toHaveKey('Active Sharpe ⚠')
+                    ->and($result['Active Sharpe ⚠'])->toContain('high Sharpe with minimal absolute returns');
             });
 
-            it('does not add warning when Sharpe is moderate', function () {
-                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.5, 'total_return_percent' => 2.0];
+            it('shows only Portfolio Sharpe when active is similar (within 10%)', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.5, 'active_sharpe_ratio' => 1.55, 'total_return_percent' => 2.0];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio')
-                    ->and($result)->not->toHaveKey('Sharpe Ratio ⚠');
+                expect($result)->toHaveKey('Portfolio Sharpe')
+                    ->and($result)->not->toHaveKey('Active Sharpe')
+                    ->and($result)->not->toHaveKey('Active Sharpe ⚠');
             });
 
-            it('does not add warning when return is high even with high Sharpe', function () {
-                $stats = ['total_trades' => 50, 'sharpe_ratio' => 8.0, 'total_return_percent' => 30.0];
+            it('shows Active Sharpe without warning when return is high', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.0, 'active_sharpe_ratio' => 8.0, 'total_return_percent' => 30.0];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio')
-                    ->and($result)->not->toHaveKey('Sharpe Ratio ⚠');
+                expect($result)->toHaveKey('Portfolio Sharpe')
+                    ->and($result)->toHaveKey('Active Sharpe')
+                    ->and($result)->not->toHaveKey('Active Sharpe ⚠');
             });
 
-            it('does not combine low-trade warning and suspicious Sharpe', function () {
-                $stats = ['total_trades' => 16, 'sharpe_ratio' => 10.0, 'total_return_percent' => 1.0];
+            it('combines low-trade label and suspicious Sharpe on Active Sharpe', function () {
+                $stats = ['total_trades' => 16, 'sharpe_ratio' => 0.5, 'active_sharpe_ratio' => 10.0, 'total_return_percent' => 1.0];
 
                 $result = $this->formatter->formatStatistics($stats);
 
-                expect($result)->toHaveKey('Sharpe Ratio (low confidence) ⚠')
-                    ->and($result['Sharpe Ratio (low confidence) ⚠'])->toContain('high Sharpe with minimal absolute returns');
+                expect($result)->toHaveKey('Portfolio Sharpe (low confidence)')
+                    ->and($result)->toHaveKey('Active Sharpe (low confidence) ⚠')
+                    ->and($result['Active Sharpe (low confidence) ⚠'])->toContain('high Sharpe with minimal absolute returns');
+            });
+
+            it('shows only Portfolio Sharpe when active is moderately different (e.g. 20% higher, not suspicious)', function () {
+                $stats = ['total_trades' => 50, 'sharpe_ratio' => 1.2, 'active_sharpe_ratio' => 1.5, 'total_return_percent' => 15.0];
+
+                $result = $this->formatter->formatStatistics($stats);
+
+                expect($result)->toHaveKey('Portfolio Sharpe')
+                    ->and($result)->toHaveKey('Active Sharpe');
             });
         });
 

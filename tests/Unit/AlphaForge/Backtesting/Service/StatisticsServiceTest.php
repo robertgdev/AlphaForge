@@ -736,6 +736,63 @@ describe('StatisticsService', function () {
                 ->and(bccomp($result['sortino_ratio'], '0', 6))->not->toBe(0)
                 ->and($result['sharpe_ratio'])->not->toBe($result['sortino_ratio']);
         });
+
+        it('returns active sharpe and sortino keys', function () {
+            $positions = new Vector;
+            $pnls = ['500', '-50', '400', '-30', '300', '-80', '200', '-20', '100', '-10'];
+            foreach ($pnls as $i => $pnl) {
+                $positions->push(new PositionDto(
+                    id: (string) $i,
+                    symbol: 'BTC/USDT',
+                    direction: 'long',
+                    quantity: '0.01',
+                    entryPrice: '50000',
+                    entryTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)),
+                    exitPrice: '51000',
+                    exitTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT)),
+                    realizedPnl: $pnl,
+                ));
+            }
+
+            $result = $this->service->calculate($positions, '10000', '11310');
+
+            expect($result)->toHaveKey('active_sharpe_ratio')
+                ->and($result)->toHaveKey('active_sortino_ratio');
+        });
+
+        it('computes higher active sharpe when equity curve has idle periods', function () {
+            $positions = new Vector;
+            for ($i = 0; $i < 10; $i++) {
+                $positions->push(new PositionDto(
+                    id: (string) $i,
+                    symbol: 'BTC/USDT',
+                    direction: 'long',
+                    quantity: '0.01',
+                    entryPrice: '50000',
+                    entryTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT)),
+                    exitPrice: (string) (51000 + $i * 100),
+                    exitTime: Carbon::parse('2024-01-'.str_pad((string) ($i + 2), 2, '0', STR_PAD_LEFT)),
+                    realizedPnl: $i % 2 === 0 ? '200' : '-100',
+                ));
+            }
+
+            // Build a 30-bar equity curve where every other bar is idle (flat)
+            $barEquity = new Vector;
+            $value = '10000';
+            for ($i = 0; $i < 30; $i++) {
+                $barEquity->push($value);
+                if ($i % 2 === 1) {
+                    $value = bcadd($value, '100', 12);  // active bar
+                }
+                // even-index bars stay flat (idle)
+            }
+
+            $result = $this->service->calculate($positions, '10000', $value, null, 365, $barEquity);
+
+            expect($result)->toHaveKey('active_sharpe_ratio')
+                ->and(bccomp($result['active_sharpe_ratio'], $result['sharpe_ratio'], 6))->toBeGreaterThan(0)
+                ->and($result)->toHaveKey('active_sortino_ratio');
+        });
     });
 
     describe('CAGR', function () {

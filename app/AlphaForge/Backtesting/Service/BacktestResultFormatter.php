@@ -78,23 +78,49 @@ class BacktestResultFormatter
         if (isset($stats['sharpe_ratio'])) {
             $sharpeVal = (float) $stats['sharpe_ratio'];
             $color = $sharpeVal > 0 ? '<fg=green>' : '<fg=red>';
-            $label = $lowTrades ? 'Sharpe Ratio (low confidence)' : 'Sharpe Ratio';
+            $label = $lowTrades ? 'Portfolio Sharpe (low confidence)' : 'Portfolio Sharpe';
 
-            $returnPct = abs((float) ($stats['total_return_percent'] ?? 0));
-            $suspiciousSharpe = $sharpeVal > 5.0 && $returnPct < 5.0;
+            $formatted[$label] = $color.number_format($sharpeVal, 2).'</>';
+        }
 
-            if ($suspiciousSharpe) {
-                $label .= ' ⚠';
-                $formatted[$label] = $color.number_format($sharpeVal, 2).'</> <fg=yellow>(high Sharpe with minimal absolute returns — may reflect low exposure rather than exceptional risk-adjusted performance)</>';
-            } else {
-                $formatted[$label] = $color.number_format($sharpeVal, 2).'</>';
+        if (isset($stats['active_sharpe_ratio'])) {
+            $activeSharpe = (float) $stats['active_sharpe_ratio'];
+            $sharpeVal = (float) ($stats['sharpe_ratio'] ?? 0);
+            $diffPct = $sharpeVal > 0 ? abs(($activeSharpe - $sharpeVal) / $sharpeVal) * 100 : 100;
+
+            if ($diffPct >= 10) {
+                $activeColor = $activeSharpe > 0 ? '<fg=green>' : '<fg=red>';
+                $activeLabel = $lowTrades ? 'Active Sharpe (low confidence)' : 'Active Sharpe';
+
+                $returnPct = abs((float) ($stats['total_return_percent'] ?? 0));
+                $suspiciousSharpe = $activeSharpe > 5.0 && $returnPct < 5.0;
+
+                if ($suspiciousSharpe) {
+                    $activeLabel .= ' ⚠';
+                    $formatted[$activeLabel] = $activeColor.number_format($activeSharpe, 2).'</> <fg=yellow>(high Sharpe with minimal absolute returns — may reflect low exposure rather than exceptional risk-adjusted performance)</>';
+                } else {
+                    $formatted[$activeLabel] = $activeColor.number_format($activeSharpe, 2).'</>';
+                }
             }
         }
+
         if (isset($stats['sortino_ratio'])) {
             $sortinoVal = (float) $stats['sortino_ratio'];
             $color = $sortinoVal > 0 ? '<fg=green>' : '<fg=red>';
-            $label = $lowTrades ? 'Sortino Ratio (low confidence)' : 'Sortino Ratio';
+            $label = $lowTrades ? 'Portfolio Sortino (low confidence)' : 'Portfolio Sortino';
             $formatted[$label] = $color.number_format($sortinoVal, 2).'</>';
+        }
+
+        if (isset($stats['active_sortino_ratio'])) {
+            $activeSortino = (float) $stats['active_sortino_ratio'];
+            $sortinoVal = (float) ($stats['sortino_ratio'] ?? 0);
+            $diffPct = $sortinoVal > 0 ? abs(($activeSortino - $sortinoVal) / $sortinoVal) * 100 : 100;
+
+            if ($diffPct >= 10) {
+                $activeColor = $activeSortino > 0 ? '<fg=green>' : '<fg=red>';
+                $activeLabel = $lowTrades ? 'Active Sortino (low confidence)' : 'Active Sortino';
+                $formatted[$activeLabel] = $activeColor.number_format($activeSortino, 2).'</>';
+            }
         }
         if (isset($stats['volatility'])) {
             $formatted['Volatility (Ann.)'] = number_format((float) $stats['volatility'] * 100, 2).'%';

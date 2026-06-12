@@ -53,7 +53,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
         $useBarCurve = $barEquityCurve !== null && $barEquityCurve->count() >= self::MIN_OBSERVATIONS_FOR_RISK;
         $riskEquityCurve = $useBarCurve ? $barEquityCurve : $tradeEquityCurve;
-        $riskReturns = $this->calculateReturns($riskEquityCurve);
+        $portfolioReturns = $this->calculateReturns($riskEquityCurve);
+        $activeReturns = $useBarCurve ? $this->calculateActiveReturns($riskEquityCurve) : $portfolioReturns;
 
         $totalReturn = bcsub($finalCapital, $initialCapital, 12);
         $totalReturnPercent = Math::percentage($totalReturn, $initialCapital);
@@ -69,10 +70,11 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $drawdown = $this->calculateDrawdown($riskEquityCurve);
 
         $riskMetrics = $this->calculateRiskMetrics(
-            $riskReturns,
+            $portfolioReturns,
             $riskEquityCurve,
             $riskFreeRate,
-            $tradingDaysPerYear
+            $tradingDaysPerYear,
+            $activeReturns
         );
 
         $tradeAnalysis = $this->analyzeTrades($closedPositions);
@@ -120,6 +122,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
             'sharpe_ratio' => $riskMetrics['sharpe_ratio'],
             'sortino_ratio' => $riskMetrics['sortino_ratio'],
+            'active_sharpe_ratio' => $riskMetrics['active_sharpe_ratio'],
+            'active_sortino_ratio' => $riskMetrics['active_sortino_ratio'],
             'calmar_ratio' => $riskMetrics['calmar_ratio'],
             'volatility' => $riskMetrics['volatility'],
 
@@ -186,6 +190,48 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $currEquity = $equityCurve->get($i);
 
             if (bccomp($prevEquity, '0', 12) === 0) {
+                continue;
+            }
+
+            $return = bcdiv(
+                bcsub($currEquity, $prevEquity, 12),
+                $prevEquity,
+                12
+            );
+            $returns->push($return);
+        }
+
+        return $returns;
+    }
+
+    /**
+     * Calculate active-period returns (excluding flat bars where equity was idle).
+     *
+     * This produces the "Active Sharpe" — a risk-adjusted metric computed only
+     * while capital is deployed. It answers: "when invested, what was the
+     * risk-adjusted return?" The standard (portfolio) Sharpe answers: "across
+     * the full observation window, what was the risk-adjusted return?"
+     *
+     * Both metrics are reported: Portfolio Sharpe/Sortino for the standard
+     * academic measure, and Active Sharpe/Sortino for isolating strategy skill
+     * during invested periods.
+     *
+     * @param  Vector<string>  $equityCurve
+     * @return Vector<string> Non-zero period returns
+     */
+    private function calculateActiveReturns(Vector $equityCurve): Vector
+    {
+        $returns = new Vector;
+
+        for ($i = 1; $i < $equityCurve->count(); $i++) {
+            $prevEquity = $equityCurve->get($i - 1);
+            $currEquity = $equityCurve->get($i);
+
+            if (bccomp($prevEquity, '0', 12) === 0) {
+                continue;
+            }
+
+            if (bccomp($prevEquity, $currEquity, 12) === 0) {
                 continue;
             }
 
@@ -339,77 +385,121 @@ readonly class StatisticsService implements StatisticsServiceInterface
     /**
      * Calculate risk-adjusted metrics using bar-periodic returns.
      *
+     * Computes both Portfolio (all bars, including idle) and Active (invested bars
+     * only) Sharpe and Sortino ratios. Portfolio metrics are the standard academic
+     * measure — they penalize idle capital. Active metrics isolate strategy skill
+     * during deployed periods.
+     *
      * Requires at least MIN_OBSERVATIONS_FOR_RISK data points for statistical significance.
      * The tradingDaysPerYear parameter must match the actual bar frequency
      * (e.g., 8760 for 1h bars, 365 for daily bars, 252 for daily trading bars).
      *
-     * @param  Vector<string>  $returns  Bar-periodic returns
+     * @param  Vector<string>  $returns  Portfolio bar-periodic returns (all bars)
      * @param  Vector<string>  $equityCurve
      * @param  string  $riskFreeRate  Annual risk-free rate
      * @param  int  $periodsPerYear  Number of observation periods per year
+     * @param  Vector<string>|null  $activeReturns  Active-period returns (invested bars only)
      * @return array<string, mixed>
      */
     private function calculateRiskMetrics(
         Vector $returns,
         Vector $equityCurve,
         string $riskFreeRate,
-        int $periodsPerYear
+        int $periodsPerYear,
+        ?Vector $activeReturns = null,
     ): array {
+        $activeReturns ??= $returns;
+
         if ($returns->count() < self::MIN_OBSERVATIONS_FOR_RISK) {
             return [
                 'sharpe_ratio' => '0',
                 'sortino_ratio' => '0',
+                'active_sharpe_ratio' => '0',
+                'active_sortino_ratio' => '0',
                 'calmar_ratio' => '0',
                 'volatility' => '0',
             ];
         }
 
-        $avgReturn = Math::mean($returns->toArray(), 12);
+        $periodRFR = bcdiv($riskFreeRate, (string) $periodsPerYear, 12);
+        $sqrtPeriods = bcsqrt((string) $periodsPerYear, 12);
 
+        // ── Portfolio Sharpe (all bars, including idle) ──
+
+        $avgReturn = Math::mean($returns->toArray(), 12);
         $volatility = Math::standardDeviation($returns->toArray(), 12);
 
-        $annualizedVolatility = bcmul(
-            $volatility,
-            bcsqrt((string) $periodsPerYear, 12),
-            12
-        );
-
-        $periodRFR = bcdiv($riskFreeRate, (string) $periodsPerYear, 12);
+        $annualizedVolatility = bcmul($volatility, $sqrtPeriods, 12);
 
         $sharpeRatio = '0';
         if (bccomp($annualizedVolatility, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
             $excessReturn = bcsub($avgReturn, $periodRFR, 12);
-            $sharpeRatio = bcdiv($excessReturn, $volatility, 6);
             $sharpeRatio = bcmul(
-                $sharpeRatio,
-                bcsqrt((string) $periodsPerYear, 6),
+                bcdiv($excessReturn, $volatility, 12),
+                bcsqrt((string) $periodsPerYear, 12),
                 6
             );
         }
 
-        $downsideReturns = new Vector;
+        $portfolioDownside = new Vector;
         foreach ($returns as $return) {
             if (bccomp($return, '0', 12) < 0) {
-                $downsideReturns->push($return);
+                $portfolioDownside->push($return);
             }
         }
 
         $sortinoRatio = '0';
-        if ($downsideReturns->count() > 0) {
-            $downsideDeviation = Math::standardDeviation($downsideReturns->toArray(), 12);
-            $annualizedDownsideDeviation = bcmul(
-                $downsideDeviation,
-                bcsqrt((string) $periodsPerYear, 12),
-                12
-            );
-            if (bccomp($annualizedDownsideDeviation, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
+        if ($portfolioDownside->count() > 0) {
+            $downsideDev = Math::standardDeviation($portfolioDownside->toArray(), 12);
+            $annDownside = bcmul($downsideDev, $sqrtPeriods, 12);
+            if (bccomp($annDownside, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
                 $excessReturn = bcsub($avgReturn, $periodRFR, 12);
-                $sortinoRatio = bcdiv($excessReturn, $downsideDeviation, 6);
                 $sortinoRatio = bcmul(
-                    $sortinoRatio,
-                    bcsqrt((string) $periodsPerYear, 6),
+                    bcdiv($excessReturn, $downsideDev, 12),
+                    bcsqrt((string) $periodsPerYear, 12),
                     6
                 );
+            }
+        }
+
+        // ── Active Sharpe (invested bars only, excludes idle) ──
+
+        $activeSharpeRatio = $sharpeRatio;
+        $activeSortinoRatio = $sortinoRatio;
+
+        if ($activeReturns->count() >= self::MIN_OBSERVATIONS_FOR_RISK) {
+            $activeAvgReturn = Math::mean($activeReturns->toArray(), 12);
+            $activeVolatility = Math::standardDeviation($activeReturns->toArray(), 12);
+            $activeAnnVolatility = bcmul($activeVolatility, $sqrtPeriods, 12);
+
+            if (bccomp($activeAnnVolatility, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
+                $excessReturn = bcsub($activeAvgReturn, $periodRFR, 12);
+                $activeSharpeRatio = bcmul(
+                    bcdiv($excessReturn, $activeVolatility, 12),
+                    bcsqrt((string) $periodsPerYear, 12),
+                    6
+                );
+            }
+
+            $activeDownside = new Vector;
+            foreach ($activeReturns as $return) {
+                if (bccomp($return, '0', 12) < 0) {
+                    $activeDownside->push($return);
+                }
+            }
+
+            $activeSortinoRatio = '0';
+            if ($activeDownside->count() > 0) {
+                $activeDownsideDev = Math::standardDeviation($activeDownside->toArray(), 12);
+                $activeAnnDownside = bcmul($activeDownsideDev, $sqrtPeriods, 12);
+                if (bccomp($activeAnnDownside, self::MIN_ANNUALIZED_VOLATILITY, 12) >= 0) {
+                    $excessReturn = bcsub($activeAvgReturn, $periodRFR, 12);
+                    $activeSortinoRatio = bcmul(
+                        bcdiv($excessReturn, $activeDownsideDev, 12),
+                        bcsqrt((string) $periodsPerYear, 12),
+                        6
+                    );
+                }
             }
         }
 
@@ -435,6 +525,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
         return [
             'sharpe_ratio' => $sharpeRatio,
             'sortino_ratio' => $sortinoRatio,
+            'active_sharpe_ratio' => $activeSharpeRatio,
+            'active_sortino_ratio' => $activeSortinoRatio,
             'calmar_ratio' => $calmarRatio,
             'volatility' => $annualizedVolatility,
         ];
@@ -631,6 +723,8 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'avg_drawdown_duration' => 0,
             'sharpe_ratio' => '0',
             'sortino_ratio' => '0',
+            'active_sharpe_ratio' => '0',
+            'active_sortino_ratio' => '0',
             'calmar_ratio' => '0',
             'volatility' => '0',
             'alpha' => '0',
