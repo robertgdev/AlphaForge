@@ -48,11 +48,12 @@ describe('WalkForwardCommand validation', function () {
         $method = $ref->getMethod('handle');
         $params = $method->getParameters();
 
-        expect($params)->toHaveCount(4)
+        expect($params)->toHaveCount(5)
             ->and($params[0]->getName())->toBe('service')
             ->and($params[1]->getName())->toBe('analyzer')
             ->and($params[2]->getName())->toBe('exporter')
-            ->and($params[3]->getName())->toBe('inputParser');
+            ->and($params[3]->getName())->toBe('inputParser')
+            ->and($params[4]->getName())->toBe('dataAutoGenerator');
     });
 
     it('has private displayResultsTable method', function () {

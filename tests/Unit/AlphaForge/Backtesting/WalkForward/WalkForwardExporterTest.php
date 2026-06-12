@@ -452,11 +452,15 @@ describe('WalkForwardExporter', function () {
             ->and($data)->toHaveKey('time_in_market')
             ->and($data)->toHaveKey('exposure_adjusted_target')
             ->and($data)->toHaveKey('capture_ratio')
+            ->and($data)->toHaveKey('market_capture')
+            ->and($data)->toHaveKey('capital_efficiency')
             ->and($data['reliable_count'])->toBe(1)
             ->and((float) $data['reliable_ratio'])->toBe(1.0)
             ->and($data['min_trades'])->toBe(10)
             ->and($data['suspicious_sharpe'])->toBeTrue()
-            ->and($data['oos_is_ratio_warning'])->toBeTrue();
+            ->and($data['oos_is_ratio_warning'])->toBeTrue()
+            ->and((float) ($data['market_capture'] ?? 0))->toBe(0.0)
+            ->and((float) ($data['capital_efficiency'] ?? 0))->toBe(0.0);
     });
 
     it('exports empty JSON results array when no results', function () {

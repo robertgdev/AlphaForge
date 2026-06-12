@@ -160,7 +160,8 @@ describe('SmaCrossoverStrategy', function () {
                 ->and($inputProps)->toContain('slowPeriod')
                 ->and($inputProps)->toContain('stopLossPercent')
                 ->and($inputProps)->toContain('takeProfitPercent')
-                ->and($inputProps)->not->toContain('positionSizePercent');
+                ->and($inputProps)->toContain('positionSizePercent')
+                ->and($inputProps)->toContain('positionSizingMethod');
         });
     });
 });

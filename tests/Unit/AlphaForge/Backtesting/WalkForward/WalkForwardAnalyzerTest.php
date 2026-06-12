@@ -548,7 +548,9 @@ expect($analysis->stabilityClassification)->toBe('likely_overfit')
             ->and($analysis->sharpeBeatBenchmarkRatio)->toBe(0.0)
             ->and($analysis->timeInMarket)->toBe(0.0)
             ->and($analysis->exposureAdjustedTarget)->toBe(0.0)
-            ->and($analysis->captureRatio)->toBe(0.0);
+            ->and($analysis->captureRatio)->toBe(0.0)
+            ->and($analysis->marketCapture)->toBe(0.0)
+            ->and($analysis->capitalEfficiency)->toBe(0.0);
     });
 
 describe('robustness classification tiers', function () {
@@ -842,5 +844,63 @@ describe('robustness classification tiers', function () {
         $data = json_decode($json, true);
 
         expect($data['benchmark'])->toBeNull();
+    });
+
+    describe('market capture', function () {
+        it('includes marketCapture and capitalEfficiency in constructor', function () {
+            $analysis = new WalkForwardAnalysis(
+                walkForwardRun: Mockery::mock(WalkForwardRun::class),
+                results: [],
+                oosIsRatio: 0.0,
+                robustCount: 0,
+                robustRatio: 0.0,
+                beatBuyHoldCount: 0,
+                beatBuyHoldRatio: 0.0,
+                returnGt10Count: 0,
+                returnGt10Ratio: 0.0,
+                sharpeBeatBenchmarkCount: 0,
+                sharpeBeatBenchmarkRatio: 0.0,
+                medianIsScore: 0.0,
+                medianOosScore: 0.0,
+                avgDegradation: 0.0,
+                medianDegradation: 0.0,
+                bestOosRank: null,
+                bestOosResult: null,
+                stabilityClassification: 'moderate',
+                stabilityInterpretation: '',
+                marketCapture: 2.1,
+                capitalEfficiency: 3.7,
+            );
+
+            expect($analysis->marketCapture)->toBe(2.1)
+                ->and($analysis->capitalEfficiency)->toBe(3.7);
+        });
+
+        it('marketCapture defaults to 0.0', function () {
+            $analysis = new WalkForwardAnalysis(
+                walkForwardRun: Mockery::mock(WalkForwardRun::class),
+                results: [],
+                oosIsRatio: 0.0,
+                robustCount: 0,
+                robustRatio: 0.0,
+                beatBuyHoldCount: 0,
+                beatBuyHoldRatio: 0.0,
+                returnGt10Count: 0,
+                returnGt10Ratio: 0.0,
+                sharpeBeatBenchmarkCount: 0,
+                sharpeBeatBenchmarkRatio: 0.0,
+                medianIsScore: 0.0,
+                medianOosScore: 0.0,
+                avgDegradation: 0.0,
+                medianDegradation: 0.0,
+                bestOosRank: null,
+                bestOosResult: null,
+                stabilityClassification: 'moderate',
+                stabilityInterpretation: '',
+            );
+
+            expect($analysis->marketCapture)->toBe(0.0)
+                ->and($analysis->capitalEfficiency)->toBe(0.0);
+        });
     });
 });
