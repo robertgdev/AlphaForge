@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Backtesting\Service;
 
+use App\AlphaForge\Common\Enum\TimeframeEnum;
 use Carbon\Carbon;
 
 class BacktestResultFormatter
@@ -109,6 +110,181 @@ class BacktestResultFormatter
         }
 
         return $formatted;
+    }
+
+    /**
+     * Format trade distribution statistics from the statistics array.
+     *
+     * @param  array<string, mixed>  $stats
+     * @param  string|null  $timeframe  Timeframe string (e.g. '1h', '4h', '1d') for converting bars to elapsed time
+     * @return array<string, string>
+     */
+    public function formatTradeDistribution(array $stats, ?string $timeframe = null): array
+    {
+        $formatted = [];
+
+        $totalTrades = (int) ($stats['total_trades'] ?? 0);
+        $formatted['Total trades'] = (string) $totalTrades;
+
+        if (isset($stats['max_consecutive_wins'])) {
+            $formatted['Max consecutive wins'] = (string) (int) $stats['max_consecutive_wins'];
+        }
+        if (isset($stats['max_consecutive_losses'])) {
+            $formatted['Max consecutive losses'] = (string) (int) $stats['max_consecutive_losses'];
+        }
+
+        if ($totalTrades > 0) {
+            $avgWinStreak = $this->averageConsecutiveStreak($stats, 'win');
+            $avgLossStreak = $this->averageConsecutiveStreak($stats, 'loss');
+            $formatted['Average win streak'] = $avgWinStreak !== null ? number_format($avgWinStreak, 1) : '-';
+            $formatted['Average loss streak'] = $avgLossStreak !== null ? number_format($avgLossStreak, 1) : '-';
+        }
+
+        if (isset($stats['largest_win'])) {
+            $formatted['Largest win'] = number_format(abs((float) $stats['largest_win']), 2);
+        }
+        if (isset($stats['largest_loss'])) {
+            $formatted['Largest loss'] = '-'.number_format(abs((float) $stats['largest_loss']), 2);
+        }
+        if (isset($stats['average_win'])) {
+            $formatted['Average win'] = number_format((float) $stats['average_win'], 2);
+        }
+        if (isset($stats['average_loss'])) {
+            $formatted['Average loss'] = '-'.number_format(abs((float) $stats['average_loss']), 2);
+        }
+        if (isset($stats['expectancy'])) {
+            $formatted['Expectancy/trade'] = (float) $stats['expectancy'] >= 0
+                ? '+'.number_format((float) $stats['expectancy'], 2)
+                : number_format((float) $stats['expectancy'], 2);
+        }
+        if (isset($stats['max_drawdown_duration'])) {
+            $duration = (int) $stats['max_drawdown_duration'];
+            $formatted['Recovery time (max, bars)'] = (string) $duration;
+
+            if ($timeframe !== null) {
+                $elapsed = $this->barsToElapsed($duration, $timeframe);
+                if ($elapsed !== null) {
+                    $formatted['Recovery time (max, elapsed)'] = $elapsed;
+                }
+            }
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * Format exit reason distribution from position data.
+     *
+     * @param  array<object|array{symbol?: string, direction?: string, exitTag?: string|null}>  $positions
+     * @return array<string, array{count: int, pct: float, label: string}>
+     */
+    public function formatExitReasonDistribution(array $positions): array
+    {
+        $counts = [];
+        $total = 0;
+
+        foreach ($positions as $position) {
+            $exitTag = is_array($position)
+                ? (string) ($position['exitTag'] ?? 'unknown')
+                : (string) ($position->exitTag ?? 'unknown');
+
+            $label = match ($exitTag) {
+                'stop_loss' => 'Stop Loss',
+                'take_profit' => 'Take Profit',
+                'strategy_signal' => 'Strategy Signal',
+                'counter_signal' => 'Counter Signal',
+                'end_of_backtest' => 'End of Backtest',
+                'trailing_stop' => 'Trailing Stop',
+                default => $exitTag,
+            };
+
+            $key = $label;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+            $total++;
+        }
+
+        $distribution = [];
+        foreach ($counts as $label => $count) {
+            $distribution[$label] = [
+                'count' => $count,
+                'pct' => $total > 0 ? ($count / $total) * 100 : 0,
+                'label' => $label,
+            ];
+        }
+
+        uasort($distribution, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return $distribution;
+    }
+
+    /**
+     * Compute average consecutive streak length from position data.
+     * Falls back to estimating from max_consecutive + win_rate if no position-level data available.
+     *
+     * @param  array<string, mixed>  $stats
+     */
+    private function averageConsecutiveStreak(array $stats, string $type): ?float
+    {
+        $winRate = (float) ($stats['win_rate'] ?? 0);
+        $total = (int) ($stats['total_trades'] ?? 0);
+
+        if ($total < 2) {
+            return null;
+        }
+
+        $wins = (int) ($stats['winning_trades'] ?? 0);
+        $losses = (int) ($stats['losing_trades'] ?? 0);
+
+        if ($type === 'win' && $wins < 1) {
+            return 0.0;
+        }
+        if ($type === 'loss' && $losses < 1) {
+            return 0.0;
+        }
+
+        // Geometric distribution: E[streak_length] = 1 / (1 - p) for streaks of type with probability p
+        if ($type === 'win' && $winRate > 0 && $winRate < 1) {
+            return 1.0 / (1.0 - $winRate);
+        }
+        if ($type === 'loss' && $winRate > 0 && $winRate < 1) {
+            return 1.0 / $winRate;
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert a bar count to a human-readable elapsed time string.
+     *
+     * @return string|null e.g. "2d 5h 30m" or null if timeframe is invalid
+     */
+    private function barsToElapsed(int $bars, string $timeframe): ?string
+    {
+        $tf = TimeframeEnum::tryFrom($timeframe);
+        if ($tf === null) {
+            return null;
+        }
+
+        $totalSeconds = $bars * $tf->toSeconds();
+
+        $days = intdiv($totalSeconds, 86400);
+        $remaining = $totalSeconds % 86400;
+        $hours = intdiv($remaining, 3600);
+        $remaining %= 3600;
+        $minutes = intdiv($remaining, 60);
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days}d";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours}h";
+        }
+        if ($minutes > 0 || empty($parts)) {
+            $parts[] = "{$minutes}m";
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

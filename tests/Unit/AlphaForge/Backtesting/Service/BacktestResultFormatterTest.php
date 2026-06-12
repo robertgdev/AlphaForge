@@ -493,4 +493,261 @@ describe('BacktestResultFormatter', function () {
                 ->and($result[1][7])->toBe('-500.00');
         });
     });
+
+    describe('formatTradeDistribution', function () {
+        it('formats trade distribution from statistics', function () {
+            $stats = [
+                'total_trades' => 92,
+                'winning_trades' => 44,
+                'losing_trades' => 48,
+                'win_rate' => '0.478',
+                'max_consecutive_wins' => 6,
+                'max_consecutive_losses' => 4,
+                'largest_win' => '500.00',
+                'largest_loss' => '-250.00',
+                'average_win' => '50.00',
+                'average_loss' => '-30.00',
+                'expectancy' => '8.26',
+                'max_drawdown_duration' => 11,
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result)->toHaveKey('Total trades')
+                ->and($result['Total trades'])->toBe('92')
+                ->and($result)->toHaveKey('Max consecutive wins')
+                ->and($result['Max consecutive wins'])->toBe('6')
+                ->and($result)->toHaveKey('Max consecutive losses')
+                ->and($result['Max consecutive losses'])->toBe('4')
+                ->and($result)->toHaveKey('Largest win')
+                ->and($result['Largest win'])->toBe('500.00')
+                ->and($result)->toHaveKey('Largest loss')
+                ->and($result['Largest loss'])->toBe('-250.00')
+                ->and($result)->toHaveKey('Average win')
+                ->and($result['Average win'])->toBe('50.00')
+                ->and($result)->toHaveKey('Average loss')
+                ->and($result['Average loss'])->toBe('-30.00')
+                ->and($result)->toHaveKey('Expectancy/trade')
+                ->and($result['Expectancy/trade'])->toBe('+8.26')
+                ->and($result)->toHaveKey('Recovery time (max, bars)')
+                ->and($result['Recovery time (max, bars)'])->toBe('11');
+        });
+
+        it('adds elapsed time to recovery when timeframe is provided', function () {
+            $stats = [
+                'total_trades' => 50,
+                'max_drawdown_duration' => 150,
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats, '1h');
+
+            expect($result)->toHaveKey('Recovery time (max, bars)')
+                ->and($result['Recovery time (max, bars)'])->toBe('150')
+                ->and($result)->toHaveKey('Recovery time (max, elapsed)')
+                ->and($result['Recovery time (max, elapsed)'])->toBe('6d 6h');
+        });
+
+        it('converts bar recovery to days with 4h timeframe', function () {
+            $stats = [
+                'total_trades' => 50,
+                'max_drawdown_duration' => 42,
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats, '4h');
+
+            expect($result)->toHaveKey('Recovery time (max, elapsed)')
+                ->and($result['Recovery time (max, elapsed)'])->toBe('7d');
+        });
+
+        it('shows only minutes for short recovery with 5m timeframe', function () {
+            $stats = [
+                'total_trades' => 50,
+                'max_drawdown_duration' => 30,
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats, '5m');
+
+            expect($result)->toHaveKey('Recovery time (max, elapsed)')
+                ->and($result['Recovery time (max, elapsed)'])->toBe('2h 30m');
+        });
+
+        it('omits elapsed recovery when timeframe is null', function () {
+            $stats = [
+                'total_trades' => 50,
+                'max_drawdown_duration' => 10,
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result)->toHaveKey('Recovery time (max, bars)')
+                ->and($result)->not->toHaveKey('Recovery time (max, elapsed)');
+        });
+
+        it('formats negative expectancy correctly', function () {
+            $stats = [
+                'total_trades' => 50,
+                'winning_trades' => 20,
+                'losing_trades' => 30,
+                'win_rate' => '0.4',
+                'expectancy' => '-3.50',
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result['Expectancy/trade'])->toBe('-3.50');
+        });
+
+        it('computes average win streak from win rate', function () {
+            $stats = [
+                'total_trades' => 100,
+                'winning_trades' => 50,
+                'losing_trades' => 50,
+                'win_rate' => '0.5',
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result)->toHaveKey('Average win streak')
+                ->and((float) $result['Average win streak'])->toBeGreaterThan(1.9)
+                ->and((float) $result['Average win streak'])->toBeLessThan(2.1)
+                ->and($result)->toHaveKey('Average loss streak')
+                ->and((float) $result['Average loss streak'])->toBeGreaterThan(1.9)
+                ->and((float) $result['Average loss streak'])->toBeLessThan(2.1);
+        });
+
+        it('handles 100% win rate', function () {
+            $stats = [
+                'total_trades' => 10,
+                'winning_trades' => 10,
+                'losing_trades' => 0,
+                'win_rate' => '1.0',
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result)->toHaveKey('Average loss streak')
+                ->and($result['Average loss streak'])->toBe('0.0');
+        });
+
+        it('handles 0% win rate', function () {
+            $stats = [
+                'total_trades' => 10,
+                'winning_trades' => 0,
+                'losing_trades' => 10,
+                'win_rate' => '0.0',
+            ];
+
+            $result = $this->formatter->formatTradeDistribution($stats);
+
+            expect($result)->toHaveKey('Average win streak')
+                ->and($result['Average win streak'])->toBe('0.0');
+        });
+
+        it('returns empty array for empty stats', function () {
+            $result = $this->formatter->formatTradeDistribution([]);
+
+            expect($result)->toHaveKey('Total trades')
+                ->and($result['Total trades'])->toBe('0');
+        });
+    });
+
+    describe('formatExitReasonDistribution', function () {
+        it('counts exit reasons from position array', function () {
+            $positions = [
+                ['exitTag' => 'take_profit'],
+                ['exitTag' => 'take_profit'],
+                ['exitTag' => 'stop_loss'],
+                ['exitTag' => 'strategy_signal'],
+                ['exitTag' => 'take_profit'],
+            ];
+
+            $result = $this->formatter->formatExitReasonDistribution($positions);
+
+            expect($result)->toHaveCount(3);
+
+            $labels = array_keys($result);
+            expect($labels)->toContain('Take Profit')
+                ->and($labels)->toContain('Stop Loss')
+                ->and($labels)->toContain('Strategy Signal');
+
+            expect($result['Take Profit']['count'])->toBe(3)
+                ->and($result['Take Profit']['pct'])->toBe(60.0)
+                ->and($result['Stop Loss']['count'])->toBe(1)
+                ->and($result['Stop Loss']['pct'])->toBe(20.0)
+                ->and($result['Strategy Signal']['count'])->toBe(1)
+                ->and($result['Strategy Signal']['pct'])->toBe(20.0);
+        });
+
+        it('handles object positions', function () {
+            $p1 = new stdClass;
+            $p1->exitTag = 'stop_loss';
+            $p2 = new stdClass;
+            $p2->exitTag = 'take_profit';
+
+            $result = $this->formatter->formatExitReasonDistribution([$p1, $p2]);
+
+            expect($result['Stop Loss']['count'])->toBe(1)
+                ->and($result['Take Profit']['count'])->toBe(1);
+        });
+
+        it('normalises exit tag labels', function () {
+            $positions = [
+                ['exitTag' => 'counter_signal'],
+                ['exitTag' => 'end_of_backtest'],
+                ['exitTag' => 'trailing_stop'],
+            ];
+
+            $result = $this->formatter->formatExitReasonDistribution($positions);
+
+            expect(array_keys($result))->toContain('Counter Signal')
+                ->and(array_keys($result))->toContain('End of Backtest')
+                ->and(array_keys($result))->toContain('Trailing Stop');
+        });
+
+        it('uses raw exit tag when no mapping exists', function () {
+            $positions = [
+                ['exitTag' => 'custom_exit'],
+            ];
+
+            $result = $this->formatter->formatExitReasonDistribution($positions);
+
+            expect(array_keys($result))->toContain('custom_exit')
+                ->and($result['custom_exit']['count'])->toBe(1);
+        });
+
+        it('returns empty array for empty positions', function () {
+            $result = $this->formatter->formatExitReasonDistribution([]);
+
+            expect($result)->toBeEmpty();
+        });
+
+        it('sorts by count descending', function () {
+            $positions = [
+                ['exitTag' => 'strategy_signal'],
+                ['exitTag' => 'take_profit'],
+                ['exitTag' => 'take_profit'],
+                ['exitTag' => 'stop_loss'],
+                ['exitTag' => 'stop_loss'],
+                ['exitTag' => 'stop_loss'],
+            ];
+
+            $result = $this->formatter->formatExitReasonDistribution($positions);
+
+            $keys = array_keys($result);
+            expect($keys[0])->toBe('Stop Loss')
+                ->and($keys[1])->toBe('Take Profit')
+                ->and($keys[2])->toBe('Strategy Signal');
+        });
+
+        it('handles missing exitTag', function () {
+            $positions = [
+                ['symbol' => 'BTC/USDT'],
+            ];
+
+            $result = $this->formatter->formatExitReasonDistribution($positions);
+
+            expect(array_keys($result))->toContain('unknown')
+                ->and($result['unknown']['count'])->toBe(1);
+        });
+    });
 });

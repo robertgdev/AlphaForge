@@ -384,6 +384,36 @@ class RunBacktestCommand extends Command
             }
 
             $this->newLine();
+
+            $tradeDist = $formatter->formatTradeDistribution($result['statistics'], $result['timeframe'] ?? null);
+            if (! empty($tradeDist)) {
+                $this->line('<fg=yellow>Trade Distribution:</>');
+                $this->line('  '.str_repeat('─', 40));
+
+                foreach ($tradeDist as $label => $value) {
+                    $this->components->twoColumnDetail("  {$label}", $value);
+                }
+
+                $this->newLine();
+            }
+
+            $positions = is_array($result['positions'] ?? null) ? $result['positions'] : [];
+            $exitDist = $formatter->formatExitReasonDistribution($positions);
+            if (! empty($exitDist)) {
+                $this->line('<fg=yellow>Exit Reason Distribution:</>');
+                $this->line('  '.str_repeat('─', 40));
+
+                foreach ($exitDist as $item) {
+                    $line = sprintf('%s %d (%.1f%%)',
+                        str_pad($item['label'], 22),
+                        $item['count'],
+                        $item['pct']
+                    );
+                    $this->line("  {$line}");
+                }
+
+                $this->newLine();
+            }
         }
 
         if (isset($result['positions']) && is_array($result['positions']) && count($result['positions']) > 0) {
