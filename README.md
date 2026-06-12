@@ -625,7 +625,7 @@ All built-in strategies share these common parameters:
 |-----------|------|---------|-------------|
 | `stopLossPercent` | float | varies | Percentage below entry price for stop-loss (e.g., `3.0` = 3% stop). Calculated as `entryPrice × (1 − stopLossPercent/100)`. |
 | `takeProfitPercent` | float | varies | Percentage above entry price for take-profit (e.g., `6.0` = 6% target). Calculated as `entryPrice × (1 + takeProfitPercent/100)`. |
-| `positionSizePercent` | float | `1.0` | Percentage of capital to allocate per trade (e.g., `2.0` = 2%). Exposed as `#[Input]` with range 0.1–100.0, step 0.5. |
+| `positionSizePercent` | float | `1.0` | Percentage of capital to allocate per trade (e.g., `2.0%` = 2%). Exposed as `#[Input]` but NOT optimised (no `min`/`max` — excluded from parameter space). Set via `--inputs={"positionSizePercent":2.0}`. |
 | `positionSizingMethod` | string | `equity` | Sizing base: `equity` uses current total equity (dynamic, grows/shrinks with account), `initial` uses starting capital (fixed). Exposed as `#[Input]` with choices `['equity', 'initial']`. |
 
 Each strategy defines its own `#[Input]` attributes with `min`, `max`, and `step` values. These ranges are used by `alphaforge:optimize` when `--use-strategy-ranges` is specified, and by `alphaforge:walk-forward` for parameter space generation.
