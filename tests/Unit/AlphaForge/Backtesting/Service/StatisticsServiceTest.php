@@ -462,6 +462,49 @@ describe('StatisticsService', function () {
 
             expect($result['average_trade_duration'])->toBe(21600);
         });
+
+        it('computes median, min, and max trade duration', function () {
+            $positions = new Vector;
+            $positions->push(new PositionDto(
+                id: '1',
+                symbol: 'BTC/USDT',
+                direction: 'long',
+                quantity: '0.02',
+                entryPrice: '50000',
+                entryTime: Carbon::parse('2024-01-01 10:00:00'),
+                exitPrice: '55000',
+                exitTime: Carbon::parse('2024-01-01 14:00:00'),
+                realizedPnl: '1000',
+            ));
+            $positions->push(new PositionDto(
+                id: '2',
+                symbol: 'ETH/USDT',
+                direction: 'long',
+                quantity: '1',
+                entryPrice: '3000',
+                entryTime: Carbon::parse('2024-01-02 10:00:00'),
+                exitPrice: '2800',
+                exitTime: Carbon::parse('2024-01-02 18:00:00'),
+                realizedPnl: '-200',
+            ));
+            $positions->push(new PositionDto(
+                id: '3',
+                symbol: 'SOL/USDT',
+                direction: 'long',
+                quantity: '10',
+                entryPrice: '100',
+                entryTime: Carbon::parse('2024-01-03 10:00:00'),
+                exitPrice: '110',
+                exitTime: Carbon::parse('2024-01-03 12:00:00'),
+                realizedPnl: '100',
+            ));
+
+            $result = $this->service->calculate($positions, '10000', '10900');
+
+            expect($result['median_trade_duration'])->toBe(14400)
+                ->and($result['min_trade_duration'])->toBe(7200)
+                ->and($result['max_trade_duration'])->toBe(28800);
+        });
     });
 
     describe('drawdown', function () {
@@ -534,6 +577,15 @@ describe('StatisticsService', function () {
             $result = $this->service->calculate($positions, '10000', '11400');
 
             expect(bccomp($result['max_drawdown'], '0', 8))->toBe(0);
+        });
+
+        it('computes avg_drawdown_duration for empty stats', function () {
+            $positions = new Vector;
+
+            $result = $this->service->calculate($positions, '10000', '10000');
+
+            expect($result['avg_drawdown_duration'])->toBe(0)
+                ->and($result['max_drawdown_duration'])->toBe(0);
         });
     });
 

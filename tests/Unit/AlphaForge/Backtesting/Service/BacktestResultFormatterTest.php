@@ -750,4 +750,93 @@ describe('BacktestResultFormatter', function () {
                 ->and($result['unknown']['count'])->toBe(1);
         });
     });
+
+    describe('formatHoldingTime', function () {
+        it('formats trade durations in seconds-style with timeframes', function () {
+            $stats = [
+                'average_trade_duration' => 64800,
+                'median_trade_duration' => 39600,
+                'min_trade_duration' => 3600,
+                'max_trade_duration' => 1062000,
+            ];
+
+            $result = $this->formatter->formatHoldingTime($stats, '1h');
+
+            expect($result)->toHaveKey('Average duration')
+                ->and($result['Average duration'])->toBe('18h')
+                ->and($result)->toHaveKey('Median duration')
+                ->and($result['Median duration'])->toBe('11h')
+                ->and($result)->toHaveKey('Shortest trade')
+                ->and($result['Shortest trade'])->toBe('1h')
+                ->and($result)->toHaveKey('Longest trade')
+                ->and($result['Longest trade'])->toBe('12d 7h');
+        });
+
+        it('falls back to raw seconds without timeframe', function () {
+            $stats = [
+                'average_trade_duration' => 3600,
+            ];
+
+            $result = $this->formatter->formatHoldingTime($stats);
+
+            expect($result['Average duration'])->toBe('3600s');
+        });
+
+        it('handles 0 duration', function () {
+            $stats = [
+                'min_trade_duration' => 0,
+            ];
+
+            $result = $this->formatter->formatHoldingTime($stats);
+
+            expect($result['Shortest trade'])->toBe('0s');
+        });
+
+        it('returns empty for missing duration fields', function () {
+            $result = $this->formatter->formatHoldingTime([]);
+
+            expect($result)->toBeEmpty();
+        });
+    });
+
+    describe('formatDrawdownStatistics', function () {
+        it('formats drawdown with timeframe', function () {
+            $stats = [
+                'max_drawdown_percent' => '0.0747',
+                'avg_drawdown' => '0.016',
+                'max_drawdown_duration' => 372,
+                'avg_drawdown_duration' => 80,
+            ];
+
+            $result = $this->formatter->formatDrawdownStatistics($stats, '1h');
+
+            expect($result)->toHaveKey('Maximum drawdown')
+                ->and($result['Maximum drawdown'])->toBe('7.47%')
+                ->and($result)->toHaveKey('Average drawdown')
+                ->and($result['Average drawdown'])->toBe('0.02')
+                ->and($result)->toHaveKey('Maximum recovery time')
+                ->and($result['Maximum recovery time'])->toBe('15d 12h')
+                ->and($result)->toHaveKey('Average recovery time')
+                ->and($result['Average recovery time'])->toBe('3d 8h');
+        });
+
+        it('falls back to bar count without timeframe', function () {
+            $stats = [
+                'max_drawdown_percent' => '0.05',
+                'max_drawdown_duration' => 10,
+            ];
+
+            $result = $this->formatter->formatDrawdownStatistics($stats);
+
+            expect($result['Maximum drawdown'])->toBe('5.00%')
+                ->and($result['Maximum recovery time'])->toBe('10 bars')
+                ->and($result['Longest underwater period'])->toBe('10 bars');
+        });
+
+        it('returns empty for missing fields', function () {
+            $result = $this->formatter->formatDrawdownStatistics([]);
+
+            expect($result)->toBeEmpty();
+        });
+    });
 });
