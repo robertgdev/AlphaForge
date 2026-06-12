@@ -173,6 +173,118 @@ class BacktestResultFormatter
     }
 
     /**
+     * Format holding time statistics (trade durations).
+     *
+     * @param  array<string, mixed>  $stats
+     * @param  string|null  $timeframe  Timeframe string for converting bars to elapsed time where needed
+     * @return array<string, string>
+     */
+    public function formatHoldingTime(array $stats, ?string $timeframe = null): array
+    {
+        $formatted = [];
+
+        if (isset($stats['average_trade_duration'])) {
+            $formatted['Average duration'] = $this->formatDurationSeconds((int) $stats['average_trade_duration'], $timeframe);
+        }
+        if (isset($stats['median_trade_duration'])) {
+            $formatted['Median duration'] = $this->formatDurationSeconds((int) $stats['median_trade_duration'], $timeframe);
+        }
+        if (isset($stats['min_trade_duration'])) {
+            $formatted['Shortest trade'] = $this->formatDurationSeconds((int) $stats['min_trade_duration'], $timeframe);
+        }
+        if (isset($stats['max_trade_duration'])) {
+            $formatted['Longest trade'] = $this->formatDurationSeconds((int) $stats['max_trade_duration'], $timeframe);
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * Format drawdown statistics.
+     *
+     * @param  array<string, mixed>  $stats
+     * @param  string|null  $timeframe  Timeframe string for converting bars to elapsed time
+     * @return array<string, string>
+     */
+    public function formatDrawdownStatistics(array $stats, ?string $timeframe = null): array
+    {
+        $formatted = [];
+
+        if (isset($stats['max_drawdown_percent'])) {
+            $formatted['Maximum drawdown'] = number_format(abs((float) $stats['max_drawdown_percent']) * 100, 2).'%';
+        }
+        if (isset($stats['avg_drawdown'])) {
+            $formatted['Average drawdown'] = number_format((float) $stats['avg_drawdown'], 2);
+        }
+        if (isset($stats['max_drawdown_duration'])) {
+            $formatted['Maximum recovery time'] = $this->barsToElapsedOrBars((int) $stats['max_drawdown_duration'], $timeframe);
+        }
+        if (isset($stats['avg_drawdown_duration'])) {
+            $formatted['Average recovery time'] = $this->barsToElapsedOrBars((int) $stats['avg_drawdown_duration'], $timeframe);
+        }
+        // max_drawdown_duration is already the longest underwater period
+        // but the block also asks for "Longest underwater period" separately
+        if (isset($stats['max_drawdown_duration'])) {
+            $formatted['Longest underwater period'] = $this->barsToElapsedOrBars((int) $stats['max_drawdown_duration'], $timeframe);
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * Format a duration in seconds to a human-readable string.
+     * Falls back to raw seconds if no timeframe for context.
+     */
+    private function formatDurationSeconds(int $seconds, ?string $timeframe): string
+    {
+        if ($timeframe !== null) {
+            return $this->secondsToElapsed($seconds);
+        }
+
+        return "{$seconds}s";
+    }
+
+    /**
+     * Convert seconds to a human-readable elapsed time string.
+     */
+    private function secondsToElapsed(int $totalSeconds): string
+    {
+        $days = intdiv($totalSeconds, 86400);
+        $remaining = $totalSeconds % 86400;
+        $hours = intdiv($remaining, 3600);
+        $remaining %= 3600;
+        $minutes = intdiv($remaining, 60);
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days}d";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours}h";
+        }
+        if ($minutes > 0 || empty($parts)) {
+            $parts[] = "{$minutes}m";
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * Format bar count as elapsed time, or bare bar count if no timeframe.
+     */
+    private function barsToElapsedOrBars(int $bars, ?string $timeframe): string
+    {
+        if ($timeframe !== null) {
+            $elapsed = $this->barsToElapsed($bars, $timeframe);
+            if ($elapsed !== null) {
+                return $elapsed;
+            }
+        }
+
+        return "{$bars} bars";
+    }
+
+    /**
      * Format exit reason distribution from position data.
      *
      * @param  array<object|array{symbol?: string, direction?: string, exitTag?: string|null}>  $positions

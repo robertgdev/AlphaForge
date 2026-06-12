@@ -116,6 +116,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'max_drawdown_percent' => $drawdown['max_drawdown_percent'],
             'avg_drawdown' => $drawdown['avg_drawdown'],
             'max_drawdown_duration' => $drawdown['max_duration'],
+            'avg_drawdown_duration' => $drawdown['avg_duration'],
 
             'sharpe_ratio' => $riskMetrics['sharpe_ratio'],
             'sortino_ratio' => $riskMetrics['sortino_ratio'],
@@ -129,6 +130,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'idle_capital_percent' => $exposure['idle_capital_percent'],
 
             'average_trade_duration' => $tradeAnalysis['avg_duration'],
+            'median_trade_duration' => $tradeAnalysis['median_duration'],
+            'min_trade_duration' => $tradeAnalysis['min_duration'],
+            'max_trade_duration' => $tradeAnalysis['max_duration'],
             'max_consecutive_wins' => $tradeAnalysis['max_consecutive_wins'],
             'max_consecutive_losses' => $tradeAnalysis['max_consecutive_losses'],
             'expectancy' => $tradeAnalysis['expectancy'],
@@ -273,7 +277,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $maxDrawdownPercent = '0';
         $currentDrawdown = '0';
         $drawdowns = new Vector;
-        $drawdownStart = 0;
+        $drawdownDurations = [];
         $maxDuration = 0;
         $currentDuration = 0;
         $peak = $equityCurve->first();
@@ -288,6 +292,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
                 if ($currentDuration > 0) {
                     $drawdowns->push($currentDrawdown);
+                    $drawdownDurations[] = $currentDuration;
                     if ($currentDuration > $maxDuration) {
                         $maxDuration = $currentDuration;
                     }
@@ -319,11 +324,17 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $avgDrawdown = bcdiv($sum, (string) $drawdowns->count(), 12);
         }
 
+        $avgDrawdownDuration = 0;
+        if (! empty($drawdownDurations)) {
+            $avgDrawdownDuration = (int) (array_sum($drawdownDurations) / count($drawdownDurations));
+        }
+
         return [
             'max_drawdown' => $maxDrawdown,
             'max_drawdown_percent' => $maxDrawdownPercent,
             'avg_drawdown' => $avgDrawdown,
             'max_duration' => $maxDuration,
+            'avg_duration' => $avgDrawdownDuration,
         ];
     }
 
@@ -511,10 +522,12 @@ readonly class StatisticsService implements StatisticsServiceInterface
         $shortTrades = 0;
         $longWins = 0;
         $shortWins = 0;
+        $durations = [];
 
         foreach ($positions as $position) {
-            $duration = $position->entryTime->diffInSeconds($position->exitTime);
+            $duration = (int) $position->entryTime->diffInSeconds($position->exitTime);
             $totalDuration += $duration;
+            $durations[] = $duration;
 
             if ($position->direction === 'long') {
                 $longTrades++;
@@ -548,6 +561,21 @@ readonly class StatisticsService implements StatisticsServiceInterface
             ? (int) ($totalDuration / $positions->count())
             : 0;
 
+        $medianDuration = 0;
+        $minDuration = 0;
+        $maxDuration = 0;
+        if (! empty($durations)) {
+            sort($durations);
+            $minDuration = $durations[0];
+            $maxDuration = $durations[count($durations) - 1];
+            $mid = (int) floor(count($durations) / 2);
+            if (count($durations) % 2 === 0) {
+                $medianDuration = (int) (($durations[$mid - 1] + $durations[$mid]) / 2);
+            } else {
+                $medianDuration = $durations[$mid];
+            }
+        }
+
         $winLoss = $this->calculateWinLossMetrics($positions);
         $lossRate = bcsub('1', $winLoss['win_rate'], 6);
         $avgLossAbs = abs($winLoss['average_loss']);
@@ -559,6 +587,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
 
         return [
             'avg_duration' => $avgDuration,
+            'median_duration' => $medianDuration,
+            'min_duration' => $minDuration,
+            'max_duration' => $maxDuration,
             'max_consecutive_wins' => $maxConsecutiveWins,
             'max_consecutive_losses' => $maxConsecutiveLosses,
             'expectancy' => $expectancy,
@@ -599,6 +630,7 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'max_drawdown_percent' => '0',
             'avg_drawdown' => '0',
             'max_drawdown_duration' => 0,
+            'avg_drawdown_duration' => 0,
             'sharpe_ratio' => '0',
             'sortino_ratio' => '0',
             'calmar_ratio' => '0',
@@ -608,6 +640,9 @@ readonly class StatisticsService implements StatisticsServiceInterface
             'time_in_market_percent' => '0',
             'idle_capital_percent' => '0',
             'average_trade_duration' => 0,
+            'median_trade_duration' => 0,
+            'min_trade_duration' => 0,
+            'max_trade_duration' => 0,
             'max_consecutive_wins' => 0,
             'max_consecutive_losses' => 0,
             'expectancy' => '0',

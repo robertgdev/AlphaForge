@@ -397,6 +397,30 @@ class RunBacktestCommand extends Command
                 $this->newLine();
             }
 
+            $holdingTime = $formatter->formatHoldingTime($result['statistics'], $result['timeframe'] ?? null);
+            if (! empty($holdingTime)) {
+                $this->line('<fg=yellow>Holding Time:</>');
+                $this->line('  '.str_repeat('─', 40));
+
+                foreach ($holdingTime as $label => $value) {
+                    $this->components->twoColumnDetail("  {$label}", $value);
+                }
+
+                $this->newLine();
+            }
+
+            $drawdownStats = $formatter->formatDrawdownStatistics($result['statistics'], $result['timeframe'] ?? null);
+            if (! empty($drawdownStats)) {
+                $this->line('<fg=yellow>Drawdown Statistics:</>');
+                $this->line('  '.str_repeat('─', 40));
+
+                foreach ($drawdownStats as $label => $value) {
+                    $this->components->twoColumnDetail("  {$label}", $value);
+                }
+
+                $this->newLine();
+            }
+
             $positions = is_array($result['positions'] ?? null) ? $result['positions'] : [];
             $exitDist = $formatter->formatExitReasonDistribution($positions);
             if (! empty($exitDist)) {
