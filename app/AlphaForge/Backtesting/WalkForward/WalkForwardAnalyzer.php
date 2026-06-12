@@ -61,6 +61,8 @@ class WalkForwardAnalyzer
                 timeInMarket: 0.0,
                 exposureAdjustedTarget: 0.0,
                 captureRatio: 0.0,
+                marketCapture: 0.0,
+                capitalEfficiency: 0.0,
             );
         }
 
@@ -85,6 +87,14 @@ class WalkForwardAnalyzer
 
         $avgDegradation = array_sum($degradations) / count($degradations);
         $medianDegradation = $this->median($degradations);
+
+        $oosReturns = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['total_return_percent'] ?? 0))->values()->all();
+        $oosSharpes = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['sharpe_ratio'] ?? 0))->values()->all();
+        $oosMaxDds = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['max_drawdown_percent'] ?? 0))->values()->all();
+
+        $medianOosReturn = $this->median($oosReturns);
+        $medianOosSharpe = $this->median($oosSharpes);
+        $medianOosMaxDd = $this->median($oosMaxDds);
 
         /** @var WalkForwardResult|null $bestOosResult */
         $bestOosResult = $results->first(fn (WalkForwardResult $r) => $r->rank === (
@@ -158,12 +168,22 @@ class WalkForwardAnalyzer
             : 0.0;
         $exposureAdjustedTarget = 0.0;
         $captureRatio = 0.0;
+        $marketCapture = 0.0;
+        $capitalEfficiency = 0.0;
 
         if ($benchmark['has_data'] && $timeInMarket > 0) {
             $exposureAdjustedTarget = $benchmark['return'] * ($timeInMarket / 100);
             $captureRatio = $exposureAdjustedTarget > 0.001
                 ? (($bestOosResult !== null ? (float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0) : 0.0) / $exposureAdjustedTarget) * 100
                 : 0.0;
+        }
+
+        if ($benchmark['has_data'] && $benchmark['return'] != 0.0 && $bestOosResult !== null) {
+            $strategyReturn = (float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0);
+            $marketCapture = ($strategyReturn / $benchmark['return']) * 100;
+            if ($timeInMarket > 0) {
+                $capitalEfficiency = ($marketCapture / $timeInMarket) * 100;
+            }
         }
 
         $oosIsRatioWarning = $this->detectInflatedOosIsRatio($oosIsRatio, $avgIsScore, $avgOosScore, $bestOosResult);
@@ -214,6 +234,11 @@ class WalkForwardAnalyzer
             timeInMarket: $timeInMarket,
             exposureAdjustedTarget: $exposureAdjustedTarget,
             captureRatio: $captureRatio,
+            marketCapture: $marketCapture,
+            capitalEfficiency: $capitalEfficiency,
+            medianOosReturn: $medianOosReturn,
+            medianOosSharpe: $medianOosSharpe,
+            medianOosMaxDd: $medianOosMaxDd,
         );
     }
 

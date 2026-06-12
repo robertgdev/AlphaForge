@@ -49,5 +49,10 @@ readonly class WalkForwardAnalysis
         public float $timeInMarket = 0.0,
         public float $exposureAdjustedTarget = 0.0,
         public float $captureRatio = 0.0,
+        public float $marketCapture = 0.0,
+        public float $capitalEfficiency = 0.0,
+        public float $medianOosReturn = 0.0,
+        public float $medianOosSharpe = 0.0,
+        public float $medianOosMaxDd = 0.0,
     ) {}
 }

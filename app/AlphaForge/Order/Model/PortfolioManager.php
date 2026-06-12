@@ -251,12 +251,10 @@ final class PortfolioManager
         );
 
         // Update cash balance
-        if ($position->direction === 'long') {
-            $this->cashBalance = bcadd($this->cashBalance, bcsub($exitValue, $exitCommission, 12), 12);
-        } else {
-            // For shorts, add the profit/loss
-            $this->cashBalance = bcadd($this->cashBalance, bcsub($exitValue, $exitCommission, 12), 12);
-        }
+        // costBasis is the cash debited on entry (stake amount).
+        // realizedPnl already net of all commissions.
+        // Adding both returns the original stake plus any trading profit/loss.
+        $this->cashBalance = bcadd($this->cashBalance, bcadd($position->costBasis, $realizedPnl, 12), 12);
 
         // Create closed position DTO
         $closedPosition = new PositionDto(

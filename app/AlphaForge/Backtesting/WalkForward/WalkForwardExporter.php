@@ -87,6 +87,9 @@ class WalkForwardExporter
             'sharpe_beat_benchmark_ratio' => $analysis->sharpeBeatBenchmarkRatio,
             'median_is_score' => $analysis->medianIsScore,
             'median_oos_score' => $analysis->medianOosScore,
+            'median_oos_return' => $analysis->medianOosReturn,
+            'median_oos_sharpe' => $analysis->medianOosSharpe,
+            'median_oos_max_dd' => $analysis->medianOosMaxDd,
             'avg_degradation' => $analysis->avgDegradation,
             'median_degradation' => $analysis->medianDegradation,
             'rank_correlation' => $analysis->rankCorrelation,
@@ -103,6 +106,8 @@ class WalkForwardExporter
             'time_in_market' => $analysis->timeInMarket,
             'exposure_adjusted_target' => $analysis->exposureAdjustedTarget,
             'capture_ratio' => $analysis->captureRatio,
+            'market_capture' => $analysis->marketCapture,
+            'capital_efficiency' => $analysis->capitalEfficiency,
             'results' => array_map(function ($r) {
                 return [
                     'rank' => $r->rank,

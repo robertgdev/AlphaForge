@@ -16,7 +16,19 @@ abstract class BaseSignalStrategy implements StrategyInterface
 {
     use DefaultExitRules;
 
+    #[Input(
+        description: 'Position size as percentage of capital',
+        min: 0.1,
+        max: 100.0,
+        step: 0.5
+    )]
     protected float $positionSizePercent = 1.0;
+
+    #[Input(
+        description: 'Sizing base: equity (current total equity) or initial (starting capital)',
+        choices: ['equity', 'initial']
+    )]
+    protected string $positionSizingMethod = 'equity';
 
     protected float $initialCapital = 10000.0;
 
@@ -71,10 +83,6 @@ abstract class BaseSignalStrategy implements StrategyInterface
             $property->setAccessible(true);
             $property->setValue($this, $value);
         }
-
-        if (isset($inputs['positionSizePercent'])) {
-            $this->positionSizePercent = (float) $inputs['positionSizePercent'];
-        }
     }
 
     public function initialize(InitializeData $data): void
@@ -116,7 +124,10 @@ abstract class BaseSignalStrategy implements StrategyInterface
         if (($this->entrySignals[$currentIndex] ?? false) && $openPosition === null) {
             $stopLoss = $this->calculateStopLoss($currentPrice, $currentIndex);
             $takeProfit = $this->calculateTakeProfit($currentPrice, $currentIndex);
-            $positionSize = OrderCalculator::positionSize($this->initialCapital, $this->positionSizePercent);
+            $capital = $this->positionSizingMethod === 'equity'
+                ? (float) $data->portfolio->getTotalEquity([$data->symbol => $currentPrice])
+                : $this->initialCapital;
+            $positionSize = OrderCalculator::positionSize($capital, $this->positionSizePercent);
 
             $signals[] = OrderCalculator::entryOrder(
                 symbol: $data->symbol,

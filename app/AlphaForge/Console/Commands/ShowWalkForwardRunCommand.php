@@ -137,9 +137,11 @@ class ShowWalkForwardRunCommand extends Command
 
         $this->newLine();
         $this->line('  Robust parameters:');
-        $this->line('    Positive OOS return:       '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
         if ($analysis->benchmarkHasData) {
             $this->line('    Beat buy-and-hold:         '.$analysis->beatBuyHoldCount.'/'.count($analysis->results).' ('.number_format($analysis->beatBuyHoldRatio * 100, 1).'%)');
+        }
+        $this->line('    Positive OOS return:       '.$analysis->robustCount.'/'.count($analysis->results).' ('.number_format($analysis->robustRatio * 100, 1).'%)');
+        if ($analysis->benchmarkHasData) {
             $this->line('    Sharpe > benchmark:        '.$analysis->sharpeBeatBenchmarkCount.'/'.count($analysis->results).' ('.number_format($analysis->sharpeBeatBenchmarkRatio * 100, 1).'%)');
         }
         $this->line('    Return > 10%:              '.$analysis->returnGt10Count.'/'.count($analysis->results).' ('.number_format($analysis->returnGt10Ratio * 100, 1).'%)');
@@ -150,6 +152,9 @@ class ShowWalkForwardRunCommand extends Command
 
         $this->line('  Median IS score: '.number_format($analysis->medianIsScore, 2));
         $this->line('  Median OOS score: '.number_format($analysis->medianOosScore, 2));
+        $this->line('  Median OOS return: '.($analysis->medianOosReturn >= 0 ? '+' : '').number_format($analysis->medianOosReturn, 2).'%');
+        $this->line('  Median OOS Sharpe: '.number_format($analysis->medianOosSharpe, 2));
+        $this->line('  Median OOS max DD: '.number_format($analysis->medianOosMaxDd, 2).'%');
 
         $medianText = $analysis->medianDegradation < 0
             ? '↑ +'.number_format(abs($analysis->medianDegradation), 1).'%'
@@ -178,7 +183,7 @@ class ShowWalkForwardRunCommand extends Command
                 ? number_format(abs((float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0)), 2)
                 : 'N/A';
             $this->newLine();
-            $this->line("  <fg=yellow>⚠ High Sharpe ({$sr}) with negligible absolute return ({$rcp}%) may reflect low exposure rather than exceptional risk-adjusted performance.</>");
+            $this->line("  <fg=yellow>⚠ High Sharpe is driven primarily by extremely low volatility, not by strong absolute returns. Sharpe {$sr} with only {$rcp}% return suggests the strategy is mostly in cash, producing a deceptively attractive risk-adjusted metric.</>");
         }
 
         if (! empty($analysis->boundaryWarnings)) {
@@ -214,15 +219,56 @@ class ShowWalkForwardRunCommand extends Command
             $bhSharpe = number_format($analysis->benchmarkSharpe, 2);
             $this->line('  '.str_pad('Sharpe', 20).str_pad($stSharpe, 18).$bhSharpe);
 
+            if ($analysis->benchmarkReturn != 0) {
+                $stRetVal = $analysis->bestOosResult
+                    ? (float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0)
+                    : 0.0;
+                $bhRetVal = $analysis->benchmarkReturn;
+                $this->line(str_repeat('─', 60));
+                $this->line('  <fg=yellow>Market Capture</>');
+                $this->line('  '.str_repeat('─', 60));
+                $this->line('  '.str_pad('Buy & Hold return', 20).str_pad(($bhRetVal >= 0 ? '+' : '').number_format($bhRetVal, 2).'%', 18).'');
+                $this->line('  '.str_pad('Strategy return', 20).str_pad(($stRetVal >= 0 ? '+' : '').number_format($stRetVal, 2).'%', 18).'');
+                $this->line('  '.str_pad('Upside captured', 20).str_pad(number_format($analysis->marketCapture, 1).'% of buy-and-hold', 18).'');
+                if ($analysis->timeInMarket > 0) {
+                    $this->line('  '.str_pad('Time invested', 20).str_pad(number_format($analysis->timeInMarket, 1).'%', 18).'');
+                    $effRating = match (true) {
+                        $analysis->marketCapture > 75 => 'HIGH',
+                        $analysis->marketCapture > 40 => 'MODERATE',
+                        $analysis->marketCapture > 15 => 'LOW',
+                        default => 'VERY LOW',
+                    };
+                    $this->line('  '.str_pad('Efficiency rating', 20).str_pad($effRating, 18).'');
+                }
+            }
+
             if ($analysis->timeInMarket > 0) {
                 $this->line(str_repeat('─', 60));
                 $this->line('  '.str_pad('Time in Market', 20).str_pad(number_format($analysis->timeInMarket, 2).'%', 18).'');
                 $this->line('  '.str_pad('Exposure-adj Target', 20).str_pad(number_format($analysis->exposureAdjustedTarget, 2).'%', 18).'');
                 $this->line('  '.str_pad('Capture Ratio', 20).str_pad(number_format($analysis->captureRatio, 1).'%', 18).'');
+                $captureRatio = $analysis->captureRatio;
+                $stRet = (float) ($analysis->bestOosResult->oos_statistics['total_return_percent'] ?? 0);
+                if ($captureRatio > 50) {
+                    $effLabel = 'HIGH';
+                    $effDesc = 'Captured '.number_format($captureRatio, 0).'% of buy-and-hold performance using '.number_format($analysis->timeInMarket, 1).'% market exposure.';
+                } elseif ($captureRatio > 20) {
+                    $effLabel = 'MODERATE';
+                    $effDesc = 'Captured '.number_format($captureRatio, 0).'% of buy-and-hold performance using '.number_format($analysis->timeInMarket, 1).'% market exposure.';
+                } else {
+                    $effLabel = 'LOW';
+                    $effDesc = 'Spent '.number_format($analysis->timeInMarket, 1).'% of the test invested while capturing only '.number_format($stRet, 2).'% of buy-and-hold performance ('.number_format($analysis->benchmarkReturn, 2).'%).';
+                }
+                $this->line('  '.str_pad('Capital Efficiency', 20).str_pad($effLabel, 18).$effDesc);
             }
         }
 
         $this->newLine();
+
+        $grade = \App\AlphaForge\Backtesting\WalkForward\StrategyGrader::grade($analysis);
+        $this->line('<fg=yellow>Final Score: '.$grade['stars'].' '.$grade['label'].'</>');
+        $this->line('  ('.number_format($grade['score'], 1).'/100)');
+        $this->line('  Economic: '.number_format($grade['breakdown']['economic'], 0).'% · Robustness: '.number_format($grade['breakdown']['robustness'], 0).'% · Risk: '.number_format($grade['breakdown']['risk'], 0).'% · Optimization: '.number_format($grade['breakdown']['optimization'], 0).'%');
     }
 
     private function displayTopResults(WalkForwardAnalysis $analysis, int $topCount): void
