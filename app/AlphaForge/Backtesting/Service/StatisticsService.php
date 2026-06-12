@@ -167,13 +167,15 @@ readonly class StatisticsService implements StatisticsServiceInterface
     /**
      * Calculate period returns from equity curve.
      *
-     * Skips periods where equity stayed the same (no open position) —
-     * these flat bars contribute no signal and would dilute the mean
-     * return to near zero, producing misleadingly negative Sharpe/Sortino
-     * on strategies with low market exposure.
+     * Returns include every bar — including flat bars where equity is unchanged
+     * (strategy is out of the market). This ensures Sharpe/Sortino reflect the
+     * strategy's true capital efficiency: idle periods produce zero returns and
+     * dilute the mean, producing honest risk-adjusted metrics instead of inflated
+     * ratios that conceal inactivity. Use `idle_capital_percent` to inspect
+     * market exposure separately.
      *
      * @param  Vector<string>  $equityCurve
-     * @return Vector<string> Non-zero period returns
+     * @return Vector<string> Period returns (one per bar transition, may include zeros)
      */
     private function calculateReturns(Vector $equityCurve): Vector
     {
@@ -184,10 +186,6 @@ readonly class StatisticsService implements StatisticsServiceInterface
             $currEquity = $equityCurve->get($i);
 
             if (bccomp($prevEquity, '0', 12) === 0) {
-                continue;
-            }
-
-            if (bccomp($prevEquity, $currEquity, 12) === 0) {
                 continue;
             }
 
