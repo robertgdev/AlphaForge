@@ -207,5 +207,119 @@ describe('StrategyGrader', function () {
             expect($grade['stars'])->toBe('★☆☆☆☆')
                 ->and($grade['label'])->toBe('(1/5) Poor; likely unusable');
         });
+
+        it('includes per-category stars in stars_by_category', function () {
+            $analysis = makeAnalysisForGrading(
+                medianOosReturn: 15.0,
+                benchmarkReturn: 20.0,
+                beatBuyHoldCount: 3,
+                captureRatio: 60.0,
+                robustRatio: 0.9,
+                rankCorrelation: 0.9,
+                stabilityClassification: 'excellent',
+                medianOosMaxDd: 5.0,
+                medianOosSharpe: 1.5,
+                benchmarkSharpe: 1.0,
+                medianDegradation: 5.0,
+                boundaryWarnings: [],
+            );
+
+            $grade = StrategyGrader::grade($analysis);
+
+            expect($grade)->toHaveKey('stars_by_category')
+                ->and($grade['stars_by_category'])->toHaveKey('economic')
+                ->and($grade['stars_by_category'])->toHaveKey('robustness')
+                ->and($grade['stars_by_category'])->toHaveKey('risk')
+                ->and($grade['stars_by_category'])->toHaveKey('optimization');
+        });
+    });
+
+    describe('robustness floor', function () {
+        it('caps overall at 2 stars when robustness is weak (< 20)', function () {
+            $analysis = makeAnalysisForGrading(
+                medianOosReturn: 15.0,
+                benchmarkReturn: 20.0,
+                beatBuyHoldCount: 3,
+                captureRatio: 60.0,
+                robustRatio: 0.05,
+                rankCorrelation: 0.1,
+                stabilityClassification: 'likely_overfit',
+                medianOosMaxDd: 5.0,
+                medianOosSharpe: 1.5,
+                benchmarkSharpe: 1.0,
+                medianDegradation: 5.0,
+                boundaryWarnings: [],
+            );
+
+            $grade = StrategyGrader::grade($analysis);
+
+            expect($grade['score'])->toBeLessThanOrEqual(19.0)
+                ->and($grade['stars'])->toBe('★☆☆☆☆');
+        });
+
+        it('caps overall at 2 stars when robustness is moderate (< 40)', function () {
+            $analysis = makeAnalysisForGrading(
+                medianOosReturn: 15.0,
+                benchmarkReturn: 20.0,
+                beatBuyHoldCount: 3,
+                captureRatio: 60.0,
+                robustRatio: 0.25,
+                rankCorrelation: 0.25,
+                stabilityClassification: 'weak',
+                medianOosMaxDd: 5.0,
+                medianOosSharpe: 1.5,
+                benchmarkSharpe: 1.0,
+                medianDegradation: 5.0,
+                boundaryWarnings: [],
+            );
+
+            $grade = StrategyGrader::grade($analysis);
+
+            expect($grade['score'])->toBeLessThanOrEqual(39.0)
+                ->and(in_array($grade['stars'], ['★☆☆☆☆', '★★☆☆☆'], true))->toBeTrue();
+        });
+
+        it('caps overall at 3 stars when robustness is below 60', function () {
+            $analysis = makeAnalysisForGrading(
+                medianOosReturn: 15.0,
+                benchmarkReturn: 20.0,
+                beatBuyHoldCount: 3,
+                captureRatio: 60.0,
+                robustRatio: 0.45,
+                rankCorrelation: 0.45,
+                stabilityClassification: 'moderate',
+                medianOosMaxDd: 5.0,
+                medianOosSharpe: 1.5,
+                benchmarkSharpe: 1.0,
+                medianDegradation: 5.0,
+                boundaryWarnings: [],
+            );
+
+            $grade = StrategyGrader::grade($analysis);
+
+            expect($grade['score'])->toBeLessThanOrEqual(59.0)
+                ->and(in_array($grade['stars'], ['★☆☆☆☆', '★★☆☆☆', '★★★☆☆'], true))->toBeTrue();
+        });
+
+        it('caps overall at 4 stars when robustness is below 80', function () {
+            $analysis = makeAnalysisForGrading(
+                medianOosReturn: 15.0,
+                benchmarkReturn: 20.0,
+                beatBuyHoldCount: 3,
+                captureRatio: 60.0,
+                robustRatio: 0.65,
+                rankCorrelation: 0.65,
+                stabilityClassification: 'good',
+                medianOosMaxDd: 5.0,
+                medianOosSharpe: 1.5,
+                benchmarkSharpe: 1.0,
+                medianDegradation: 5.0,
+                boundaryWarnings: [],
+            );
+
+            $grade = StrategyGrader::grade($analysis);
+
+            expect($grade['score'])->toBeLessThanOrEqual(79.0);
+        });
     });
 });
