@@ -493,7 +493,7 @@ php artisan alphaforge:strategies:list
 | `Description` | Strategy description from the `#[AsStrategy]` attribute |
 | `Timeframe` | Default signal timeframe (used when `--timeframe` is not specified) |
 | `Required Data` | Timeframes the strategy needs for multi-timeframe analysis |
-| `Inputs` | Number of configurable `#[Input]` parameters (excluding fixed inputs like `positionSizePercent`) |
+| `Inputs` | Number of configurable `#[Input]` parameters |
 
 The command uses `StrategyRegistry` auto-discovery, which finds any class implementing `StrategyInterface` with an `#[AsStrategy]` attribute. Strategies are registered automatically — no manual wiring required.
 
@@ -621,11 +621,12 @@ php artisan alphaforge:optimize breakout BTCUSDT --use-strategy-ranges \
 
 All built-in strategies share these common parameters:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `stopLossPercent` | float | Percentage below entry price for stop-loss (e.g., `3.0` = 3% stop). Calculated as `entryPrice × (1 − stopLossPercent/100)`. |
-| `takeProfitPercent` | float | Percentage above entry price for take-profit (e.g., `6.0` = 6% target). Calculated as `entryPrice × (1 + takeProfitPercent/100)`. |
-| `positionSizePercent` | float | Percentage of initial capital to risk per trade (default: `1.0`). Not exposed as an `#[Input]` — set via `--inputs='{"positionSizePercent":2.0}'` in the CLI. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `stopLossPercent` | float | varies | Percentage below entry price for stop-loss (e.g., `3.0` = 3% stop). Calculated as `entryPrice × (1 − stopLossPercent/100)`. |
+| `takeProfitPercent` | float | varies | Percentage above entry price for take-profit (e.g., `6.0` = 6% target). Calculated as `entryPrice × (1 + takeProfitPercent/100)`. |
+| `positionSizePercent` | float | `1.0` | Percentage of capital to allocate per trade (e.g., `2.0` = 2%). Exposed as `#[Input]` with range 0.1–100.0, step 0.5. |
+| `positionSizingMethod` | string | `equity` | Sizing base: `equity` uses current total equity (dynamic, grows/shrinks with account), `initial` uses starting capital (fixed). Exposed as `#[Input]` with choices `['equity', 'initial']`. |
 
 Each strategy defines its own `#[Input]` attributes with `min`, `max`, and `step` values. These ranges are used by `alphaforge:optimize` when `--use-strategy-ranges` is specified, and by `alphaforge:walk-forward` for parameter space generation.
 
