@@ -4,13 +4,16 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class OptimizationResultCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:optimizations:result
         {backtest_id : The backtest run ID within an optimization}
-        {--show-positions : Include positions in output}';
+        {--show-positions : Include positions in output}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show a specific backtest result from an optimization';
 
@@ -22,6 +25,8 @@ class OptimizationResultCommand extends Command
 
         if (! $backtestRun) {
             $this->error("Backtest run not found: $backtestId");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -71,6 +76,8 @@ class OptimizationResultCommand extends Command
         } elseif ($backtestRun->hasFailed()) {
             $this->line("<fg=red>Error:</> {$backtestRun->error_message}");
         }
+
+        $this->debugMemory();
 
         return 0;
     }

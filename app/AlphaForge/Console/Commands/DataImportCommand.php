@@ -4,6 +4,7 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\DateParsingService;
 use App\AlphaForge\Console\Concerns\HandlesDownloadProgress;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
@@ -18,6 +19,7 @@ class DataImportCommand extends Command
 {
     use HandlesDownloadProgress;
     use ParsesMarketDataArgs;
+    use DebugMemory;
 
     protected $signature = 'alphaforge:data:import
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -25,7 +27,8 @@ class DataImportCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {startdate : The start date for data import (Y-m-d or Y-m-d H:i:s)}
         {enddate? : The end date for data import (Y-m-d or Y-m-d H:i:s, defaults to now)}
-        {--force : Force overwrite existing data}';
+        {--force : Force overwrite existing data}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Import market data from an exchange';
 

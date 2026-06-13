@@ -7,6 +7,7 @@ use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\DataInspectionService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\error;
@@ -16,11 +17,13 @@ use function Laravel\Prompts\warning;
 class DataInfoCommand extends Command
 {
     use ParsesMarketDataArgs;
+    use DebugMemory;
 
     protected $signature = 'alphaforge:data:info
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
-        {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}';
+        {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Display information about a market data file';
 

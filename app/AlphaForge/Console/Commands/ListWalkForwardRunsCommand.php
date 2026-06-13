@@ -3,14 +3,17 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class ListWalkForwardRunsCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:walk-forward:list
         {--strategy= : Filter by strategy alias}
         {--status= : Filter by status (pending, optimizing, forward_testing, completed, failed)}
-        {--limit=20 : Number of results to show}';
+        {--limit=20 : Number of results to show}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List past walk-forward runs';
 
@@ -31,6 +34,8 @@ class ListWalkForwardRunsCommand extends Command
         if ($runs->isEmpty()) {
             $this->info('No walk-forward runs found.');
 
+            $this->debugMemory();
+
             return 0;
         }
 
@@ -48,6 +53,8 @@ class ListWalkForwardRunsCommand extends Command
                 $run->created_at->format('Y-m-d H:i'),
             ])
         );
+
+        $this->debugMemory();
 
         return 0;
     }

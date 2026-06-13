@@ -5,6 +5,7 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Common\Service\FormattingService;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\info;
@@ -13,9 +14,11 @@ use function Laravel\Prompts\warning;
 
 class DataListCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:data:list
         {--exchange-filter= : Filter by exchange}
-        {--symbol-filter= : Filter by symbol}';
+        {--symbol-filter= : Filter by symbol}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List all available market data files';
 

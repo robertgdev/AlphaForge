@@ -4,17 +4,20 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\MonteCarlo\MonteCarloReport;
 use App\AlphaForge\Backtesting\MonteCarlo\MonteCarloService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Safe\json_encode;
 
 class MonteCarloCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:monte-carlo
         {backtest_id : The backtest run ID to analyze}
         {--iterations=1000 : Number of bootstrap iterations}
         {--seed= : Random seed for reproducible results}
-        {--json : Output results as JSON}';
+        {--json : Output results as JSON}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run Monte Carlo bootstrap analysis on backtest trade outcomes';
 
@@ -30,6 +33,8 @@ class MonteCarloCommand extends Command
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             $this->error($e->getMessage());
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -37,6 +42,8 @@ class MonteCarloCommand extends Command
 
         if ($asJson) {
             $this->renderJson($report);
+
+            $this->debugMemory();
 
             return 0;
         }
@@ -61,6 +68,8 @@ class MonteCarloCommand extends Command
             $this->line('  Monte Carlo requires at least one closed trade. Run a backtest with trades first.');
             $this->newLine();
 
+            $this->debugMemory();
+
             return 0;
         }
 
@@ -69,6 +78,8 @@ class MonteCarloCommand extends Command
         $this->renderRiskAssessment($report);
 
         $this->renderInterpretation($report);
+
+        $this->debugMemory();
 
         return 0;
     }

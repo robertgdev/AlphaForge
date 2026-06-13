@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\RenkoConverter;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 
 class RenkoCommand extends Command
 {
+    use DebugMemory;
     use HasProgressBar;
     use ParsesMarketDataArgs;
 
@@ -29,7 +31,8 @@ class RenkoCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {brick_size : The brick size for Renko conversion (e.g., 0.001, 10, 100)}
         {--force : Force overwrite existing Renko file}
-        {--update : Incrementally update the Renko file by appending new converted data}';
+        {--update : Incrementally update the Renko file by appending new converted data}
+        {--debug : Show peak memory usage on exit}';
 
     /**
      * The console command description.
@@ -50,12 +53,16 @@ class RenkoCommand extends Command
         if ($update && $force) {
             error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
 
+            $this->debugMemory();
+
             return self::FAILURE;
         }
 
         // Validate brick size
         if ($brickSize <= 0) {
             error('Brick size must be a positive number.');
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -69,6 +76,8 @@ class RenkoCommand extends Command
                 'Expected Path',
                 "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
             );
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -88,6 +97,8 @@ class RenkoCommand extends Command
 
             if (! $confirmed) {
                 warning('Operation cancelled.');
+
+                $this->debugMemory();
 
                 return self::SUCCESS;
             }
@@ -135,6 +146,8 @@ class RenkoCommand extends Command
                 $renkoPath = $converter->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
                 $this->components->twoColumnDetail('File Path', $renkoPath);
 
+                $this->debugMemory();
+
                 return self::SUCCESS;
             }
 
@@ -158,15 +171,21 @@ class RenkoCommand extends Command
             $this->components->twoColumnDetail('Renko Bricks Generated', number_format($renkoHeader['numRecords']));
             $this->components->twoColumnDetail('Brick Size', (string) $renkoHeader['brickSize']);
 
+            $this->debugMemory();
+
             return self::SUCCESS;
         } catch (StorageException $e) {
             $this->finishProgressBarOnError();
             error("Conversion failed: {$e->getMessage()}");
 
+            $this->debugMemory();
+
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->finishProgressBarOnError();
             error("Unexpected error: {$e->getMessage()}");
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }

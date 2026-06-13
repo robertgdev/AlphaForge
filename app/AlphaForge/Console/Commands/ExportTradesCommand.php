@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\BacktestRun;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Safe\file_put_contents;
@@ -10,10 +11,12 @@ use function Safe\json_encode;
 
 class ExportTradesCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:export:backtest
         {backtest_id : The backtest run ID}
         {--format=csv : Output format (csv, json)}
-        {--output= : Output file path (stdout if omitted)}';
+        {--output= : Output file path (stdout if omitted)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export per-trade details from a completed backtest';
 
@@ -25,12 +28,14 @@ class ExportTradesCommand extends Command
         if (! $run) {
             $this->error("Backtest run not found: {$backtestId}");
 
+            $this->debugMemory();
             return 1;
         }
 
         if (! $run->isCompleted()) {
             $this->error("Backtest run is not completed. Status: {$run->status}");
 
+            $this->debugMemory();
             return 1;
         }
 
@@ -40,6 +45,7 @@ class ExportTradesCommand extends Command
             $this->warn('No trade data found for this backtest run.');
             $this->line('  Trade data is captured for backtests run after the position_trades feature was added.');
 
+            $this->debugMemory();
             return 1;
         }
 
@@ -61,6 +67,7 @@ class ExportTradesCommand extends Command
             $this->line($output);
         }
 
+        $this->debugMemory();
         return 0;
     }
 

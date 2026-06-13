@@ -6,6 +6,7 @@ use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Data\Exception\StorageException;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\confirm;
@@ -17,6 +18,7 @@ class AtrRenkoCommand extends Command
 {
     use HasProgressBar;
     use ParsesMarketDataArgs;
+    use DebugMemory;
 
     /**
      * The name and signature of the console command.
@@ -29,7 +31,8 @@ class AtrRenkoCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {atr_period : The ATR period for dynamic brick sizing (e.g., 14)}
         {--force : Force overwrite existing ATR-Renko file}
-        {--update : Incrementally update the ATR-Renko file by appending new converted data}';
+        {--update : Incrementally update the ATR-Renko file by appending new converted data}
+        {--debug : Show peak memory usage on exit}';
 
     /**
      * The console command description.
@@ -50,6 +53,7 @@ class AtrRenkoCommand extends Command
         if ($update && $force) {
             error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -57,6 +61,7 @@ class AtrRenkoCommand extends Command
         if ($atrPeriod < 2) {
             error('ATR period must be an integer of at least 2.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -70,6 +75,7 @@ class AtrRenkoCommand extends Command
                 "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
             );
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -89,6 +95,7 @@ class AtrRenkoCommand extends Command
             if (! $confirmed) {
                 warning('Operation cancelled.');
 
+                $this->debugMemory();
                 return self::SUCCESS;
             }
         }
@@ -135,6 +142,7 @@ class AtrRenkoCommand extends Command
                 $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
                 $this->components->twoColumnDetail('File Path', $atrRenkoPath);
 
+                $this->debugMemory();
                 return self::SUCCESS;
             }
 
@@ -158,16 +166,19 @@ class AtrRenkoCommand extends Command
             $this->components->twoColumnDetail('Renko Bricks Generated', number_format($atrRenkoHeader['numRecords']));
             $this->components->twoColumnDetail('ATR Period', (string) (int) $atrRenkoHeader['brickSize']);
 
+            $this->debugMemory();
             return self::SUCCESS;
         } catch (StorageException $e) {
             $this->finishProgressBarOnError();
             error("Conversion failed: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->finishProgressBarOnError();
             error("Unexpected error: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
     }

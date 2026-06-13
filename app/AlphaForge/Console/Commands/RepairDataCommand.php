@@ -7,14 +7,18 @@ use App\AlphaForge\Data\Service\DataRepairService;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\info;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Laravel\Prompts\warning;
 
 class RepairDataCommand extends Command
 {
+    use DebugMemory;
+
     protected $signature = 'alphaforge:data:repair
         {--dry-run : Show what would be fixed without making changes}
         {--exchange-filter= : Filter by exchange (e.g., binance)}
-        {--symbol-filter= : Filter by symbol (e.g., BTCUSDT)}';
+        {--symbol-filter= : Filter by symbol (e.g., BTCUSDT)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Repair corrupted market data files by fixing header record counts';
 
@@ -35,6 +39,8 @@ class RepairDataCommand extends Command
 
         if (empty($manifest)) {
             info('No market data files found to repair.');
+
+            $this->debugMemory();
 
             return self::SUCCESS;
         }
@@ -93,6 +99,8 @@ class RepairDataCommand extends Command
             $this->newLine();
             warning('Consider re-running with --dry-run first to preview changes.');
         }
+
+        $this->debugMemory();
 
         return self::SUCCESS;
     }

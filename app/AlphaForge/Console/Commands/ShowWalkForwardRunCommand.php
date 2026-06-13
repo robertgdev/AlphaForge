@@ -9,15 +9,19 @@ use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use Illuminate\Console\Command;
 
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\file_put_contents;
 
 class ShowWalkForwardRunCommand extends Command
 {
+    use DebugMemory;
+
     protected $signature = 'alphaforge:walk-forward:show
         {run_id : The walk-forward run ID}
         {--top=20 : Number of top results to display}
         {--format=table : Output format (table, csv, json)}
-        {--output= : Write output to file instead of stdout}';
+        {--output= : Write output to file instead of stdout}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed walk-forward run results';
 
@@ -31,6 +35,8 @@ class ShowWalkForwardRunCommand extends Command
         if (! in_array($format, ['table', 'csv', 'json'])) {
             $this->error("Invalid format: $format. Use: table, csv, json");
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -38,6 +44,8 @@ class ShowWalkForwardRunCommand extends Command
 
         if (! $wfRun) {
             $this->error("Walk-forward run not found: $runId");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -48,12 +56,16 @@ class ShowWalkForwardRunCommand extends Command
             $csv = $exporter->toCsv($analysis);
             $this->outputResult($csv, $outputPath);
 
+            $this->debugMemory();
+
             return 0;
         }
 
         if ($format === 'json') {
             $json = $exporter->toJson($analysis);
             $this->outputResult($json, $outputPath);
+
+            $this->debugMemory();
 
             return 0;
         }
@@ -65,6 +77,8 @@ class ShowWalkForwardRunCommand extends Command
         if ($analysis->bestOosResult) {
             $this->displayBestOosDetail($analysis, $formatter);
         }
+
+        $this->debugMemory();
 
         return 0;
     }

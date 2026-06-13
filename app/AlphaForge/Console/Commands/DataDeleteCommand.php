@@ -5,6 +5,7 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Common\Service\FormattingService;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\confirm;
@@ -17,12 +18,14 @@ use function Safe\filesize;
 class DataDeleteCommand extends Command
 {
     use ParsesMarketDataArgs;
+    use DebugMemory;
 
     protected $signature = 'alphaforge:data:delete
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
-        {--force : Skip confirmation prompt}';
+        {--force : Skip confirmation prompt}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Delete a market data file';
 
@@ -41,6 +44,7 @@ class DataDeleteCommand extends Command
             warning("No market data file found for {$exchange}/{$market}/{$timeframe}");
             $this->components->twoColumnDetail('Expected Path', $filePath);
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -65,6 +69,7 @@ class DataDeleteCommand extends Command
             if (! $confirmed) {
                 warning('Delete operation cancelled.');
 
+                $this->debugMemory();
                 return self::SUCCESS;
             }
         }
@@ -75,6 +80,7 @@ class DataDeleteCommand extends Command
             if (! $result['deleted']) {
                 error("Failed to delete file: {$filePath}");
 
+                $this->debugMemory();
                 return self::FAILURE;
             }
 
@@ -85,10 +91,12 @@ class DataDeleteCommand extends Command
                 $this->line("  Removed empty directory: {$removedDir}", 'comment');
             }
 
+            $this->debugMemory();
             return self::SUCCESS;
         } catch (\Throwable $e) {
             error("Error deleting file: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
     }

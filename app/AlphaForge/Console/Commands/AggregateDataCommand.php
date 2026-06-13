@@ -6,6 +6,7 @@ use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Services\AggregateDataService;
 use App\AlphaForge\Services\MarketDataFileService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\error;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 class AggregateDataCommand extends Command
 {
     use ParsesMarketDataArgs;
+    use DebugMemory;
 
     protected $signature = 'alphaforge:data:aggregate
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -22,7 +24,8 @@ class AggregateDataCommand extends Command
         {source_timeframe : The source timeframe to aggregate from (e.g., 1m, 5m, 15m)}
         {target_timeframe : The target timeframe to aggregate to (e.g., 1h, 4h, 1d)}
         {--force : Force overwrite if target file already exists}
-        {--update : Incrementally update the target file by appending new aggregated data}';
+        {--update : Incrementally update the target file by appending new aggregated data}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Aggregate OHLCV data from a lower timeframe to a higher timeframe';
 
@@ -41,6 +44,7 @@ class AggregateDataCommand extends Command
         if ($sourceTimeframe === null) {
             error("Invalid source timeframe '{$sourceTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -48,12 +52,14 @@ class AggregateDataCommand extends Command
         if ($targetTimeframe === null) {
             error("Invalid target timeframe '{$targetTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
         if ($sourceTimeframe->toSeconds() >= $targetTimeframe->toSeconds()) {
             error('Target timeframe must be higher (larger) than source timeframe.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -61,6 +67,7 @@ class AggregateDataCommand extends Command
         if ($ratio != (int) $ratio) {
             error("Cannot aggregate from {$sourceTimeframeValue} to {$targetTimeframeValue}. Ratio must be a whole number.");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -72,12 +79,14 @@ class AggregateDataCommand extends Command
             $this->line('Use the import action to download market data:');
             $this->line("  php artisan alphaforge:data:import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
         if ($update && $force) {
             error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -85,6 +94,7 @@ class AggregateDataCommand extends Command
             warning("Target file already exists: {$targetPath}");
             $this->line('Use --force to overwrite, or --update to append new data.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -112,6 +122,7 @@ class AggregateDataCommand extends Command
                     $this->newLine();
                     warning('No new data to aggregate. Target file is already up to date.');
 
+                    $this->debugMemory();
                     return self::SUCCESS;
                 }
             } else {
@@ -132,11 +143,13 @@ class AggregateDataCommand extends Command
             $this->components->twoColumnDetail('Records Aggregated', number_format($aggregatedCount));
             $this->components->twoColumnDetail('Output File', $targetPath);
 
+            $this->debugMemory();
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
             error('Aggregation failed: '.$e->getMessage());
 
+            $this->debugMemory();
             return self::FAILURE;
         }
     }

@@ -6,10 +6,12 @@ use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Optimization\MultiSymbolOptimizer;
 use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class PortfolioOptimizeCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:optimize:portfolio
         {strategy : Strategy alias (e.g. sma_crossover)}
         {symbols* : One or more symbols (e.g. BTCUSDT ETHUSDT SOLUSDT)}
@@ -25,7 +27,12 @@ class PortfolioOptimizeCommand extends Command
         {--end-date= : End date (YYYY-MM-DD)}
         {--top-n=10 : Number of top results to keep}
         {--use-strategy-ranges : Use strategy-defined parameter ranges}
-        {--min-trades=1 : Minimum trades per symbol required}';
+        {--sizing-model=percent_of_equity : Position sizing model (percent_of_equity, risk_based, fixed_dollar, kelly, atr_volatility)}
+        {--risk-per-trade=1.0 : Percentage of equity risked per trade (for risk_based model)}
+        {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
+        {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
+        {--min-trades=1 : Minimum trades per symbol required}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run portfolio-level optimization across multiple symbols';
 
@@ -37,6 +44,8 @@ class PortfolioOptimizeCommand extends Command
         if (count($symbols) < 2) {
             $this->error('Portfolio optimization requires at least 2 symbols. For single-symbol use: alphaforge:optimize');
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -44,6 +53,8 @@ class PortfolioOptimizeCommand extends Command
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
         if (! $timeframe) {
             $this->error("Invalid timeframe: $timeframeValue");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -55,11 +66,15 @@ class PortfolioOptimizeCommand extends Command
             if (! $executionTimeframe) {
                 $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
+                $this->debugMemory();
+
                 return 1;
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
                 $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                $this->debugMemory();
 
                 return 1;
             }
@@ -96,6 +111,8 @@ class PortfolioOptimizeCommand extends Command
             $this->error('Optimization failed: '.($run->error_message ?? 'unknown error'));
         }
 
+        $this->debugMemory();
+
         return 0;
     }
 
@@ -126,6 +143,15 @@ class PortfolioOptimizeCommand extends Command
         }
         if ($executionTimeframe !== null) {
             $data['execution_timeframe'] = $executionTimeframe;
+        }
+
+        $data['sizing_model'] = $this->option('sizing-model');
+        $data['sizing_config'] = [
+            'riskPerTrade' => (float) $this->option('risk-per-trade'),
+            'maxLeverage' => (float) $this->option('max-leverage'),
+        ];
+        if ($this->option('fixed-stake') !== null) {
+            $data['sizing_config']['fixedStake'] = $this->option('fixed-stake');
         }
 
         return OptimizationConfig::fromArray($data);

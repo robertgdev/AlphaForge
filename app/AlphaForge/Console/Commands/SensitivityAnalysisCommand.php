@@ -5,15 +5,19 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Optimization\Sensitivity\ParameterSensitivityService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class SensitivityAnalysisCommand extends Command
 {
+    use DebugMemory;
+
     protected $signature = 'alphaforge:optimizations:sensitivity
         {optimization_id : The optimization run ID}
         {--metric=optimization_score : Metric to analyze}
         {--surface= : Comma-separated pair of parameters for 2D heatmap (e.g. fastPeriod,slowPeriod)}
-        {--interactions : Show inter-parameter interaction effects}';
+        {--interactions : Show inter-parameter interaction effects}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Analyze parameter sensitivity from an optimization run';
 
@@ -26,11 +30,15 @@ class SensitivityAnalysisCommand extends Command
         if (! $optimizationRun) {
             $this->error("Optimization run not found: $optimizationId");
 
+            $this->debugMemory();
+
             return 1;
         }
 
         if (! $optimizationRun->isCompleted()) {
             $this->error('Optimization run is not completed. Status: '.$optimizationRun->status);
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -55,6 +63,8 @@ class SensitivityAnalysisCommand extends Command
             $this->error('No completed backtest results found for this optimization.');
             $this->line('  The optimization must have at least one completed result to analyze.');
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -67,6 +77,8 @@ class SensitivityAnalysisCommand extends Command
             if (count($parts) !== 2) {
                 $this->error('--surface requires exactly 2 parameter names separated by comma.');
 
+                $this->debugMemory();
+
                 return 1;
             }
 
@@ -77,6 +89,8 @@ class SensitivityAnalysisCommand extends Command
         if ($this->option('interactions')) {
             $this->renderInteractions($service, $metric);
         }
+
+        $this->debugMemory();
 
         return 0;
     }

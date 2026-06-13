@@ -9,6 +9,7 @@ use App\AlphaForge\Backtesting\Optimization\OptimizationProgress;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
 use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
@@ -18,6 +19,7 @@ use Safe\DateTimeImmutable;
 
 class OptimizeStrategyCommand extends Command
 {
+    use DebugMemory;
     use ResolvesParallelRunner;
 
     protected $signature = 'alphaforge:optimize
@@ -46,7 +48,12 @@ class OptimizeStrategyCommand extends Command
         {--workers=auto : Number of parallel workers (auto = CPU core count)}
         {--resume= : Optimization ID to resume from checkpoint}
         {--checkpoint-interval=0 : Save checkpoint every N iterations (0=disabled)}
-        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}';
+        {--sizing-model=percent_of_equity : Position sizing model (percent_of_equity, risk_based, fixed_dollar, kelly, atr_volatility)}
+        {--risk-per-trade=1.0 : Percentage of equity risked per trade (for risk_based model)}
+        {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
+        {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
+        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run strategy parameter optimization';
 
@@ -80,6 +87,8 @@ class OptimizeStrategyCommand extends Command
         } catch (\InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -109,6 +118,8 @@ class OptimizeStrategyCommand extends Command
             }
 
             if (! empty($genResult['errors'])) {
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
 
@@ -121,6 +132,8 @@ class OptimizeStrategyCommand extends Command
         if (! $timeframe) {
             $this->error("Invalid timeframe: $timeframeValue");
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -130,11 +143,15 @@ class OptimizeStrategyCommand extends Command
             if (! $executionTimeframe) {
                 $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
+                $this->debugMemory();
+
                 return 1;
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
                 $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                $this->debugMemory();
 
                 return 1;
             }
@@ -143,6 +160,8 @@ class OptimizeStrategyCommand extends Command
         $method = OptimizationMethod::tryFrom($methodValue);
         if (! $method) {
             $this->error("Invalid method: $methodValue. Use: grid, random, genetic");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -157,6 +176,8 @@ class OptimizeStrategyCommand extends Command
             if (empty($parameterRanges)) {
                 $this->error("No parameter ranges found for strategy: $strategyAlias");
 
+                $this->debugMemory();
+
                 return 1;
             }
             $this->info('Using strategy-defined parameter ranges:');
@@ -168,6 +189,8 @@ class OptimizeStrategyCommand extends Command
             if ($parsed === false) {
                 $this->error('Invalid JSON for --params: '.json_last_error_msg());
 
+                $this->debugMemory();
+
                 return 1;
             }
             $parameterOverrides = $parsed;
@@ -175,6 +198,8 @@ class OptimizeStrategyCommand extends Command
             $this->error('Either --params or --use-strategy-ranges must be specified');
             $this->line("  --params='{\"fastPeriod\":{\"min\":5,\"max\":20,\"step\":5}}'");
             $this->line('  --use-strategy-ranges');
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -227,6 +252,16 @@ class OptimizeStrategyCommand extends Command
         $config->executionTimeframe = $executionTimeframe;
         $config->runnerMode = $runnerMode;
         $config->workerCount = $workerCount;
+
+        $sizingModel = $this->option('sizing-model');
+        $config->sizingModel = $sizingModel;
+        $config->sizingConfig = [
+            'riskPerTrade' => (float) $this->option('risk-per-trade'),
+            'maxLeverage' => (float) $this->option('max-leverage'),
+        ];
+        if ($this->option('fixed-stake') !== null) {
+            $config->sizingConfig['fixedStake'] = $this->option('fixed-stake');
+        }
 
         $progressLevel = (int) $this->option('progress');
         $progressBar = null;
@@ -305,6 +340,8 @@ class OptimizeStrategyCommand extends Command
         } catch (\Throwable $e) {
             $this->error('Optimization failed: '.$e->getMessage());
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -344,6 +381,8 @@ class OptimizeStrategyCommand extends Command
                 $this->line('  - Max Drawdown: '.number_format((float) ($stats['max_drawdown_percent'] ?? 0) * 100, 2).'%');
             }
         }
+
+        $this->debugMemory();
 
         return 0;
     }

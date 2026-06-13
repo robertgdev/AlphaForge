@@ -5,13 +5,17 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\ParameterOptimizerService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class ShowOptimizationCommand extends Command
 {
+    use DebugMemory;
+
     protected $signature = 'alphaforge:optimizations:show
         {optimization_id : The optimization run ID}
-        {--top=10 : Number of top results to display}';
+        {--top=10 : Number of top results to display}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed optimization results';
 
@@ -24,6 +28,8 @@ class ShowOptimizationCommand extends Command
 
         if (! $optimizationRun) {
             $this->error("Optimization run not found: $optimizationId");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -67,6 +73,8 @@ class ShowOptimizationCommand extends Command
         if ($results->isEmpty()) {
             $this->line('  No completed results yet.');
 
+            $this->debugMemory();
+
             return 0;
         }
 
@@ -89,6 +97,8 @@ class ShowOptimizationCommand extends Command
             ['Rank', 'Parameters', 'Return', 'Win Rate', ucfirst(str_replace('_', ' ', $metric)), 'Max DD'],
             $tableData
         );
+
+        $this->debugMemory();
 
         return 0;
     }

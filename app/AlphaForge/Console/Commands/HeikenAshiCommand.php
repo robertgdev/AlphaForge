@@ -2,6 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
@@ -15,6 +16,7 @@ use function Laravel\Prompts\warning;
 
 class HeikenAshiCommand extends Command
 {
+    use DebugMemory;
     use HasProgressBar;
     use ParsesMarketDataArgs;
 
@@ -28,7 +30,8 @@ class HeikenAshiCommand extends Command
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {--force : Force overwrite existing Heiken-Ashi file}
-        {--update : Incrementally update the Heiken-Ashi file by appending new converted data}';
+        {--update : Incrementally update the Heiken-Ashi file by appending new converted data}
+        {--debug : Show peak memory usage on exit}';
 
     /**
      * The console command description.
@@ -48,6 +51,7 @@ class HeikenAshiCommand extends Command
         if ($update && $force) {
             error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -61,6 +65,7 @@ class HeikenAshiCommand extends Command
                 "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
             );
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -80,6 +85,7 @@ class HeikenAshiCommand extends Command
             if (! $confirmed) {
                 warning('Operation cancelled.');
 
+                $this->debugMemory();
                 return self::SUCCESS;
             }
         }
@@ -124,6 +130,7 @@ class HeikenAshiCommand extends Command
                 $heikenAshiPath = $converter->generateHeikenAshiFilePath($exchange, $market, $timeframe);
                 $this->components->twoColumnDetail('File Path', $heikenAshiPath);
 
+                $this->debugMemory();
                 return self::SUCCESS;
             }
 
@@ -145,16 +152,19 @@ class HeikenAshiCommand extends Command
             $this->components->twoColumnDetail('File Path', $filePath);
             $this->components->twoColumnDetail('Heiken-Ashi Candles Generated', number_format($heikenAshiHeader['numRecords']));
 
+            $this->debugMemory();
             return self::SUCCESS;
         } catch (StorageException $e) {
             $this->finishProgressBarOnError();
             error("Conversion failed: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->finishProgressBarOnError();
             error("Unexpected error: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
     }

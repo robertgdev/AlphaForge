@@ -6,15 +6,19 @@ use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class RunBacktestDebugCommand extends Command
 {
+    use DebugMemory;
+
     protected $signature = 'alphaforge:backtest:debug
         {strategy : The strategy alias}
         {symbol : Trading symbol}
         {--exchange=binance : Exchange identifier}
-        {--timeframe=1h : Timeframe}';
+        {--timeframe=1h : Timeframe}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Debug backtest command';
 
@@ -52,6 +56,8 @@ class RunBacktestDebugCommand extends Command
                 $this->line('Last close: '.$last['close']);
             }
         }
+
+        $this->debugMemory();
 
         return 0;
     }

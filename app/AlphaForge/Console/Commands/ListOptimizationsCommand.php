@@ -3,14 +3,17 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 class ListOptimizationsCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:optimizations:list
         {--strategy= : Filter by strategy alias}
         {--status= : Filter by status (pending, running, completed, failed)}
-        {--limit=20 : Number of results to show}';
+        {--limit=20 : Number of results to show}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List past optimization runs';
 
@@ -31,6 +34,7 @@ class ListOptimizationsCommand extends Command
         if ($optimizations->isEmpty()) {
             $this->info('No optimization runs found.');
 
+            $this->debugMemory();
             return 0;
         }
 
@@ -47,6 +51,7 @@ class ListOptimizationsCommand extends Command
             ])
         );
 
+        $this->debugMemory();
         return 0;
     }
 

@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\DateParsingService;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Concerns\HandlesDownloadProgress;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
@@ -26,6 +27,7 @@ use function Laravel\Prompts\warning;
 
 class DataUpdateCommand extends Command
 {
+    use DebugMemory;
     use HandlesDownloadProgress;
     use ParsesMarketDataArgs;
 
@@ -35,7 +37,8 @@ class DataUpdateCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {enddate? : The end date for update (Y-m-d or Y-m-d H:i:s, defaults to now)}
         {--with-dependencies : Also update all derived data files (Renko, Heiken-Ashi, etc.)}
-        {--auto-generate : Auto-generate derived data files that do not exist (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV)}';
+        {--auto-generate : Auto-generate derived data files that do not exist (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Update market data to the latest available';
 
@@ -80,6 +83,7 @@ class DataUpdateCommand extends Command
                     $this->line('Download source data first:');
                     $this->line("  php artisan alphaforge:data:import {$exchange} {$market} <lower_timeframe> <startdate>");
 
+                    $this->debugMemory();
                     return self::FAILURE;
                 }
 
@@ -90,6 +94,7 @@ class DataUpdateCommand extends Command
                 $this->line("  php artisan alphaforge:data:import {$exchange} {$market} {$timeframe} <startdate>");
                 $this->line('Or use --auto-generate to derive from a lower timeframe if available.');
 
+                $this->debugMemory();
                 return self::FAILURE;
             }
         }
@@ -99,12 +104,14 @@ class DataUpdateCommand extends Command
         } catch (\Throwable $e) {
             error("Failed to read data file: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
         if ($header['numRecords'] === 0) {
             error('Data file exists but contains no records. Use the import command instead.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -113,6 +120,7 @@ class DataUpdateCommand extends Command
         if ($lastRecord === null) {
             error('Could not read the last record from the data file.');
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -123,6 +131,7 @@ class DataUpdateCommand extends Command
         } catch (\InvalidArgumentException $e) {
             error("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
 
+            $this->debugMemory();
             return self::FAILURE;
         }
 
@@ -131,9 +140,11 @@ class DataUpdateCommand extends Command
             $this->components->twoColumnDetail('Last Record', $startCarbon->format('Y-m-d H:i:s'));
 
             if ($withDependencies) {
+                $this->debugMemory();
                 return $this->updateDependencies($availabilityService, $exchange, $market, $timeframe);
             }
 
+            $this->debugMemory();
             return self::SUCCESS;
         }
 
@@ -168,19 +179,23 @@ class DataUpdateCommand extends Command
             $this->components->twoColumnDetail('File Path', $resultPath);
 
             if ($withDependencies) {
+                $this->debugMemory();
                 return $this->updateDependencies($availabilityService, $exchange, $market, $timeframe);
             }
 
+            $this->debugMemory();
             return self::SUCCESS;
         } catch (DownloaderException $e) {
             $this->finishProgressBarOnError();
             error("Update failed: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->finishProgressBarOnError();
             error("Unexpected error: {$e->getMessage()}");
 
+            $this->debugMemory();
             return self::FAILURE;
         } finally {
             $eventDispatcher->forget(DownloadProgress::class);

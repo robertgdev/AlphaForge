@@ -18,10 +18,12 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Safe\DateTimeImmutable;
 
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\file_put_contents;
 
 class WalkForwardCommand extends Command
 {
+    use DebugMemory;
     use ResolvesParallelRunner;
 
     protected $signature = 'alphaforge:walk-forward
@@ -54,7 +56,12 @@ class WalkForwardCommand extends Command
         {--output= : Write output to file instead of stdout}
         {--runner=fork : Parallel runner mode for optimization phase (sync, fork, queue)}
         {--workers=auto : Number of parallel workers (auto = CPU core count)}
-        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}';
+        {--sizing-model=percent_of_equity : Position sizing model (percent_of_equity, risk_based, fixed_dollar, kelly, atr_volatility)}
+        {--risk-per-trade=1.0 : Percentage of equity risked per trade (for risk_based model)}
+        {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
+        {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
+        {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run walk-forward analysis: optimize on in-sample data, validate on out-of-sample data';
 
@@ -93,6 +100,8 @@ class WalkForwardCommand extends Command
         if (! $timeframe) {
             $this->error("Invalid timeframe: $timeframeValue");
 
+            $this->debugMemory();
+
             return 1;
         }
 
@@ -102,11 +111,15 @@ class WalkForwardCommand extends Command
             if (! $executionTimeframe) {
                 $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
+                $this->debugMemory();
+
                 return 1;
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
                 $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                $this->debugMemory();
 
                 return 1;
             }
@@ -116,17 +129,23 @@ class WalkForwardCommand extends Command
         if (! $method) {
             $this->error("Invalid method: $methodValue. Use: grid, random, genetic");
 
+            $this->debugMemory();
+
             return 1;
         }
 
         if ($splitRatio <= 0 || $splitRatio >= 1) {
             $this->error('--split must be between 0 and 1 (exclusive)');
 
+            $this->debugMemory();
+
             return 1;
         }
 
         if (! in_array($format, ['table', 'csv', 'json'])) {
             $this->error("Invalid format: $format. Use: table, csv, json");
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -135,6 +154,8 @@ class WalkForwardCommand extends Command
             $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
         } catch (\InvalidArgumentException $e) {
             $this->error($e->getMessage());
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -165,6 +186,8 @@ class WalkForwardCommand extends Command
                 }
 
                 if (! empty($genResult['errors'])) {
+                    $this->debugMemory();
+
                     return self::FAILURE;
                 }
 
@@ -189,6 +212,8 @@ class WalkForwardCommand extends Command
             if ($parsed === false) {
                 $this->error('Invalid JSON for --params: '.json_last_error_msg());
 
+                $this->debugMemory();
+
                 return 1;
             }
             $parameterOverrides = $parsed;
@@ -196,6 +221,8 @@ class WalkForwardCommand extends Command
             $this->error('Either --params or --use-strategy-ranges must be specified');
             $this->line("  --params='{\"fastPeriod\":{\"min\":5,\"max\":20,\"step\":5}}'");
             $this->line('  --use-strategy-ranges');
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -266,10 +293,22 @@ class WalkForwardCommand extends Command
         $config->runnerMode = $runnerMode;
         $config->workerCount = $workerCount;
 
+        $sizingModel = $this->option('sizing-model');
+        $config->sizingModel = $sizingModel;
+        $config->sizingConfig = [
+            'riskPerTrade' => (float) $this->option('risk-per-trade'),
+            'maxLeverage' => (float) $this->option('max-leverage'),
+        ];
+        if ($this->option('fixed-stake') !== null) {
+            $config->sizingConfig['fixedStake'] = $this->option('fixed-stake');
+        }
+
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);
         } catch (\InvalidArgumentException $e) {
             $this->error($e->getMessage());
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -307,6 +346,8 @@ class WalkForwardCommand extends Command
         } catch (\Throwable $e) {
             $this->error('Walk-forward analysis failed: '.$e->getMessage());
 
+            $this->debugMemory();
+
             return 1;
         } finally {
             $bar?->finish();
@@ -317,6 +358,8 @@ class WalkForwardCommand extends Command
 
         if ($wfRun->hasFailed()) {
             $this->error('Walk-forward analysis failed: '.($wfRun->error_message ?? 'Unknown error'));
+
+            $this->debugMemory();
 
             return 1;
         }
@@ -333,12 +376,16 @@ class WalkForwardCommand extends Command
             $csv = $exporter->toCsv($analysis);
             $this->outputResult($csv, $outputPath);
 
+            $this->debugMemory();
+
             return 0;
         }
 
         if ($format === 'json') {
             $json = $exporter->toJson($analysis);
             $this->outputResult($json, $outputPath);
+
+            $this->debugMemory();
 
             return 0;
         }
@@ -354,6 +401,8 @@ class WalkForwardCommand extends Command
         if ($wfRun->optimization_run_id) {
             $this->line("  Optimization Run ID: {$wfRun->optimization_run_id}");
         }
+
+        $this->debugMemory();
 
         return 0;
     }

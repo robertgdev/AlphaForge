@@ -2,13 +2,16 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Strategy\Dto\StrategyDefinitionDto;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
 
 class ListStrategiesCommand extends Command
 {
-    protected $signature = 'alphaforge:strategies:list';
+    use DebugMemory;
+    protected $signature = 'alphaforge:strategies:list
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List all available strategies';
 
@@ -25,6 +28,7 @@ class ListStrategiesCommand extends Command
         if (empty($definitions)) {
             $this->info('No strategies found.');
 
+            $this->debugMemory();
             return 0;
         }
 
@@ -40,6 +44,7 @@ class ListStrategiesCommand extends Command
             ], $definitions),
         );
 
+        $this->debugMemory();
         return 0;
     }
 }

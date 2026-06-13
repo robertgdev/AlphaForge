@@ -19,10 +19,12 @@ use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\warning;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\json_encode;
 
 class RunBacktestCommand extends Command
 {
+    use DebugMemory;
     use HasProgressBar;
 
     /**
@@ -44,11 +46,16 @@ class RunBacktestCommand extends Command
         {--start-date= : Start date (Y-m-d or Y-m-d H:i:s)}
         {--end-date= : End date (Y-m-d or Y-m-d H:i:s)}
         {--inputs= : Strategy inputs as JSON string (e.g., \'{"fastPeriod":10,"slowPeriod":50}\')}
+        {--sizing-model=percent_of_equity : Position sizing model (percent_of_equity, risk_based, fixed_dollar, kelly, atr_volatility)}
+        {--risk-per-trade=1.0 : Percentage of equity risked per trade (for risk_based model)}
+        {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
+        {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--no-color : Disable colored output in the positions table}
         {--async : Queue the backtest instead of running synchronously}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
         {--force : Overwrite existing completed backtest with same parameters}
-        {--trades=5 : Number of trades to display in terminal (0=none, all=all, default=5)}';
+        {--trades=5 : Number of trades to display in terminal (0=none, all=all, default=5)}
+        {--debug : Show peak memory usage on exit}';
 
     /**
      * The console command description.
@@ -93,6 +100,8 @@ class RunBacktestCommand extends Command
                 note('Available strategies: '.implode(', ', $availableStrategies));
             }
 
+            $this->debugMemory();
+
             return self::FAILURE;
         }
 
@@ -101,6 +110,8 @@ class RunBacktestCommand extends Command
             $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
         } catch (\InvalidArgumentException $e) {
             error($e->getMessage());
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -134,6 +145,8 @@ class RunBacktestCommand extends Command
             }
 
             if (! empty($genResult['errors'])) {
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
 
@@ -142,10 +155,27 @@ class RunBacktestCommand extends Command
 
         $dataTypeValue = $dataTypeConfig->dataType;
 
+        // Build sizing config
+        $sizingModel = $this->option('sizing-model');
+        $riskPerTrade = (float) $this->option('risk-per-trade');
+        $maxLeverage = (float) $this->option('max-leverage');
+        $fixedStake = $this->option('fixed-stake');
+
+        $sizingConfig = [
+            'riskPerTrade' => $riskPerTrade,
+            'maxLeverage' => $maxLeverage,
+        ];
+
+        if ($fixedStake !== null) {
+            $sizingConfig['fixedStake'] = $fixedStake;
+        }
+
         // Parse timeframe
         $timeframe = $this->parseTimeframe($timeframeValue);
         if ($timeframe === null) {
             error("Invalid timeframe '{$timeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -157,12 +187,16 @@ class RunBacktestCommand extends Command
             if ($executionTimeframe === null) {
                 error("Invalid execution timeframe '{$executionTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
 
             // Validate execution timeframe is lower than signal timeframe
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
                 error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+
+                $this->debugMemory();
 
                 return self::FAILURE;
             }
@@ -172,6 +206,8 @@ class RunBacktestCommand extends Command
         $inputs = $inputParser->parseInputs($inputsJson);
         if ($inputs === false) {
             error('Invalid JSON format for --inputs. Example: \'{"fastPeriod":10,"slowPeriod":50}\'');
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -186,6 +222,8 @@ class RunBacktestCommand extends Command
             } catch (\InvalidArgumentException $e) {
                 error("Invalid start-date format: {$startDate}. Use Y-m-d or Y-m-d H:i:s format.");
 
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
         }
@@ -196,6 +234,8 @@ class RunBacktestCommand extends Command
             } catch (\InvalidArgumentException $e) {
                 error("Invalid end-date format: {$endDate}. Use Y-m-d or Y-m-d H:i:s format.");
 
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
         }
@@ -203,6 +243,8 @@ class RunBacktestCommand extends Command
         // Validate date range
         if ($parsedStartDate && $parsedEndDate && $parsedStartDate->greaterThanOrEqualTo($parsedEndDate)) {
             error('Start date must be before end date.');
+
+            $this->debugMemory();
 
             return self::FAILURE;
         }
@@ -222,6 +264,8 @@ class RunBacktestCommand extends Command
             'data_type' => $dataTypeConfig->dataType,
             'brick_size' => $dataTypeConfig->brickSize,
             'atr_period' => $dataTypeConfig->atrPeriod,
+            'sizing_model' => $sizingModel,
+            'sizing_config' => $sizingConfig,
         ];
 
         $force = $this->option('force');
@@ -232,6 +276,8 @@ class RunBacktestCommand extends Command
                 warning("A completed backtest with the same parameters already exists (ID: {$existing->id}).");
                 note('Use --force to overwrite it and run a new backtest.');
 
+                $this->debugMemory();
+
                 return self::FAILURE;
             }
 
@@ -240,11 +286,15 @@ class RunBacktestCommand extends Command
         }
 
         // Display backtest configuration
-        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeConfig->dataType, $dataTypeConfig->brickSize, $dataTypeConfig->atrPeriod);
+        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeConfig->dataType, $dataTypeConfig->brickSize, $dataTypeConfig->atrPeriod, $sizingModel, $sizingConfig);
 
         if ($async) {
+            $this->debugMemory();
+
             return $this->queueBacktest($backtestRunService, $data);
         }
+
+        $this->debugMemory();
 
         return $this->runBacktestSync($backtestRunService, $resultFormatter, $data, $noColor, $this->option('trades'));
     }
@@ -318,7 +368,9 @@ class RunBacktestCommand extends Command
         array $inputs,
         string $dataType,
         ?float $brickSize,
-        ?int $atrPeriod
+        ?int $atrPeriod,
+        string $sizingModel = 'percent_of_equity',
+        array $sizingConfig = [],
     ): void {
         info('Backtest Configuration');
         $this->newLine();
@@ -342,6 +394,14 @@ class RunBacktestCommand extends Command
         }
 
         $this->components->twoColumnDetail('Initial Capital', number_format($capital, 2).' '.$stakeCurrency);
+        $this->components->twoColumnDetail('Sizing Model', $sizingModel);
+        if ($sizingModel === 'risk_based') {
+            $this->components->twoColumnDetail('Risk per Trade', ($sizingConfig['riskPerTrade'] ?? 1.0).'%');
+            $this->components->twoColumnDetail('Max Leverage', (string) ($sizingConfig['maxLeverage'] ?? 1.0).'x');
+        }
+        if ($sizingModel === 'fixed_dollar' && isset($sizingConfig['fixedStake'])) {
+            $this->components->twoColumnDetail('Fixed Stake', '$'.$sizingConfig['fixedStake']);
+        }
 
         if (! empty($inputs)) {
             $this->components->twoColumnDetail('Strategy Inputs', json_encode($inputs));

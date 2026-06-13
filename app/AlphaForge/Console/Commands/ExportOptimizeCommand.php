@@ -4,6 +4,7 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
+use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 
@@ -12,11 +13,13 @@ use function Safe\json_encode;
 
 class ExportOptimizeCommand extends Command
 {
+    use DebugMemory;
     protected $signature = 'alphaforge:export:optimize
         {optimization_id : The optimization run ID}
         {--format=csv : Output format (csv, json)}
         {--output= : Output file path (stdout if omitted)}
-        {--top=10 : Number of top results to export}';
+        {--top=10 : Number of top results to export}
+        {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export optimization results (top-N parameters and statistics)';
 
@@ -28,12 +31,14 @@ class ExportOptimizeCommand extends Command
         if (! $run) {
             $this->error("Optimization run not found: {$optimizationId}");
 
+            $this->debugMemory();
             return 1;
         }
 
         if (! $run->isCompleted()) {
             $this->error("Optimization run is not completed. Status: {$run->status}");
 
+            $this->debugMemory();
             return 1;
         }
 
@@ -51,6 +56,7 @@ class ExportOptimizeCommand extends Command
             $this->warn('No completed backtest results found for this optimization.');
             $this->line('  The optimization may still be running, or results were not persisted.');
 
+            $this->debugMemory();
             return 1;
         }
 
@@ -69,6 +75,7 @@ class ExportOptimizeCommand extends Command
             $this->line($output);
         }
 
+        $this->debugMemory();
         return 0;
     }
 
