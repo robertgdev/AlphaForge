@@ -54,6 +54,9 @@ WF_OUTPUT=$(php artisan alphaforge:walk-forward sma_crossover "${MARKET}" \
     --runner=fork \
     --workers=auto \
     --format=table \
+    --sizing-model=risk_based \
+    --risk-per-trade=1.0 \
+    --max-leverage=1.0 \
     2>&1)
 
 echo "${WF_OUTPUT}"
@@ -102,6 +105,9 @@ if [ -n "${FORCE_FLAG}" ]; then
         --data-type=heikenashi \
         --inputs="${BEST_PARAMS_JSON}" \
         --capital=10000 \
+        --sizing-model=risk_based \
+        --risk-per-trade=1.0 \
+        --max-leverage=1.0 \
         --force \
         2>&1)
     BT_ID=$(echo "${BT_OUTPUT}" | grep -oP 'backtest run ID:\s*\K[a-f0-9\-]+' || echo "")
@@ -115,6 +121,9 @@ else
         --data-type=heikenashi \
         --inputs="${BEST_PARAMS_JSON}" \
         --capital=10000 \
+        --sizing-model=risk_based \
+        --risk-per-trade=1.0 \
+        --max-leverage=1.0 \
         2>&1 || true)
     BT_ID=$(echo "${BT_OUTPUT}" | grep -oP 'backtest run ID:\s*\K[a-f0-9\-]+' || echo "")
     if [ -z "${BT_ID}" ]; then
