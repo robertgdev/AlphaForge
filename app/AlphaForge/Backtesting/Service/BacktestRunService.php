@@ -67,7 +67,8 @@ class BacktestRunService
      *     end_date?: string|null,
      *     data_type?: string,
      *     brick_size?: float|null,
-     *     atr_period?: int|null
+     *     atr_period?: int|null,
+     *     sizing_model?: string,
      * }  $data
      */
     public function findCompletedDuplicate(array $data): ?BacktestRun
@@ -86,7 +87,8 @@ class BacktestRunService
             ->where('initial_capital', number_format((float) $data['initial_capital'], 8, '.', ''))
             ->where('stake_currency', $data['stake_currency'] ?? 'USDT')
             ->where('strategy_inputs', json_encode($inputs))
-            ->where('data_type', $data['data_type'] ?? 'ohlcv');
+            ->where('data_type', $data['data_type'] ?? 'ohlcv')
+            ->where('sizing_model', $data['sizing_model'] ?? 'percent_of_equity');
 
         foreach (['execution_timeframe', 'brick_size', 'atr_period', 'start_date', 'end_date'] as $nullableField) {
             $value = $data[$nullableField] ?? null;
@@ -168,6 +170,8 @@ class BacktestRunService
                 dataType: $backtestRun->data_type ?? 'ohlcv',
                 brickSize: $backtestRun->brick_size !== null ? (float) $backtestRun->brick_size : null,
                 atrPeriod: $backtestRun->atr_period ?? null,
+                sizingModel: $backtestRun->sizing_model ?? 'percent_of_equity',
+                sizingConfig: $backtestRun->sizing_config ?? [],
             );
 
             $this->broadcastProgress($backtestRun, 90, 'Calculating statistics...');
@@ -245,6 +249,8 @@ class BacktestRunService
             'data_type' => $data['data_type'] ?? 'ohlcv',
             'brick_size' => $data['brick_size'] ?? null,
             'atr_period' => $data['atr_period'] ?? null,
+            'sizing_model' => $data['sizing_model'] ?? 'percent_of_equity',
+            'sizing_config' => $data['sizing_config'] ?? [],
             'status' => 'pending',
         ]);
     }

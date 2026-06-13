@@ -38,6 +38,8 @@ class BacktestRun extends Model
         'data_type',
         'brick_size',
         'atr_period',
+        'sizing_model',
+        'sizing_config',
     ];
 
     /**
@@ -56,6 +58,7 @@ class BacktestRun extends Model
         'completed_at' => 'datetime',
         'brick_size' => 'decimal:8',
         'atr_period' => 'integer',
+        'sizing_config' => 'array',
     ];
 
     /**

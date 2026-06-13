@@ -50,14 +50,6 @@ describe('SmaCrossoverStrategy', function () {
             expect($ref->getValue($this->strategy))->toBe(15.0);
         });
 
-        it('applies positionSizePercent from inputs', function () {
-            $this->strategy->configure(['positionSizePercent' => 2.5]);
-
-            $ref = new ReflectionProperty($this->strategy, 'positionSizePercent');
-            $ref->setAccessible(true);
-            expect($ref->getValue($this->strategy))->toBe(2.5);
-        });
-
         it('keeps defaults when inputs are not provided', function () {
             $this->strategy->configure([]);
 
@@ -76,7 +68,6 @@ describe('SmaCrossoverStrategy', function () {
                 'slowPeriod' => 60,
                 'stopLossPercent' => 2.5,
                 'takeProfitPercent' => 8.0,
-                'positionSizePercent' => 2.0,
             ]);
 
             $fastRef = new ReflectionProperty($this->strategy, 'fastPeriod');
@@ -87,14 +78,11 @@ describe('SmaCrossoverStrategy', function () {
             $slRef->setAccessible(true);
             $tpRef = new ReflectionProperty($this->strategy, 'takeProfitPercent');
             $tpRef->setAccessible(true);
-            $psRef = new ReflectionProperty($this->strategy, 'positionSizePercent');
-            $psRef->setAccessible(true);
 
             expect($fastRef->getValue($this->strategy))->toBe(15)
                 ->and($slowRef->getValue($this->strategy))->toBe(60)
                 ->and($slRef->getValue($this->strategy))->toBe(2.5)
-                ->and($tpRef->getValue($this->strategy))->toBe(8.0)
-                ->and($psRef->getValue($this->strategy))->toBe(2.0);
+                ->and($tpRef->getValue($this->strategy))->toBe(8.0);
         });
     });
 
@@ -159,9 +147,7 @@ describe('SmaCrossoverStrategy', function () {
             expect($inputProps)->toContain('fastPeriod')
                 ->and($inputProps)->toContain('slowPeriod')
                 ->and($inputProps)->toContain('stopLossPercent')
-                ->and($inputProps)->toContain('takeProfitPercent')
-                ->and($inputProps)->toContain('positionSizePercent')
-                ->and($inputProps)->toContain('positionSizingMethod');
+                ->and($inputProps)->toContain('takeProfitPercent');
         });
     });
 });

@@ -156,6 +156,8 @@ class WalkForwardService
         $optimizationConfig->atrPeriod = $config->atrPeriod;
         $optimizationConfig->runnerMode = $config->runnerMode;
         $optimizationConfig->workerCount = $config->workerCount;
+        $optimizationConfig->sizingModel = $config->sizingModel;
+        $optimizationConfig->sizingConfig = $config->sizingConfig;
 
         return $this->optimizer->optimize($optimizationConfig);
     }
@@ -217,6 +219,8 @@ class WalkForwardService
                 dataType: $config->dataType ?? 'ohlcv',
                 brickSize: $config->brickSize,
                 atrPeriod: $config->atrPeriod,
+                sizingModel: $config->sizingModel,
+                sizingConfig: $config->sizingConfig,
             );
 
             $oosScore = $objective->score($oosResult['statistics']);

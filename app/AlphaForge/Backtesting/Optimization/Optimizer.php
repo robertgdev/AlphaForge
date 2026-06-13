@@ -277,6 +277,8 @@ class Optimizer
                 dataType: $config->dataType ?? 'ohlcv',
                 brickSize: $config->brickSize,
                 atrPeriod: $config->atrPeriod,
+                sizingModel: $config->sizingModel,
+                sizingConfig: $config->sizingConfig,
             );
         }
 
@@ -381,6 +383,8 @@ class Optimizer
                 dataType: $config->dataType ?? 'ohlcv',
                 brickSize: $config->brickSize,
                 atrPeriod: $config->atrPeriod,
+                sizingModel: $config->sizingModel,
+                sizingConfig: $config->sizingConfig,
             );
 
             $jobs[] = new OptimizeParameterJob(

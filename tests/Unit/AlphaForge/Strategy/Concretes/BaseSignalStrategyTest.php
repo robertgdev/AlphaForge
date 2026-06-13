@@ -198,25 +198,13 @@ describe('BaseSignalStrategy', function () {
             expect(getProtected($this->strategy, 'takeProfitPercent'))->toBe(12.0);
         });
 
-        it('applies positionSizePercent from inputs', function () {
-            $this->strategy->configure(['positionSizePercent' => 2.0]);
-
-            expect(getProtected($this->strategy, 'positionSizePercent'))->toBe(2.0);
-        });
-
-        it('applies positionSizingMethod from inputs', function () {
-            $this->strategy->configure(['positionSizingMethod' => 'initial']);
-
-            expect(getProtected($this->strategy, 'positionSizingMethod'))->toBe('initial');
-        });
-
         it('keeps defaults when no inputs are provided', function () {
             $this->strategy->configure([]);
 
             expect(getProtected($this->strategy, 'testPeriod'))->toBe(10);
         });
 
-        it('ignores keys not matching any #[Input] property or positionSizePercent', function () {
+        it('ignores keys not matching any #[Input] property', function () {
             $this->strategy->configure(['unknownParam' => 999]);
 
             expect(getProtected($this->strategy, 'testPeriod'))->toBe(10);
@@ -228,16 +216,12 @@ describe('BaseSignalStrategy', function () {
                 'testThreshold' => 7.5,
                 'stopLossPercent' => 4.0,
                 'takeProfitPercent' => 10.0,
-                'positionSizePercent' => 3.0,
-                'positionSizingMethod' => 'initial',
             ]);
 
             expect(getProtected($this->strategy, 'testPeriod'))->toBe(20)
                 ->and(getProtected($this->strategy, 'testThreshold'))->toBe(7.5)
                 ->and(getProtected($this->strategy, 'stopLossPercent'))->toBe(4.0)
-                ->and(getProtected($this->strategy, 'takeProfitPercent'))->toBe(10.0)
-                ->and(getProtected($this->strategy, 'positionSizePercent'))->toBe(3.0)
-                ->and(getProtected($this->strategy, 'positionSizingMethod'))->toBe('initial');
+                ->and(getProtected($this->strategy, 'takeProfitPercent'))->toBe(10.0);
         });
     });
 
@@ -318,7 +302,7 @@ describe('BaseSignalStrategy', function () {
             expect($signal->symbol)->toBe('BTC/USDT')
                 ->and($signal->direction)->toBe(DirectionEnum::LONG)
                 ->and($signal->orderType)->toBe(OrderTypeEnum::Market)
-                ->and($signal->stakeAmount)->not->toBeNull()
+                ->and($signal->stakeAmount)->toBeNull()
                 ->and($signal->stopLoss)->not->toBeNull()
                 ->and($signal->takeProfit)->not->toBeNull();
         });
@@ -370,72 +354,6 @@ describe('BaseSignalStrategy', function () {
             $result = $this->strategy->onBar($data);
 
             expect($result)->toBe([]);
-        });
-
-        it('sizes position from total equity by default', function () {
-            setProtected($this->strategy, 'positionSizePercent', 2.0);
-
-            $portfolio = new PortfolioManager('10000');
-            $data = makeBarDataMock(currentIndex: 10, portfolio: $portfolio);
-
-            $result = $this->strategy->onBar($data);
-
-            expect($result)->toHaveCount(1);
-
-            $signal = $result[0];
-            $expectedSize = (string) (10000.0 * 2.0 / 100.0);
-            expect($signal->stakeAmount)->toBe($expectedSize);
-        });
-
-        it('uses initial capital for position sizing when method is initial', function () {
-            setProtected($this->strategy, 'positionSizingMethod', 'initial');
-            setProtected($this->strategy, 'initialCapital', 25000.0);
-            setProtected($this->strategy, 'positionSizePercent', 3.0);
-
-            $portfolio = new PortfolioManager('25000');
-            $data = makeBarDataMock(currentIndex: 10, portfolio: $portfolio);
-
-            $result = $this->strategy->onBar($data);
-
-            expect($result)->toHaveCount(1);
-
-            $signal = $result[0];
-            $expectedSize = (string) (25000.0 * 3.0 / 100.0);
-            expect($signal->stakeAmount)->toBe($expectedSize);
-        });
-
-        it('uses equity for sizing when positionSizingMethod is equity', function () {
-            setProtected($this->strategy, 'positionSizingMethod', 'equity');
-            setProtected($this->strategy, 'positionSizePercent', 2.0);
-
-            $portfolio = new PortfolioManager('5000');
-            $data = makeBarDataMock(currentIndex: 10, portfolio: $portfolio);
-
-            $result = $this->strategy->onBar($data);
-
-            expect($result)->toHaveCount(1);
-
-            $signal = $result[0];
-            $expectedSize = (string) (5000.0 * 2.0 / 100.0);
-            expect($signal->stakeAmount)->toBe($expectedSize);
-        });
-
-        it('uses initial capital for sizing when positionSizingMethod is initial', function () {
-            setProtected($this->strategy, 'positionSizingMethod', 'initial');
-            setProtected($this->strategy, 'initialCapital', 50000.0);
-            setProtected($this->strategy, 'positionSizePercent', 1.0);
-
-            $portfolio = new PortfolioManager('20000');
-            $data = makeBarDataMock(currentIndex: 10, portfolio: $portfolio);
-
-            $result = $this->strategy->onBar($data);
-
-            expect($result)->toHaveCount(1);
-
-            $signal = $result[0];
-            $expectedSize = (string) (50000.0 * 1.0 / 100.0);
-            expect($signal->stakeAmount)->not->toBe((string) (20000.0 * 1.0 / 100.0))
-                ->and($signal->stakeAmount)->toBe($expectedSize);
         });
     });
 

@@ -11,6 +11,8 @@ class BacktestConfiguration
      * @param  array<string, mixed>  $strategyInputs
      * @param  array<string, mixed>  $commissionConfig
      * @param  TimeframeEnum|null  $executionTimeframe  Lower timeframe for order/position execution (null = same as signal timeframe)
+     * @param  string  $sizingModel  percent_of_equity / risk_based / fixed_dollar / kelly / atr_volatility
+     * @param  array<string, mixed>  $sizingConfig  Sizer-specific configuration
      */
     public function __construct(
         public string $strategyAlias,
@@ -27,6 +29,8 @@ class BacktestConfiguration
         public string $dataType = 'ohlcv',
         public ?float $brickSize = null,
         public ?int $atrPeriod = null,
+        public string $sizingModel = 'percent_of_equity',
+        public array $sizingConfig = [],
     ) {}
 
     /**
@@ -49,6 +53,8 @@ class BacktestConfiguration
             'dataType' => $this->dataType,
             'brickSize' => $this->brickSize,
             'atrPeriod' => $this->atrPeriod,
+            'sizingModel' => $this->sizingModel,
+            'sizingConfig' => $this->sizingConfig,
         ];
     }
 }

@@ -25,6 +25,8 @@ class LightweightOptimizationRunner implements OptimizationRunnerInterface
             additionalTimeframes: [],
             data: $data,
             executionTimeframe: $config->executionTimeframe,
+            sizingModel: $config->sizingModel,
+            sizingConfig: $config->sizingConfig,
         );
 
         return [

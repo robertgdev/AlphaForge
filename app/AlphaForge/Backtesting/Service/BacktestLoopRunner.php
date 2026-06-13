@@ -16,6 +16,8 @@ use App\AlphaForge\Order\Dto\PositionDto;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\OrderManager;
 use App\AlphaForge\Order\Model\PortfolioManager;
+use App\AlphaForge\Order\Sizing\PercentOfEquitySizer;
+use App\AlphaForge\Order\Sizing\PositionSizer;
 use App\AlphaForge\Strategy\Dto\BarData;
 use Carbon\Carbon;
 use Ds\Map;
@@ -137,6 +139,11 @@ class BacktestLoopRunner
     /** @var callable|null */
     private $progressCallback = null;
 
+    private PositionSizer $positionSizer;
+
+    /** @var array<string, mixed> */
+    private array $sizingConfig;
+
     /**
      * @param  array<int>  $barTimestamps
      * @param  array<float>  $barOpens
@@ -152,6 +159,7 @@ class BacktestLoopRunner
      * @param  array<float>|null  $execVolumes
      * @param  Map<string, OhlcvSeries>  $ohlcvData
      * @param  Map<string, OhlcvSeries>|null  $executionOhlcvData
+     * @param  array<string, mixed>  $sizingConfig  Position sizer configuration
      */
     public function __construct(
         string $initialCapital,
@@ -175,6 +183,8 @@ class BacktestLoopRunner
         ?TimeframeEnum $executionTimeframe,
         ?MultiTimeframeOhlcvSeries $multiTimeframeData,
         ?callable $progressCallback = null,
+        ?PositionSizer $positionSizer = null,
+        array $sizingConfig = [],
     ) {
         $this->initialCapital = $initialCapital;
         $this->commissionConfig = $commissionConfig;
@@ -183,6 +193,8 @@ class BacktestLoopRunner
         $this->executionTimeframe = $executionTimeframe;
         $this->multiTimeframeData = $multiTimeframeData;
         $this->progressCallback = $progressCallback;
+        $this->positionSizer = $positionSizer ?? new PercentOfEquitySizer;
+        $this->sizingConfig = $sizingConfig;
 
         // Bar arrays
         $this->barTimestamps = $barTimestamps;
@@ -439,9 +451,26 @@ class BacktestLoopRunner
 
     private function createOrderFromSignal(OrderSignal $signal, array $bar, string $symbol): void
     {
-        $stakeAmount = $signal->stakeAmount ?? $this->portfolioManager->getDefaultStakeAmount();
+        $entryPrice = (string) $bar[self::BAR_C];
 
-        if (! $this->canAffordTrade($signal, $stakeAmount, $bar[self::BAR_C])) {
+        if ($signal->stakeAmount !== null) {
+            $stakeAmount = $signal->stakeAmount;
+        } else {
+            $sizingConfig = $this->sizingConfig;
+
+            if ($signal->stopLoss === null && ($sizingConfig['defaultStopDistance'] ?? null) === null) {
+                $sizingConfig['defaultStopDistance'] = 5.0;
+            }
+
+            $stakeAmount = $this->positionSizer->calculate(
+                signal: $signal,
+                portfolio: $this->portfolioManager,
+                config: $sizingConfig,
+                entryPrice: $entryPrice,
+            );
+        }
+
+        if (! $this->canAffordTrade($signal, $stakeAmount, $entryPrice)) {
             return;
         }
 
@@ -467,7 +496,28 @@ class BacktestLoopRunner
         $cashBalance = $this->portfolioManager->getCashBalance();
 
         if ($signal->direction === DirectionEnum::LONG) {
-            return (float) $cashBalance >= (float) $stakeAmount;
+            if (bccomp($cashBalance, $stakeAmount, 12) < 0) {
+                return false;
+            }
+
+            $maxLeverage = (float) ($this->sizingConfig['maxLeverage'] ?? 1.0);
+
+            if ($maxLeverage > 0) {
+                $equity = $this->portfolioManager->getTotalEquity();
+                $maxNotional = bcmul($equity, (string) $maxLeverage, 12);
+                $existingNotional = bcsub($equity, $cashBalance, 12);
+                $availableNotional = bcsub($maxNotional, $existingNotional, 12);
+
+                if (bccomp($availableNotional, '0', 12) < 0) {
+                    $availableNotional = '0';
+                }
+
+                if (bccomp($availableNotional, $stakeAmount, 12) < 0) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         return true;

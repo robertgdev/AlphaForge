@@ -8,6 +8,12 @@ use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Model\MultiTimeframeOhlcvSeries;
 use App\AlphaForge\Common\Model\OhlcvSeries;
 use App\AlphaForge\Data\Service\BinaryStorageInterface;
+use App\AlphaForge\Order\Sizing\AtrVolatilitySizer;
+use App\AlphaForge\Order\Sizing\FixedDollarSizer;
+use App\AlphaForge\Order\Sizing\KellySizer;
+use App\AlphaForge\Order\Sizing\PercentOfEquitySizer;
+use App\AlphaForge\Order\Sizing\PositionSizer;
+use App\AlphaForge\Order\Sizing\RiskBasedSizer;
 use App\AlphaForge\Services\MarketDataPathBuilder;
 use App\AlphaForge\Strategy\Dto\InitializeData;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
@@ -91,6 +97,8 @@ class Backtester
      *
      * @param  callable|null  $progressCallback  (int $current, int $total, string $message)
      * @param  string  $dataType  ohlcv / heikenashi / renko / atr_renko
+     * @param  string  $sizingModel  percent_of_equity / risk_based / fixed_dollar / kelly / atr_volatility
+     * @param  array<string, mixed>  $sizingConfig  Sizer-specific configuration
      * @return array Backtest results
      */
     public function run(
@@ -110,6 +118,8 @@ class Backtester
         string $dataType = 'ohlcv',
         ?float $brickSize = null,
         ?int $atrPeriod = null,
+        string $sizingModel = 'percent_of_equity',
+        array $sizingConfig = [],
     ): array {
         if ($executionTimeframe !== null && $executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
             throw new RuntimeException(
@@ -159,6 +169,8 @@ class Backtester
             executionTimeframe: $this->executionTimeframe,
             multiTimeframeData: $this->multiTimeframeData,
             progressCallback: $this->progressCallback,
+            positionSizer: $this->resolvePositionSizer($sizingModel),
+            sizingConfig: $sizingConfig,
         );
 
         $loopRunner->run($symbols);
@@ -198,6 +210,8 @@ class Backtester
     /**
      * Run a backtest using preloaded market data (avoids redundant file I/O).
      *
+     * @param  string  $sizingModel  percent_of_equity / risk_based / fixed_dollar / kelly / atr_volatility
+     * @param  array<string, mixed>  $sizingConfig  Sizer-specific configuration
      * @return array Backtest results
      */
     public function runWithPreloadedData(
@@ -212,6 +226,8 @@ class Backtester
         MarketDataSnapshot $data,
         ?TimeframeEnum $executionTimeframe = null,
         ?callable $progressCallback = null,
+        string $sizingModel = 'percent_of_equity',
+        array $sizingConfig = [],
     ): array {
         if ($executionTimeframe !== null && $executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
             throw new RuntimeException(
@@ -261,6 +277,8 @@ class Backtester
             executionTimeframe: $this->executionTimeframe,
             multiTimeframeData: $this->multiTimeframeData,
             progressCallback: $this->progressCallback,
+            positionSizer: $this->resolvePositionSizer($sizingModel),
+            sizingConfig: $sizingConfig,
         );
 
         $loopRunner->run($symbols);
@@ -310,6 +328,17 @@ class Backtester
         $this->signalTimeframe = null;
         $this->multiTimeframeData = null;
         $this->progressCallback = null;
+    }
+
+    private function resolvePositionSizer(string $sizingModel): PositionSizer
+    {
+        return match ($sizingModel) {
+            'risk_based' => new RiskBasedSizer,
+            'fixed_dollar' => new FixedDollarSizer,
+            'kelly' => new KellySizer,
+            'atr_volatility' => new AtrVolatilitySizer,
+            default => new PercentOfEquitySizer,
+        };
     }
 
     private function emitProgress(int $current, int $total, string $message): void

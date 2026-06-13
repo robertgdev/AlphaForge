@@ -36,6 +36,8 @@ final class OrderCalculator
 
     /**
      * Calculate the position size as a string for use in OrderSignal.
+     *
+     * @deprecated Use PositionSizer implementations instead. Retained for backward compat.
      */
     public static function positionSize(float $capital, float $sizePercent): string
     {
@@ -43,11 +45,56 @@ final class OrderCalculator
     }
 
     /**
+     * Calculate risk-based position size using bcmath.
+     *
+     *   riskAmount      = equity × riskPerTrade
+     *   stopDistancePct = (entryPrice - stopLoss) / entryPrice
+     *   positionSize    = riskAmount / stopDistancePct
+     *   positionSize    = min(positionSize, equity × maxLeverage)
+     *
+     * All inputs and outputs are bcmath-compatible strings.
+     */
+    public static function riskBasedPositionSize(
+        string $equity,
+        float $riskPerTrade,
+        string $entryPrice,
+        string $stopLoss,
+        float $maxLeverage = 1.0,
+    ): string {
+        $scale = (int) config('alphaforge.defaults.bc_scale', 12);
+
+        $riskAmount = bcdiv(bcmul($equity, (string) $riskPerTrade, $scale), '100', $scale);
+
+        $stopDistance = bcsub($entryPrice, $stopLoss, $scale);
+        if (bccomp($stopDistance, '0', $scale) <= 0) {
+            $stopDistance = bcmul($entryPrice, '0.05', $scale);
+        }
+
+        $stopDistancePct = bcdiv($stopDistance, $entryPrice, $scale);
+
+        if (bccomp($stopDistancePct, '0', $scale) <= 0) {
+            return $riskAmount;
+        }
+
+        $positionSize = bcdiv($riskAmount, $stopDistancePct, $scale);
+
+        $maxNotional = bcmul($equity, (string) $maxLeverage, $scale);
+
+        if (bccomp($positionSize, $maxNotional, $scale) > 0) {
+            return $maxNotional;
+        }
+
+        return $positionSize;
+    }
+
+    /**
      * Build a LONG entry OrderSignal.
+     *
+     * @param  string|null  $positionSize  Position size in quote currency. Null = delegate to PositionSizer.
      */
     public static function entryOrder(
         string $symbol,
-        string $positionSize,
+        ?string $positionSize,
         string $stopLoss,
         string $takeProfit,
         array $enterTags = [],

@@ -71,6 +71,8 @@ class OptimizeParameterJob implements ShouldQueue
                 additionalTimeframes: [],
                 data: $data,
                 executionTimeframe: $config->executionTimeframe,
+                sizingModel: $config->sizingModel,
+                sizingConfig: $config->sizingConfig,
             );
 
             $backtestRun->markAsCompleted(
@@ -125,6 +127,8 @@ class OptimizeParameterJob implements ShouldQueue
             dataType: $c['dataType'] ?? 'ohlcv',
             brickSize: $c['brickSize'] ?? null,
             atrPeriod: $c['atrPeriod'] ?? null,
+            sizingModel: $c['sizingModel'] ?? 'percent_of_equity',
+            sizingConfig: $c['sizingConfig'] ?? [],
         );
     }
 }

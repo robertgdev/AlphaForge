@@ -43,6 +43,11 @@ class WalkForwardConfiguration
 
     public int $workerCount = 0;
 
+    public string $sizingModel = 'percent_of_equity';
+
+    /** @var array<string, mixed> */
+    public array $sizingConfig = [];
+
     /** @var array<string, mixed>|null */
     public ?array $parameterOverrides = null;
 
@@ -128,6 +133,9 @@ class WalkForwardConfiguration
                 : ParallelRunnerMode::from($rm);
         }
         $config->workerCount = (int) ($data['worker_count'] ?? $data['workerCount'] ?? 0);
+
+        $config->sizingModel = $data['sizing_model'] ?? $data['sizingModel'] ?? 'percent_of_equity';
+        $config->sizingConfig = $data['sizing_config'] ?? $data['sizingConfig'] ?? [];
 
         $dataTypeConfig = DataTypeConfig::fromArray($data);
         $config->dataType = $dataTypeConfig->dataType;
