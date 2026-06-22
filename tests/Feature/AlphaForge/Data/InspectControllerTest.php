@@ -12,7 +12,7 @@ describe('InspectController', function () {
 
     it('returns 404 when data file not found', function () {
         $response = $this->actingAs($this->user)
-            ->getJson('/api/alphaforge/data/inspect/binance/BTC-USDT/1h');
+            ->getJson('/api/alphaforge/data/inspect/binance/INVALID-PAIR/6w');
 
         $response->assertStatus(404)
             ->assertJsonStructure(['error']);

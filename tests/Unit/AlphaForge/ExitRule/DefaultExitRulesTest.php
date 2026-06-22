@@ -2,6 +2,8 @@
 
 use App\AlphaForge\ExitRule\DefaultExitRules;
 use App\AlphaForge\ExitRule\ExitRuleSet;
+use App\AlphaForge\Strategy\Dto\BarData;
+use App\AlphaForge\Strategy\Dto\InitializeData;
 use App\AlphaForge\Strategy\StrategyInterface;
 
 describe('DefaultExitRules trait', function () {
@@ -12,9 +14,9 @@ describe('DefaultExitRules trait', function () {
 
             public function configure(array $runtimeParameters): void {}
 
-            public function initialize(array $data): void {}
+            public function initialize(InitializeData $data): void {}
 
-            public function onBar(array $data): array
+            public function onBar(BarData $data): array
             {
                 return [];
             }
@@ -30,9 +32,9 @@ describe('DefaultExitRules trait', function () {
 
             public function configure(array $runtimeParameters): void {}
 
-            public function initialize(array $data): void {}
+            public function initialize(InitializeData $data): void {}
 
-            public function onBar(array $data): array
+            public function onBar(BarData $data): array
             {
                 return [];
             }

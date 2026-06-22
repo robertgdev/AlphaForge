@@ -2,6 +2,8 @@
 
 use App\AlphaForge\Backtesting\Optimization\ParameterDimension;
 use App\AlphaForge\Backtesting\Optimization\ParameterSpace;
+use App\AlphaForge\Strategy\Dto\BarData;
+use App\AlphaForge\Strategy\Dto\InitializeData;
 use App\AlphaForge\ExitRule\ExitRuleSet;
 use App\AlphaForge\Strategy\Attribute\Input;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
@@ -84,9 +86,9 @@ describe('ParameterSpace', function () {
 
             public function configure(array $inputs): void {}
 
-            public function initialize(array $data): void {}
+            public function initialize(InitializeData $data): void {}
 
-            public function onBar(array $data): array
+            public function onBar(BarData $data): array
             {
                 return [];
             }
