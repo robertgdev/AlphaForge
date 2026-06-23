@@ -28,7 +28,6 @@
         "laravel/fortify": "^1.30",
         "laravel/framework": "^13.0",
         "laravel/reverb": "^1.0",
-        "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.9",
         "stochastix/ta-lib-hybrid": "@dev"

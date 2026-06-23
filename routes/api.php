@@ -1,6 +1,7 @@
 <?php
 
 use App\AlphaForge\Http\Controllers\Api\BacktestController;
+use App\AlphaForge\Http\Controllers\Api\TradeSignalController;
 use App\Http\Controllers\AlphaForge\Data\DownloadController;
 use App\Http\Controllers\AlphaForge\Data\ExchangesController;
 use App\Http\Controllers\AlphaForge\Data\InspectController;
@@ -8,7 +9,7 @@ use App\Http\Controllers\AlphaForge\Data\SymbolsController;
 use Illuminate\Support\Facades\Route;
 
 // AlphaForge API routes
-Route::prefix('alphaforge')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('alphaforge')->middleware(['api.key'])->group(function () {
 
     // Backtest routes
     Route::prefix('backtests')->group(function () {
@@ -33,5 +34,11 @@ Route::prefix('alphaforge')->middleware(['auth:sanctum'])->group(function () {
 
         // Inspect routes
         Route::get('/inspect/{exchange}/{symbol}/{timeframe}', [InspectController::class, 'show']);
+    });
+
+    // Trade signal evaluation routes
+    Route::prefix('signals')->group(function () {
+        Route::post('/', [TradeSignalController::class, 'store']);
+        Route::get('/{id}', [TradeSignalController::class, 'show']);
     });
 });

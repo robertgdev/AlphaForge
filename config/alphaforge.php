@@ -73,8 +73,22 @@ return [
         'downloads' => env('ALPHAFORGE_DOWNLOADS_QUEUE', 'downloads'),
     ],
 
-    'broadcasting' => [
+'broadcasting' => [
         'enabled' => env('ALPHAFORGE_BROADCASTING_ENABLED', true),
         'channel_prefix' => env('ALPHAFORGE_CHANNEL_PREFIX', 'alphaforge'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Authentication
+    |--------------------------------------------------------------------------
+    |
+    | A static API key for authenticating API requests. When set, all API
+    | routes under /api/alphaforge require an Authorization: Bearer <key>
+    | header. When empty (default), API routes are open without auth.
+    | Suitable for single-user local installations.
+    |
+    */
+    'api_key' => env('ALPHAFORGE_API_KEY', ''),
+
 ];
