@@ -7,7 +7,7 @@ use App\AlphaForge\Regime\RegimeDetector;
 use App\AlphaForge\Regime\RegimeSeries;
 use App\AlphaForge\TimeSeries\ArrayTimeSeries;
 use App\AlphaForge\TimeSeries\TimeSeriesInterface;
-use TaLibHybrid\TaLibHybrid;
+use RobertGDev\TaLibHybrid\TaLibHybrid;
 
 use function Safe\json_encode;
 

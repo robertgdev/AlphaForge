@@ -6,16 +6,14 @@ use App\AlphaForge\Backtesting\Model\WalkForwardResult;
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 use App\AlphaForge\Backtesting\Optimization\MarketDataLoader;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use RobertGDev\AlphaforgeStatistics\WalkForward\WalkForwardAnalyzer as PackageAnalyzer;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class WalkForwardAnalyzer
 {
     private const LOW_TRADE_CNT_THRESHOLD = 30;
-    private const SMALL_RETURN_THRESHOLD = 2.0;
-    private const HIGH_SHARPE_THRESHOLD = 5.0;          // Sharpe above this with low return triggers suspicion
-    private const OOS_IS_RATIO_INFLATED_THRESHOLD = 120.0; // Ratio above this with tiny returns is misleading
-    private const MEANINGFUL_RETURN_PCT = 10.0;         // Threshold for economically meaningful return
+    private const MEANINGFUL_RETURN_PCT = 10.0;
 
     public function __construct(
         private readonly ?MarketDataLoader $marketDataLoader = null,
@@ -75,8 +73,8 @@ class WalkForwardAnalyzer
         /** @var list<float> $degradations */
         $degradations = $results->map(fn (WalkForwardResult $r) => (float) ($r->score_degradation ?? 0.0))->values()->all();
 
-        $medianIsScore = $this->median($isScores);
-        $medianOosScore = $this->median($oosScores);
+        $medianIsScore = PackageAnalyzer::median($isScores);
+        $medianOosScore = PackageAnalyzer::median($oosScores);
 
         $avgIsScore = array_sum($isScores) / count($isScores);
         $avgOosScore = array_sum($oosScores) / count($oosScores);
@@ -86,15 +84,15 @@ class WalkForwardAnalyzer
             : 0.0;
 
         $avgDegradation = array_sum($degradations) / count($degradations);
-        $medianDegradation = $this->median($degradations);
+        $medianDegradation = PackageAnalyzer::median($degradations);
 
         $oosReturns = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['total_return_percent'] ?? 0))->values()->all();
         $oosSharpes = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['sharpe_ratio'] ?? 0))->values()->all();
         $oosMaxDds = $results->map(fn (WalkForwardResult $r) => (float) ($r->oos_statistics['max_drawdown_percent'] ?? 0))->values()->all();
 
-        $medianOosReturn = $this->median($oosReturns);
-        $medianOosSharpe = $this->median($oosSharpes);
-        $medianOosMaxDd = $this->median($oosMaxDds);
+        $medianOosReturn = PackageAnalyzer::median($oosReturns);
+        $medianOosSharpe = PackageAnalyzer::median($oosSharpes);
+        $medianOosMaxDd = PackageAnalyzer::median($oosMaxDds);
 
         /** @var WalkForwardResult|null $bestOosResult */
         $bestOosResult = $results->first(fn (WalkForwardResult $r) => $r->rank === (
@@ -103,11 +101,11 @@ class WalkForwardAnalyzer
 
         $robustRatioPct = $results->count() > 0 ? $profitableOos->count() / $results->count() * 100 : 0.0;
 
-        $rankCorrelation = $this->spearmanRankCorrelation($results);
-        $rankStabilityLabel = $this->classifyRankStability($rankCorrelation);
+        $rankCorrelation = PackageAnalyzer::spearmanRankCorrelation($isScores, $oosScores);
+        $rankStabilityLabel = PackageAnalyzer::classifyRankStability($rankCorrelation);
 
-        $stabilityClassification = $this->classifyRobustness($oosIsRatio, $robustRatioPct, $rankCorrelation);
-        $stabilityInterpretation = $this->interpretClassification($stabilityClassification);
+        $stabilityClassification = PackageAnalyzer::classifyRobustness($oosIsRatio, $robustRatioPct, $rankCorrelation);
+        $stabilityInterpretation = PackageAnalyzer::interpretClassification($stabilityClassification);
 
         $reliableCount = 0;
         if ($minTrades > 0) {
@@ -134,7 +132,10 @@ class WalkForwardAnalyzer
         } catch (\BadMethodCallException) { /** @phpstan-ignore catch.neverThrown */
             $parameterRanges = [];
         }
-        $boundaryWarnings = $this->boundaryWarnings($results, $parameterRanges);
+        $boundaryWarnings = PackageAnalyzer::boundaryWarnings(
+            $results->take(10)->map(fn (WalkForwardResult $r) => ['parameters' => $r->parameters])->all(),
+            $parameterRanges
+        );
 
         $benchmark = $this->computeBenchmark($wfRun);
 
@@ -186,12 +187,13 @@ class WalkForwardAnalyzer
             }
         }
 
-        $oosIsRatioWarning = $this->detectInflatedOosIsRatio($oosIsRatio, $avgIsScore, $avgOosScore, $bestOosResult);
+        $bestOosStats = $bestOosResult !== null ? $bestOosResult->oos_statistics : null;
+        $oosIsRatioWarning = PackageAnalyzer::detectInflatedOosIsRatio($oosIsRatio, $avgIsScore, $avgOosScore, $bestOosStats);
 
-        $economicPerformance = $this->classifyEconomicPerformance($bestOosResult, $benchmark);
-        $economicInterpretation = $this->interpretEconomicPerformance($economicPerformance, $bestOosResult, $benchmark);
+        $economicPerformance = PackageAnalyzer::classifyEconomicPerformance($bestOosStats, $benchmark);
+        $economicInterpretation = PackageAnalyzer::interpretEconomicPerformance($economicPerformance, $bestOosStats, $benchmark);
 
-        $suspiciousSharpe = $this->detectSuspiciousSharpe($bestOosResult);
+        $suspiciousSharpe = PackageAnalyzer::detectSuspiciousSharpe($bestOosStats);
 
         /** @var list<WalkForwardResult> $resultList */
         $resultList = $results->all();
@@ -243,328 +245,36 @@ class WalkForwardAnalyzer
     }
 
     /**
-     * Flag the OOS/IS ratio as inflated when returns are near zero.
-     * A ratio can explode when both numerator and denominator are tiny.
-     */
-    private function detectInflatedOosIsRatio(float $oosIsRatio, float $avgIsScore, float $avgOosScore, ?WalkForwardResult $bestOosResult): bool
-    {
-        if ($oosIsRatio < self::OOS_IS_RATIO_INFLATED_THRESHOLD) {
-            return false;
-        }
-
-        $strategyReturn = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
-
-        if ($strategyReturn < self::SMALL_RETURN_THRESHOLD) {
-            return true;
-        }
-
-        if (abs($avgIsScore) < 0.01 && abs($avgOosScore) < 0.01) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Classify economic performance relative to buy-and-hold benchmark.
-     */
-    private function classifyEconomicPerformance(?WalkForwardResult $bestOosResult, array $benchmark): string
-    {
-        if ($bestOosResult === null || ! ($benchmark['has_data'] ?? false)) {
-            return 'unknown';
-        }
-
-        $strategyReturn = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
-        $benchmarkReturn = abs((float) ($benchmark['return'] ?? 0));
-
-        if ($strategyReturn < self::SMALL_RETURN_THRESHOLD) {
-            return 'poor';
-        }
-
-        if ($benchmarkReturn <= 0) {
-            if ($strategyReturn >= self::SMALL_RETURN_THRESHOLD) {
-                return 'strong';
-            }
-
-            return 'moderate';
-        }
-
-        $ratio = $strategyReturn / $benchmarkReturn;
-
-        if ($ratio >= 0.5) {
-            return 'strong';
-        }
-        if ($ratio >= 0.1) {
-            return 'moderate';
-        }
-
-        return 'poor';
-    }
-
-    private function interpretEconomicPerformance(string $performance, ?WalkForwardResult $bestOosResult, array $benchmark): string
-    {
-        if ($performance === 'unknown') {
-            return 'insufficient data to assess economic performance';
-        }
-
-        if ($bestOosResult === null || ! ($benchmark['has_data'] ?? false)) {
-            return 'insufficient data to assess economic performance';
-        }
-
-        $strategyReturn = (float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0);
-        $benchmarkReturn = (float) ($benchmark['return'] ?? 0);
-
-        return match ($performance) {
-            'strong' => sprintf('strategy return (%s%%) is on par with or exceeds buy-and-hold (%s%%)',
-                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
-            'moderate' => sprintf('strategy return (%s%%) captures some of the market move but trails buy-and-hold (%s%%)',
-                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
-            'poor' => sprintf('strategy return (%s%%) is negligible relative to buy-and-hold (%s%%); economic performance is unattractive',
-                number_format($strategyReturn, 2), number_format($benchmarkReturn, 2)),
-            default => 'unknown',
-        };
-    }
-
-    /**
-     * Detect suspiciously high Sharpe ratio alongside tiny absolute returns.
-     */
-    private function detectSuspiciousSharpe(?WalkForwardResult $bestOosResult): bool
-    {
-        if ($bestOosResult === null) {
-            return false;
-        }
-
-        $sharpe = (float) ($bestOosResult->oos_statistics['sharpe_ratio'] ?? 0);
-        $returnPct = abs((float) ($bestOosResult->oos_statistics['total_return_percent'] ?? 0));
-
-        return $sharpe > self::HIGH_SHARPE_THRESHOLD && $returnPct < self::SMALL_RETURN_THRESHOLD;
-    }
-
-    /**
-     * Multi-factor robustness classification using rank correlation, WFE, and profitable ratio.
-     */
-    private function classifyRobustness(float $oosIsRatio, float $robustRatioPercent, ?float $spearman): string
-    {
-        $spearman = $spearman ?? 0.0;
-
-        if ($spearman > 0.8 && $oosIsRatio > 70 && $robustRatioPercent > 70) {
-            return 'excellent';
-        }
-
-        if ($spearman > 0.6 && $oosIsRatio > 50 && $robustRatioPercent > 50) {
-            return 'good';
-        }
-
-        if ($spearman > 0.4 && $oosIsRatio > 30 && $robustRatioPercent > 30) {
-            return 'moderate';
-        }
-
-        if ($spearman < 0.2 || $oosIsRatio < 10 || $robustRatioPercent < 10) {
-            return 'likely_overfit';
-        }
-
-        return 'weak';
-    }
-
-    private function interpretClassification(string $classification): string
-    {
-        return match ($classification) {
-            'excellent' => 'strong evidence of generalization; IS rank strongly predicts OOS performance',
-            'good' => 'parameters generalize well to unseen data',
-            'moderate' => 'partial generalization; some parameters carry over; treat with caution',
-            'weak' => 'limited generalization; results should be treated with caution',
-            'likely_overfit' => 'parameters do not generalize; optimization results are likely overfit',
-            default => 'unknown classification',
-        };
-    }
-
-    /**
-     * Check if top-N parameters cluster near search boundaries.
+     * Delegate to package boundaryWarnings. Kept as private for test compatibility.
      *
      * @param  Collection<int, WalkForwardResult>  $results
-     * @param  array<string, mixed>  $parameterRanges
+     * @param  array<string, array{min: float|int, max: float|int}>  $parameterRanges
      * @return array<int, array{param: string, direction: string, boundary: float, pct: float}>
      */
     private function boundaryWarnings($results, array $parameterRanges): array
     {
-        if (empty($parameterRanges) || $results->isEmpty()) {
-            return [];
-        }
-
-        $warnings = [];
-        $totalResults = $results->count();
-        $topN = min($totalResults, 10);
-
-        foreach ($parameterRanges as $param => $range) {
-            if (! is_array($range) || ! isset($range['min'], $range['max'])) {
-                continue;
-            }
-
-            $min = (float) $range['min'];
-            $max = (float) $range['max'];
-            $span = $max - $min;
-
-            if ($span <= 0) {
-                continue;
-            }
-
-            $nearMin = 0;
-            $nearMax = 0;
-
-            for ($i = 0; $i < $topN; $i++) {
-                $result = $results->get($i);
-                if (! $result || ! isset($result->parameters[$param])) {
-                    continue;
-                }
-
-                $val = (float) $result->parameters[$param];
-                $pct = ($val - $min) / $span;
-
-                if ($pct <= 0.10) {
-                    $nearMin++;
-                }
-                if ($pct >= 0.90) {
-                    $nearMax++;
-                }
-            }
-
-            $minPct = ($nearMin / $topN) * 100;
-            $maxPct = ($nearMax / $topN) * 100;
-
-            if ($minPct >= 50) {
-                $warnings[] = [
-                    'param' => $param,
-                    'direction' => 'min',
-                    'boundary' => $min,
-                    'pct' => round($minPct, 0),
-                ];
-            }
-
-            if ($maxPct >= 50) {
-                $warnings[] = [
-                    'param' => $param,
-                    'direction' => 'max',
-                    'boundary' => $max,
-                    'pct' => round($maxPct, 0),
-                ];
-            }
-        }
-
-        return $warnings;
-    }
-
-    private function classifyRankStability(?float $correlation): string
-    {
-        if ($correlation === null) {
-            return 'unstable';
-        }
-
-        if ($correlation > 0.7) {
-            return 'stable';
-        }
-
-        if ($correlation > 0.3) {
-            return 'moderate';
-        }
-
-        return 'unstable';
+        return PackageAnalyzer::boundaryWarnings(
+            $results->take(10)->map(fn (WalkForwardResult $r) => ['parameters' => $r->parameters])->all(),
+            $parameterRanges
+        );
     }
 
     /**
-     * @param  Collection<int, WalkForwardResult>  $results
+     * @param  array<string, mixed>  $benchmark
      */
-    private function spearmanRankCorrelation(Collection $results): ?float
+    private function classifyEconomicPerformance(?WalkForwardResult $bestOosResult, array $benchmark): string
     {
-        if ($results->count() < 2) {
-            return null;
-        }
-
-        $oosScores = $results->map(fn (WalkForwardResult $r) => $r->oos_score ?? 0.0)->toArray();
-
-        $allSame = count(array_unique($oosScores)) === 1;
-        if ($allSame) {
-            return 0.0;
-        }
-
-        $isRanks = $this->rankValues($results->map(fn (WalkForwardResult $r) => $r->is_score ?? 0.0)->toArray());
-        $oosRanks = $this->rankValues($oosScores);
-
-        return $this->pearsonCorrelation($isRanks, $oosRanks);
+        return PackageAnalyzer::classifyEconomicPerformance(
+            $bestOosResult !== null ? $bestOosResult->oos_statistics : null,
+            $benchmark
+        );
     }
 
-    private function rankValues(array $values): array
+    private function detectSuspiciousSharpe(?WalkForwardResult $bestOosResult): bool
     {
-        $n = count($values);
-        $indexed = [];
-        foreach ($values as $i => $v) {
-            $indexed[] = ['index' => $i, 'value' => $v];
-        }
-
-        usort($indexed, fn ($a, $b) => $a['value'] <=> $b['value']);
-
-        $ranks = array_fill(0, $n, 0.0);
-        $i = 0;
-        while ($i < $n) {
-            $j = $i;
-            while ($j < $n - 1 && $indexed[$j + 1]['value'] == $indexed[$j]['value']) {
-                $j++;
-            }
-            $avgRank = ($i + $j) / 2.0 + 1.0;
-            for ($k = $i; $k <= $j; $k++) {
-                $ranks[$indexed[$k]['index']] = $avgRank;
-            }
-            $i = $j + 1;
-        }
-
-        return $ranks;
-    }
-
-    private function pearsonCorrelation(array $x, array $y): float
-    {
-        $n = count($x);
-        if ($n === 0) {
-            return 0.0;
-        }
-
-        $meanX = array_sum($x) / $n;
-        $meanY = array_sum($y) / $n;
-
-        $numerator = 0.0;
-        $denomX = 0.0;
-        $denomY = 0.0;
-
-        for ($i = 0; $i < $n; $i++) {
-            $dx = $x[$i] - $meanX;
-            $dy = $y[$i] - $meanY;
-            $numerator += $dx * $dy;
-            $denomX += $dx * $dx;
-            $denomY += $dy * $dy;
-        }
-
-        $denominator = sqrt($denomX * $denomY);
-        if ($denominator == 0.0) {
-            return 0.0;
-        }
-
-        return $numerator / $denominator;
-    }
-
-    private function median(array $values): float
-    {
-        if (empty($values)) {
-            return 0.0;
-        }
-
-        $sorted = $values;
-        sort($sorted);
-        $count = count($sorted);
-        $mid = (int) floor($count / 2);
-
-        if ($count % 2 === 0) {
-            return ($sorted[$mid - 1] + $sorted[$mid]) / 2.0;
-        }
-
-        return $sorted[$mid];
+        return PackageAnalyzer::detectSuspiciousSharpe(
+            $bestOosResult !== null ? $bestOosResult->oos_statistics : null
+        );
     }
 
     /**

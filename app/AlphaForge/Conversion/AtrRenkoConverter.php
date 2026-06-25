@@ -8,7 +8,7 @@ use App\AlphaForge\Data\Service\BinaryStorageInterface;
 use App\AlphaForge\Services\MarketDataFileService;
 use App\AlphaForge\Services\MarketDataPathBuilder;
 use Generator;
-use TaLibHybrid\TaLibHybrid;
+use RobertGDev\TaLibHybrid\TaLibHybrid;
 
 /**
  * Service for converting OHLC data to ATR-based Renko bricks.
@@ -103,8 +103,8 @@ class AtrRenkoConverter
      *
      * Algorithm:
      *   1. Read all OHLC records into memory and re-index to 0-based
-     *   2. Compute ATR series using TaLibHybrid::atr() (Wilders smoothing)
-     *   3. Replace NULL warmup entries in TaLibHybrid::atr() output with the first valid ATR value
+     *   2. Compute ATR series using RobertGDev\TaLibHybrid\TaLibHybrid::atr() (Wilders smoothing)
+     *   3. Replace NULL warmup entries in RobertGDev\TaLibHybrid\TaLibHybrid::atr() output with the first valid ATR value
      *   4. Iterate records with corresponding ATR-derived brick size,
      *      applying the same high-low Renko logic as the fixed-brick converter
      *
@@ -114,7 +114,7 @@ class AtrRenkoConverter
      * @param  callable|null  $progressCallback  Optional progress callback
      * @return Generator Yields Renko brick records
      *
-     * @throws StorageException If the file cannot be read or TaLibHybrid is unavailable
+     * @throws StorageException If the file cannot be read or RobertGDev\TaLibHybrid\TaLibHybrid is unavailable
      */
     private function convertOhlcvToAtrRenko(
         string $sourcePath,
@@ -132,14 +132,14 @@ class AtrRenkoConverter
         try {
             $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
         } catch (\Throwable $e) {
-            throw new StorageException('TaLibHybrid::atr() failed: '.$e->getMessage());
+            throw new StorageException('RobertGDev\TaLibHybrid\TaLibHybrid::atr() failed: '.$e->getMessage());
         }
 
         if (empty($atrRaw)) {
-            throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+            throw new StorageException('RobertGDev\TaLibHybrid\TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
         }
 
-        // TaLibHybrid::atr() returns a full-size array (same count as input) with NULL for warmup entries.
+        // RobertGDev\TaLibHybrid\TaLibHybrid::atr() returns a full-size array (same count as input) with NULL for warmup entries.
         // Find the first valid (non-NULL) ATR value, then fill NULLs with it.
         $fullAtr = $atrRaw;
         $firstValidAtr = null;
@@ -337,11 +337,11 @@ class AtrRenkoConverter
         try {
             $atrRaw = TaLibHybrid::atr($highs, $lows, $closes, $atrPeriod);
         } catch (\Throwable $e) {
-            throw new StorageException('TaLibHybrid::atr() failed: '.$e->getMessage());
+            throw new StorageException('RobertGDev\TaLibHybrid\TaLibHybrid::atr() failed: '.$e->getMessage());
         }
 
         if (empty($atrRaw)) {
-            throw new StorageException('TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
+            throw new StorageException('RobertGDev\TaLibHybrid\TaLibHybrid::atr() returned no results. Verify that the OHLC data is valid and the ATR period is appropriate.');
         }
 
         $fullAtr = $atrRaw;

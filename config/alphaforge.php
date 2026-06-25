@@ -73,7 +73,7 @@ return [
         'downloads' => env('ALPHAFORGE_DOWNLOADS_QUEUE', 'downloads'),
     ],
 
-'broadcasting' => [
+    'broadcasting' => [
         'enabled' => env('ALPHAFORGE_BROADCASTING_ENABLED', true),
         'channel_prefix' => env('ALPHAFORGE_CHANNEL_PREFIX', 'alphaforge'),
     ],

@@ -1,6 +1,6 @@
 # AlphaForge - Laravel Trading Backtesting System
 
-A comprehensive trading backtesting system ported from Symfony to Laravel 12. This system provides high-performance backtesting capabilities for algorithmic trading strategies with support for multi-timeframe analysis, comprehensive statistics, real-time progress broadcasting, and market data acquisition from 100+ cryptocurrency exchanges.
+A comprehensive trading backtesting and optimization system for Laravel 13. This system provides high-performance backtesting capabilities for algorithmic trading strategies with support for multi-timeframe analysis, comprehensive statistics, real-time progress broadcasting, and market data acquisition from 100+ cryptocurrency exchanges.
 
 ## Overview
 

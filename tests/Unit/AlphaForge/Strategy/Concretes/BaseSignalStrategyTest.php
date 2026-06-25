@@ -1,5 +1,7 @@
 <?php
 
+namespace Tests\Unit\AlphaForge\Strategy\Concretes;
+
 use App\AlphaForge\Backtesting\Model\BacktestCursor;
 use App\AlphaForge\Common\Enum\DirectionEnum;
 use App\AlphaForge\Common\Model\OhlcvSeries;
@@ -8,7 +10,6 @@ use App\AlphaForge\Condition\ConditionInterface;
 use App\AlphaForge\Order\Dto\PositionDto;
 use App\AlphaForge\Order\Enum\OrderTypeEnum;
 use App\AlphaForge\Order\Model\PortfolioManager;
-use App\AlphaForge\Strategy\Attribute\Input;
 use App\AlphaForge\Strategy\Concretes\BaseSignalStrategy;
 use App\AlphaForge\Strategy\Dto\BarData;
 use App\AlphaForge\Strategy\Dto\InitializeData;
@@ -16,53 +17,10 @@ use App\AlphaForge\Strategy\StrategyInterface;
 use Carbon\Carbon;
 use Ds\Map;
 use Ds\Vector;
-
-class TestSignalStrategy extends BaseSignalStrategy
-{
-    #[Input(description: 'Test int parameter')]
-    private int $testPeriod = 10;
-
-    #[Input(description: 'Test float parameter')]
-    private float $testThreshold = 5.0;
-
-    #[Input(
-        description: 'Stop loss percentage from entry price',
-        min: 0.5,
-        max: 20.0,
-        step: 0.5
-    )]
-    private float $stopLossPercent = 3.0;
-
-    #[Input(
-        description: 'Take profit percentage from entry price',
-        min: 1.0,
-        max: 50.0,
-        step: 2.0
-    )]
-    private float $takeProfitPercent = 6.0;
-
-    protected function stopLossPercent(): float
-    {
-        return $this->stopLossPercent;
-    }
-
-    protected function takeProfitPercent(): float
-    {
-        return $this->takeProfitPercent;
-    }
-
-    protected function minBars(): int
-    {
-        return $this->testPeriod;
-    }
-
-    protected function strategyName(): string
-    {
-        return 'Test Strategy';
-    }
-
-    protected function computeSignals(OhlcvSeries $ohlcv): void {}
-}
+use Mockery;
+use ReflectionMethod;
+use ReflectionProperty;
+use RuntimeException;
 
 function makeOhlcvMock(int $barCount = 100, array $closeValues = []): OhlcvSeries
 {

@@ -2,7 +2,7 @@
 
 namespace App\AlphaForge\Regime;
 
-use TaLibHybrid\TaLibHybrid;
+use RobertGDev\TaLibHybrid\TaLibHybrid;
 
 class RegimeDetector
 {

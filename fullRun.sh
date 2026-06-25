@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FORCE_FLAG="--force"
-UPDATE_FLAG="--force"
+FORCE_FLAG=""
+UPDATE_FLAG="--update"
 DEBUG_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --no-force) FORCE_FLAG="" UPDATE_FLAG="--update"; shift ;;
         --force)    FORCE_FLAG="--force" UPDATE_FLAG="--force"; shift ;;
         --debug)    DEBUG_FLAG="--debug"; shift ;;
         --help|-h)
-            echo "Usage: $0 [--force|--no-force] [--debug]"
-            echo "  --force     Force overwrite of existing data (default)"
-            echo "  --no-force  Update incrementally: skip if data already exists,"
-            echo "              append only missing data for data:import step"
+            echo "Usage: $0 [--force] [--debug]"
+            echo "  --force     Force overwrite of existing data"
             echo "  --debug     Show peak memory usage after each command"
             exit 0
             ;;

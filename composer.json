@@ -1,22 +1,13 @@
 {
     "schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/vue-starter-kit",
+    "name": "robertgdev/alphaforge",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "A comprehensive trading backtesting and optimization system for Laravel 13.",
     "keywords": [
         "laravel",
         "framework"
     ],
     "license": "MIT",
-    "repositories": [
-        {
-            "type": "path",
-            "url": "src/TaLibHybrid",
-            "options": {
-                "symlink": true
-            }
-        }
-    ],
     "require": {
         "php": "^8.3",
         "ext-bcmath": "*",
@@ -30,7 +21,8 @@
         "laravel/reverb": "^1.0",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.9",
-        "stochastix/ta-lib-hybrid": "@dev"
+        "robertgdev/alphaforge-statistics": "^1.0",
+        "robertgdev/ta-lib-hybrid": "^1.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
