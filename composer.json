@@ -14,7 +14,7 @@
         "ext-ds": "*",
         "ext-gmp": "*",
         "ccxt/ccxt": "^4.0",
-        "illuminate/broadcasting": "*",
+        "illuminate/broadcasting": "^13.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/fortify": "^1.30",
         "laravel/framework": "^13.0",
