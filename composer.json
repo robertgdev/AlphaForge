@@ -5,7 +5,11 @@
     "description": "A comprehensive trading backtesting and optimization system for Laravel 13.",
     "keywords": [
         "laravel",
-        "framework"
+        "trading",
+        "backtesting",
+        "optimization",
+        "strategies",
+        "ta-lib"
     ],
     "license": "MIT",
     "require": {
