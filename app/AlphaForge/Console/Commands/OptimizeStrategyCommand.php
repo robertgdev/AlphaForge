@@ -54,6 +54,7 @@ class OptimizeStrategyCommand extends Command
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run strategy parameter optimization';
@@ -61,6 +62,10 @@ class OptimizeStrategyCommand extends Command
     public function handle(Optimizer $optimizer, StrategyInputParser $inputParser,
         DataAutoGenerator $dataAutoGenerator): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $strategyAlias = $this->argument('strategy');
         $symbol = $this->argument('symbol');
         $exchange = $this->option('exchange');

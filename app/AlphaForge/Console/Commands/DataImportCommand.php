@@ -29,6 +29,7 @@ class DataImportCommand extends Command
         {enddate? : The end date for data import (Y-m-d or Y-m-d H:i:s, defaults to now)}
         {--force : Force overwrite existing data}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Import market data from an exchange';
@@ -38,6 +39,10 @@ class DataImportCommand extends Command
         DateParsingService $dateParsingService,
         Dispatcher $eventDispatcher
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

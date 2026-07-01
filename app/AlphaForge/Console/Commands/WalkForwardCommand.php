@@ -65,6 +65,7 @@ class WalkForwardCommand extends Command
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run walk-forward analysis: optimize on in-sample data, validate on out-of-sample data';
@@ -72,6 +73,10 @@ class WalkForwardCommand extends Command
     public function handle(WalkForwardService $service, WalkForwardAnalyzer $analyzer, WalkForwardExporter $exporter, StrategyInputParser $inputParser,
         DataAutoGenerator $dataAutoGenerator): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $strategyAlias = $this->argument('strategy');
         $symbol = $this->argument('symbol');
         $exchange = $this->option('exchange');

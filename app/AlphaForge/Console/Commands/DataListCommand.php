@@ -20,6 +20,7 @@ class DataListCommand extends Command
         {--exchange-filter= : Filter by exchange}
         {--symbol-filter= : Filter by symbol}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List all available market data files';
@@ -28,6 +29,10 @@ class DataListCommand extends Command
         DataAvailabilityService $availabilityService,
         FormattingService $formattingService
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchangeFilter = $this->option('exchange-filter');
         $symbolFilter = $this->option('symbol-filter');
 

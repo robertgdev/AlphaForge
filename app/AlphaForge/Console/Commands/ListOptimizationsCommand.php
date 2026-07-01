@@ -15,12 +15,17 @@ class ListOptimizationsCommand extends Command
         {--status= : Filter by status (pending, running, completed, failed)}
         {--limit=20 : Number of results to show}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List past optimization runs';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $query = OptimizationRun::query()->orderBy('created_at', 'desc');
 
         if ($strategy = $this->option('strategy')) {

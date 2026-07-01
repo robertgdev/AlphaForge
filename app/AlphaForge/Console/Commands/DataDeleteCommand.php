@@ -25,6 +25,7 @@ class DataDeleteCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {--force : Skip confirmation prompt}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Delete a market data file';
@@ -33,6 +34,10 @@ class DataDeleteCommand extends Command
         MarketDataFileService $fileService,
         FormattingService $formattingService
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

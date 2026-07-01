@@ -15,12 +15,17 @@ class OptimizationResultCommand extends Command
         {backtest_id : The backtest run ID within an optimization}
         {--show-positions : Include positions in output}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show a specific backtest result from an optimization';
 
     public function handle(BacktestResultFormatter $formatter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $backtestId = $this->argument('backtest_id');
 
         $backtestRun = BacktestRun::with('optimization')->find($backtestId);

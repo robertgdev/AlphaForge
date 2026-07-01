@@ -18,12 +18,17 @@ class SensitivityAnalysisCommand extends Command
         {--surface= : Comma-separated pair of parameters for 2D heatmap (e.g. fastPeriod,slowPeriod)}
         {--interactions : Show inter-parameter interaction effects}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Analyze parameter sensitivity from an optimization run';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $optimizationId = $this->argument('optimization_id');
 
         $optimizationRun = OptimizationRun::find($optimizationId);

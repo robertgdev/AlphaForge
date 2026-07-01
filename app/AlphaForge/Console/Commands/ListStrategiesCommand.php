@@ -13,6 +13,7 @@ class ListStrategiesCommand extends Command
 
     protected $signature = 'alphaforge:strategies:list
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List all available strategies';
@@ -25,6 +26,10 @@ class ListStrategiesCommand extends Command
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $definitions = $this->strategyRegistry->getStrategyDefinitions();
 
         if (empty($definitions)) {

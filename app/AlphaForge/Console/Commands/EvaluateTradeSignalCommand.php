@@ -33,12 +33,17 @@ class EvaluateTradeSignalCommand extends Command
         {--re-evaluate : Re-evaluate an existing open signal}
         {--signal-id= : ID of existing signal to re-evaluate}
         {--json : Output results as JSON}
-        {--list-open : List all open trade signals}';
+        {--list-open : List all open trade signals}
+        {--schema : Display command parameter schema as JSON}';
 
     protected $description = 'Evaluate a trade signal against OHLCV data';
 
     public function handle(TradeSignalEvaluator $evaluator): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         if ($this->option('list-open')) {
             return $this->listOpen();
         }

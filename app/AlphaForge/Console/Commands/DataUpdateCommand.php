@@ -40,6 +40,7 @@ class DataUpdateCommand extends Command
         {--with-dependencies : Also update all derived data files (Renko, Heiken-Ashi, etc.)}
         {--auto-generate : Auto-generate derived data files that do not exist (Renko, Heiken-Ashi, ATR-Renko, aggregated OHLCV)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Update market data to the latest available';
@@ -53,6 +54,10 @@ class DataUpdateCommand extends Command
         Dispatcher $eventDispatcher,
         DataAutoGenerator $dataAutoGenerator
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

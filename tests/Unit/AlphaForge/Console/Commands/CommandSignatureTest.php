@@ -403,6 +403,13 @@ describe('Console Command Signatures', function () {
 
                 expect($defaultProps['signature'])->toContain('--json');
             });
+
+            it("{$shortName} has --schema in its signature", function () use ($class) {
+                $ref = new ReflectionClass($class);
+                $defaultProps = $ref->getDefaultProperties();
+
+                expect($defaultProps['signature'])->toContain('--schema');
+            });
         }
     });
 });

@@ -16,12 +16,17 @@ class ShowOptimizationCommand extends Command
         {optimization_id : The optimization run ID}
         {--top=10 : Number of top results to display}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed optimization results';
 
     public function handle(ParameterOptimizerService $optimizer, BacktestResultFormatter $formatter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $optimizationId = $this->argument('optimization_id');
         $topCount = (int) $this->option('top');
 

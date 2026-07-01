@@ -16,12 +16,17 @@ class MonteCarloCommand extends Command
         {--iterations=1000 : Number of bootstrap iterations}
         {--seed= : Random seed for reproducible results}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run Monte Carlo bootstrap analysis on backtest trade outcomes';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $backtestId = $this->argument('backtest_id');
         $iterations = (int) $this->option('iterations');
         $seed = $this->option('seed');

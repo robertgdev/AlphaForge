@@ -19,12 +19,17 @@ class EvaluateAllTradeSignalsCommand extends Command
         {--timeframe= : Optional timeframe filter (1m, 5m, 15m, 30m, 1h, 4h, 1d)}
         {--symbol= : Optional symbol filter}
         {--limit= : Max number of signals to evaluate}
-        {--json : Output results as JSON}';
+        {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}';
 
     protected $description = 'Re-evaluate all open trade signals';
 
     public function handle(TradeSignalEvaluator $evaluator): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $query = TradeSignal::where('status', 'open')->orderBy('created_at', 'asc');
 
         if ($this->option('timeframe')) {

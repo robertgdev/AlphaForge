@@ -18,12 +18,17 @@ class DataExportCommand extends Command
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export market data to an external format (not yet implemented)';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

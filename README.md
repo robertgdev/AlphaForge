@@ -228,6 +228,170 @@ app/AlphaForge/
 
 AlphaForge provides comprehensive CLI commands for all operations. All commands are under the `alphaforge:` namespace.
 
+### Machine-Readable Output (`--json`)
+
+Every command supports the `--json` flag, which suppresses all human-readable output (tables, colored text, progress bars) and prints a single machine-readable JSON object to stdout. The output follows a uniform wrapper:
+
+```json
+{
+  "command": "alphaforge:data:list",
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `command` | string | The resolved command name |
+| `success` | boolean | `true` if exit code is 0, `false` otherwise |
+| `data` | object\|array\|null | Command-specific payload (null on pure errors) |
+| `error` | string\|null | Error message when success is false |
+
+**Error output also uses JSON** — when a command fails (e.g., invalid parameters, missing data), it returns `success: false` with an `error` string.
+
+**Conflict with `--format`:** Commands that support both `--format` and `--json` will error if both flags are supplied together. Use one or the other.
+
+**`--output` with `--json`:** On commands that support `--output`, the JSON is written to the specified file instead of stdout.
+
+**Examples:**
+
+```bash
+# Get data listing as JSON
+php artisan alphaforge:data:list --json
+
+# Get strategy list as JSON
+php artisan alphaforge:strategies:list --json
+
+# Error output is also JSON
+php artisan alphaforge:optimizations:show invalid-id --json
+# { "command": "...", "success": false, "data": null, "error": "not found" }
+
+# Write JSON to file
+php artisan alphaforge:export:backtest <id> --json --output=results.json
+
+# Pipe JSON into jq for filtering
+php artisan alphaforge:strategies:list --json | jq '.data.strategies[].alias'
+```
+
+### Command Schema Discovery (`alphaforge:schema`)
+
+The `alphaforge:schema` command outputs a JSON schema describing the parameters (arguments and options) of any command. This enables programmatic tooling to discover available commands and their parameter types, defaults, allowed values, and format constraints without parsing `--help` text.
+
+```bash
+php artisan alphaforge:schema [command_name]
+```
+
+**Example — single command:**
+
+```bash
+php artisan alphaforge:schema alphaforge:data:import
+```
+
+```json
+{
+  "command": "alphaforge:schema",
+  "success": true,
+  "data": {
+    "schema": "alphaforge.help.v1",
+    "command": "alphaforge:data:import",
+    "description": "Import market data from an exchange",
+    "arguments": [
+      {
+        "name": "exchange",
+        "type": "string",
+        "required": true,
+        "description": "The exchange identifier (e.g., binance, kraken)",
+        "examples": ["binance", "kraken", "bybit"]
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": true,
+        "description": "The trading pair symbol (e.g., BTC/USDT)",
+        "pattern": "BASE/QUOTE",
+        "examples": ["BTC/USDT", "ETH/USDT"]
+      },
+      {
+        "name": "timeframe",
+        "type": "string",
+        "required": true,
+        "description": "The timeframe (e.g., 1m, 5m, 1h, 1d)",
+        "allowed_values": ["1s","1m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d","3d","1w","1M"]
+      },
+      {
+        "name": "startdate",
+        "type": "date",
+        "required": true,
+        "description": "The start date for data import (Y-m-d or Y-m-d H:i:s)",
+        "format": "YYYY-MM-DD",
+        "examples": ["2024-01-01"]
+      },
+      {
+        "name": "enddate",
+        "type": "date",
+        "required": false,
+        "description": "The end date (defaults to now)",
+        "format": "YYYY-MM-DD",
+        "examples": ["2024-12-31"]
+      }
+    ],
+    "options": [
+      {
+        "name": "force",
+        "type": "boolean",
+        "required": false,
+        "description": "Force overwrite existing data"
+      },
+      {
+        "name": "json",
+        "type": "boolean",
+        "required": false,
+        "description": "Output results as JSON"
+      },
+      {
+        "name": "debug",
+        "type": "boolean",
+        "required": false,
+        "description": "Show peak memory usage on exit"
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+**Example — all commands:**
+
+```bash
+php artisan alphaforge:schema
+```
+
+Returns an object keyed by command name, with each value being a command schema.
+
+**Schema field reference:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Parameter name (hyphenated for options) |
+| `type` | string | `string`, `integer`, `float`, `number`, `date`, `boolean`, `array` |
+| `required` | boolean | Whether the parameter must be provided |
+| `description` | string\|null | Help text from the command definition |
+| `default` | mixed | Default value (options only; not present if false or null) |
+| `accept_value` | boolean | `true` for options that take a value, absent for boolean flags (options only) |
+| `is_array` | boolean | `true` for variadic arguments like `{symbols*}` |
+| `allowed_values` | array | Finite set of valid values (e.g., timeframes, methods, data types) |
+| `examples` | array | Representative examples (for parameters with unbounded domains) |
+| `pattern` | string | Format hint for string parameters (e.g., `"BASEQUOTE"`, `"BASE/QUOTE"`) |
+| `format` | string | Date/time format (e.g., `"YYYY-MM-DD"`) |
+| `minimum` | number | Minimum allowed value (for numeric range parameters) |
+| `maximum` | number | Maximum allowed value (for numeric range parameters) |
+
+**Design principles for `allowed_values` vs `examples`:**
+
+- `allowed_values` is used for parameters with a **small, finite domain** such as `timeframe`, `method`, `runner`, `data-type`, `sizing-model`, `format`, `direction`. These are suitable for generating dropdowns or enum validation.
+- `examples` is used for parameters with **unbounded domains** such as `symbol`, `strategy`, `exchange`, numeric counts, and file paths. These show representative values for UX hints without claiming to be exhaustive.
+
 ### Data Management
 
 #### `alphaforge:data:import` - Import Market Data

@@ -26,6 +26,7 @@ class AggregateDataCommand extends Command
         {--force : Force overwrite if target file already exists}
         {--update : Incrementally update the target file by appending new aggregated data}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Aggregate OHLCV data from a lower timeframe to a higher timeframe';
@@ -34,6 +35,10 @@ class AggregateDataCommand extends Command
         AggregateDataService $aggregateDataService,
         MarketDataFileService $fileService
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $symbol = $this->parseMarket();
         $sourceTimeframeValue = $this->argument('source_timeframe');

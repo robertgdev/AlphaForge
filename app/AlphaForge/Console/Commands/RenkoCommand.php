@@ -32,6 +32,7 @@ class RenkoCommand extends Command
         {--force : Force overwrite existing Renko file}
         {--update : Incrementally update the Renko file by appending new converted data}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -43,6 +44,10 @@ class RenkoCommand extends Command
 
     public function handle(RenkoConverter $converter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

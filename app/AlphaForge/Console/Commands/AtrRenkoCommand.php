@@ -32,6 +32,7 @@ class AtrRenkoCommand extends Command
         {--force : Force overwrite existing ATR-Renko file}
         {--update : Incrementally update the ATR-Renko file by appending new converted data}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -43,6 +44,10 @@ class AtrRenkoCommand extends Command
 
     public function handle(AtrRenkoConverter $converter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

@@ -18,12 +18,17 @@ class ExportTradesCommand extends Command
         {--format=csv : Output format (csv, json)}
         {--output= : Output file path (stdout if omitted)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export per-trade details from a completed backtest';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $backtestId = $this->argument('backtest_id');
 
         if ($this->jsonEnabled() && $this->input->hasParameterOption('--format')) {

@@ -34,12 +34,17 @@ class PortfolioOptimizeCommand extends Command
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--min-trades=1 : Minimum trades per symbol required}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run portfolio-level optimization across multiple symbols';
 
     public function handle(MultiSymbolOptimizer $optimizer): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $strategyAlias = $this->argument('strategy');
         $symbols = $this->argument('symbols');
 

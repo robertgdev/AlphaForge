@@ -24,12 +24,17 @@ class ShowWalkForwardRunCommand extends Command
         {--format=table : Output format (table, csv, json)}
         {--output= : Write output to file instead of stdout}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed walk-forward run results';
 
     public function handle(WalkForwardAnalyzer $analyzer, BacktestResultFormatter $formatter, WalkForwardExporter $exporter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $runId = $this->argument('run_id');
         $topCount = (int) $this->option('top');
         $format = $this->option('format');

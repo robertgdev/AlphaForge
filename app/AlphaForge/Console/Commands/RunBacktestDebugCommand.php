@@ -19,6 +19,7 @@ class RunBacktestDebugCommand extends Command
         {--exchange=binance : Exchange identifier}
         {--timeframe=1h : Timeframe}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Debug backtest command';
@@ -28,6 +29,10 @@ class RunBacktestDebugCommand extends Command
         MarketDataFileService $fileService,
         StrategyRegistryInterface $strategyRegistry
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $strategyAlias = $this->argument('strategy');
         $symbol = strtoupper($this->argument('symbol'));
         $exchange = strtolower($this->option('exchange'));

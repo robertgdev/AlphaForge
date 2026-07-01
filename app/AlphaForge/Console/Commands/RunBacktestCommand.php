@@ -56,6 +56,7 @@ class RunBacktestCommand extends Command
         {--force : Overwrite existing completed backtest with same parameters}
         {--trades=5 : Number of trades to display in terminal (0=none, all=all, default=5)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -76,6 +77,10 @@ class RunBacktestCommand extends Command
         StrategyRegistryInterface $strategyRegistry,
         DataAutoGenerator $dataAutoGenerator
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $strategyAlias = $this->argument('strategy');
         $symbols = $this->argument('symbols');
         $exchange = $this->option('exchange');

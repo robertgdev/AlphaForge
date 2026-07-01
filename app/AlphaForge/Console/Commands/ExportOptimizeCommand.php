@@ -21,12 +21,17 @@ class ExportOptimizeCommand extends Command
         {--output= : Output file path (stdout if omitted)}
         {--top=10 : Number of top results to export}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export optimization results (top-N parameters and statistics)';
 
     public function handle(): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $optimizationId = $this->argument('optimization_id');
 
         if ($this->jsonEnabled() && $this->input->hasParameterOption('--format')) {

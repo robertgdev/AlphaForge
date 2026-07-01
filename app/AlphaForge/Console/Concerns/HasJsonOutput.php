@@ -4,6 +4,7 @@ namespace App\AlphaForge\Console\Concerns;
 
 use App\AlphaForge\Common\Util\MemoryHelper;
 use Illuminate\Console\Command;
+use Symfony\Component\Console\Input\ArrayInput;
 
 use function Safe\file_put_contents;
 use function Safe\json_encode;
@@ -13,6 +14,46 @@ trait HasJsonOutput
     protected function jsonEnabled(): bool
     {
         return (bool) $this->option('json');
+    }
+
+    protected function schemaEnabled(): bool
+    {
+        return $this->hasOption('schema') && (bool) $this->option('schema');
+    }
+
+    /**
+     * If --schema was passed, output the parameter schema and return the exit code.
+     * Call this at the top of every handle() method.
+     *
+     * @return int|null Returns the exit code if --schema was handled, null to continue normally.
+     */
+    protected function handleSchemaFlag(): ?int
+    {
+        if (! $this->schemaEnabled()) {
+            return null;
+        }
+
+        $commandName = $this->getName();
+
+        try {
+            $schemaCmd = $this->getApplication()->find('alphaforge:schema');
+
+            $exitCode = $schemaCmd->run(
+                new ArrayInput(['name' => $commandName]),
+                $this->output,
+            );
+
+            return $exitCode;
+        } catch (\Throwable $e) {
+            $this->line(json_encode([
+                'command' => $commandName,
+                'success' => false,
+                'data' => null,
+                'error' => 'Schema generation failed: '.$e->getMessage(),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            return Command::FAILURE;
+        }
     }
 
     /**

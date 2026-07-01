@@ -31,6 +31,7 @@ class HeikenAshiCommand extends Command
         {--force : Force overwrite existing Heiken-Ashi file}
         {--update : Incrementally update the Heiken-Ashi file by appending new converted data}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -42,6 +43,10 @@ class HeikenAshiCommand extends Command
 
     public function handle(HeikenAshiConverter $converter): int
     {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $exchange = $this->parseExchange();
         $market = $this->parseMarket();
         $timeframe = $this->parseTimeframe();

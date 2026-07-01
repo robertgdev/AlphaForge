@@ -19,6 +19,7 @@ class RepairDataCommand extends Command
         {--exchange-filter= : Filter by exchange (e.g., binance)}
         {--symbol-filter= : Filter by symbol (e.g., BTCUSDT)}
         {--json : Output results as JSON}
+        {--schema : Display command parameter schema as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Repair corrupted market data files by fixing header record counts';
@@ -27,6 +28,10 @@ class RepairDataCommand extends Command
         DataRepairService $repairService,
         DataAvailabilityService $availabilityService
     ): int {
+        if (($code = $this->handleSchemaFlag()) !== null) {
+            return $code;
+        }
+
         $dryRun = $this->option('dry-run');
         $exchangeFilter = $this->option('exchange-filter');
         $symbolFilter = $this->option('symbol-filter');
