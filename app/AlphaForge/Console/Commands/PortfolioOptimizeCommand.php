@@ -6,12 +6,13 @@ use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Optimization\MultiSymbolOptimizer;
 use App\AlphaForge\Backtesting\Optimization\OptimizationConfig;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class PortfolioOptimizeCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:optimize:portfolio
         {strategy : Strategy alias (e.g. sma_crossover)}
         {symbols* : One or more symbols (e.g. BTCUSDT ETHUSDT SOLUSDT)}
@@ -32,6 +33,7 @@ class PortfolioOptimizeCommand extends Command
         {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--min-trades=1 : Minimum trades per symbol required}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run portfolio-level optimization across multiple symbols';
@@ -42,21 +44,13 @@ class PortfolioOptimizeCommand extends Command
         $symbols = $this->argument('symbols');
 
         if (count($symbols) < 2) {
-            $this->error('Portfolio optimization requires at least 2 symbols. For single-symbol use: alphaforge:optimize');
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Portfolio optimization requires at least 2 symbols. For single-symbol use: alphaforge:optimize');
         }
 
         $timeframeValue = $this->option('timeframe');
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
         if (! $timeframe) {
-            $this->error("Invalid timeframe: $timeframeValue");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Invalid timeframe: $timeframeValue");
         }
 
         $executionTimeframeValue = $this->option('execution-timeframe');
@@ -64,45 +58,72 @@ class PortfolioOptimizeCommand extends Command
         if ($executionTimeframeValue) {
             $executionTimeframe = TimeframeEnum::tryFrom($executionTimeframeValue);
             if (! $executionTimeframe) {
-                $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
-                $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
             }
         }
 
-        $this->line('<fg=yellow>=== Portfolio Optimization ===</>');
-        $this->line("  Strategy: {$strategyAlias}");
-        $this->line('  Symbols: '.implode(', ', $symbols));
-        $this->line('  Method: '.$this->option('method'));
-        $this->line("  Iterations: {$this->option('iterations')}");
-        if ($executionTimeframe !== null) {
-            $this->line("  Execution Timeframe: {$executionTimeframe->value}");
-            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+        if (! $this->jsonEnabled()) {
+            $this->line('<fg=yellow>=== Portfolio Optimization ===</>');
+            $this->line("  Strategy: {$strategyAlias}");
+            $this->line('  Symbols: '.implode(', ', $symbols));
+            $this->line('  Method: '.$this->option('method'));
+            $this->line("  Iterations: {$this->option('iterations')}");
+            if ($executionTimeframe !== null) {
+                $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+                $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+            }
+            $this->newLine();
         }
-        $this->newLine();
 
         $config = $this->buildConfig($strategyAlias, $symbols, $executionTimeframe);
 
-        $this->line('<fg=green>Running optimization...</>');
+        if (! $this->jsonEnabled()) {
+            $this->line('<fg=green>Running optimization...</>');
+        }
         $startTime = microtime(true);
 
         $run = $optimizer->optimize($config, function ($progress) {
-            if ($progress->completed % 10 === 0) {
+            if (! $this->jsonEnabled() && $progress->completed % 10 === 0) {
                 $this->output->write("\r  <fg=gray>Progress: {$progress->completed}/{$progress->total} — Score: ".number_format($progress->score, 4).'</>');
             }
         });
 
         $elapsed = round(microtime(true) - $startTime, 1);
+
+        if ($this->jsonEnabled()) {
+            if (! $run->isCompleted()) {
+                return $this->outputJsonError('Optimization failed: '.($run->error_message ?? 'unknown error'));
+            }
+
+            $perSymbol = [];
+            if (! empty($run->best_statistics['per_symbol'])) {
+                foreach ($run->best_statistics['per_symbol'] as $sym => $s) {
+                    $perSymbol[] = [
+                        'symbol' => $sym,
+                        'return' => (float) ($s['total_return_percent'] ?? 0),
+                        'sharpe' => (float) ($s['sharpe_ratio'] ?? 0),
+                        'sortino' => (float) ($s['sortino_ratio'] ?? 0),
+                        'trades' => (int) ($s['total_trades'] ?? 0),
+                        'winRate' => (float) ($s['win_rate'] ?? 0),
+                    ];
+                }
+            }
+
+            return $this->outputJson(true, [
+                'optimizationId' => $run->id,
+                'strategy' => $strategyAlias,
+                'symbols' => $symbols,
+                'method' => $this->option('method'),
+                'bestParams' => $run->best_parameters,
+                'metrics' => $run->best_statistics,
+                'perSymbol' => $perSymbol,
+            ]);
+        }
+
         $this->line("\n  <fg=green>Completed in {$elapsed}s</>");
 
         if ($run->isCompleted()) {

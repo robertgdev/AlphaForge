@@ -9,8 +9,8 @@ use App\AlphaForge\Backtesting\Optimization\OptimizationProgress;
 use App\AlphaForge\Backtesting\Optimization\Optimizer;
 use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
@@ -19,7 +19,7 @@ use Safe\DateTimeImmutable;
 
 class OptimizeStrategyCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
     use ResolvesParallelRunner;
 
     protected $signature = 'alphaforge:optimize
@@ -53,6 +53,7 @@ class OptimizeStrategyCommand extends Command
         {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run strategy parameter optimization';
@@ -85,18 +86,18 @@ class OptimizeStrategyCommand extends Command
                 $this->option('atr-period'),
             );
         } catch (\InvalidArgumentException $e) {
-            $this->error($e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError($e->getMessage());
         }
 
-        foreach ($dataTypeConfig->warnings as $warning) {
-            $this->warn($warning);
+        // Auto-generate warnings and generation
+        if (! $this->jsonEnabled()) {
+            foreach ($dataTypeConfig->warnings as $warning) {
+                $this->warn($warning);
+            }
+        }
 
         // Auto-generate derived data when --auto-generate is set
-        if ($this->option('auto-generate')) {
+        if ($this->option('auto-generate') && ! $this->jsonEnabled()) {
             $this->line("Auto-generate enabled — checking derived data for {$symbol} / {$timeframeValue}...");
 
             $genResult = $dataAutoGenerator->autoGenerate(
@@ -124,46 +125,42 @@ class OptimizeStrategyCommand extends Command
             }
 
             $this->newLine();
-        }
+        } elseif ($this->option('auto-generate') && $this->jsonEnabled()) {
+            $genResult = $dataAutoGenerator->autoGenerate(
+                $dataTypeConfig,
+                $exchange,
+                $symbol,
+                $timeframeValue,
+                executionTimeframe: $executionTimeframeValue,
+                additionalTimeframes: [],
+                output: fn (string $msg) => null,
+            );
 
+            if (! empty($genResult['errors'])) {
+                return $this->outputJsonError(implode('; ', $genResult['errors']));
+            }
         }
 
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
         if (! $timeframe) {
-            $this->error("Invalid timeframe: $timeframeValue");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Invalid timeframe: $timeframeValue");
         }
 
         $executionTimeframe = null;
         if ($executionTimeframeValue) {
             $executionTimeframe = TimeframeEnum::tryFrom($executionTimeframeValue);
             if (! $executionTimeframe) {
-                $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
-                $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
             }
         }
 
         $method = OptimizationMethod::tryFrom($methodValue);
         if (! $method) {
-            $this->error("Invalid method: $methodValue. Use: grid, random, genetic");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Invalid method: $methodValue. Use: grid, random, genetic");
         }
 
         $startDate = $startDateOption ? Carbon::parse($startDateOption) : null;
@@ -174,61 +171,55 @@ class OptimizeStrategyCommand extends Command
         if ($useStrategyRanges) {
             $parameterRanges = $optimizer->getParameterRangesFromStrategy($strategyAlias);
             if (empty($parameterRanges)) {
-                $this->error("No parameter ranges found for strategy: $strategyAlias");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("No parameter ranges found for strategy: $strategyAlias");
             }
-            $this->info('Using strategy-defined parameter ranges:');
-            foreach ($parameterRanges as $param => $range) {
-                $this->line("  - $param: {$range['min']} to {$range['max']} (step: {$range['step']})");
+            if (! $this->jsonEnabled()) {
+                $this->info('Using strategy-defined parameter ranges:');
+                foreach ($parameterRanges as $param => $range) {
+                    $this->line("  - $param: {$range['min']} to {$range['max']} (step: {$range['step']})");
+                }
             }
         } elseif ($paramsJson) {
             $parsed = $inputParser->parseInputs($paramsJson);
             if ($parsed === false) {
-                $this->error('Invalid JSON for --params: '.json_last_error_msg());
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError('Invalid JSON for --params: '.json_last_error_msg());
             }
             $parameterOverrides = $parsed;
         } else {
-            $this->error('Either --params or --use-strategy-ranges must be specified');
-            $this->line("  --params='{\"fastPeriod\":{\"min\":5,\"max\":20,\"step\":5}}'");
-            $this->line('  --use-strategy-ranges');
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Either --params or --use-strategy-ranges must be specified');
         }
 
-        $this->info('Starting optimization...');
-        $this->line("  Strategy: $strategyAlias");
-        $this->line("  Symbol: $symbol");
-        $this->line("  Timeframe: {$timeframe->value}");
-        if ($executionTimeframe !== null) {
-            $this->line("  Execution Timeframe: {$executionTimeframe->value}");
-            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+        if (! $this->jsonEnabled()) {
+            $this->info('Starting optimization...');
+            $this->line("  Strategy: $strategyAlias");
+            $this->line("  Symbol: $symbol");
+            $this->line("  Timeframe: {$timeframe->value}");
+            if ($executionTimeframe !== null) {
+                $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+                $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+            }
+            $this->line("  Method: {$method->value}");
+            $this->line("  Objective: $objective");
+
+            $runnerValue = $this->option('runner');
+            $runnerMode = $this->resolveRunnerMode($runnerValue);
+            $workerCount = $this->resolveWorkerCount($this->option('workers'));
+
+            $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
+
+            if ($method === OptimizationMethod::RANDOM) {
+                $this->line("  Iterations: $iterations");
+            } elseif ($method === OptimizationMethod::GENETIC) {
+                $this->line("  Population: $population");
+                $this->line("  Generations: $generations");
+            }
+
+            $this->newLine();
         }
-        $this->line("  Method: {$method->value}");
-        $this->line("  Objective: $objective");
 
         $runnerValue = $this->option('runner');
         $runnerMode = $this->resolveRunnerMode($runnerValue);
         $workerCount = $this->resolveWorkerCount($this->option('workers'));
-
-        $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
-
-        if ($method === OptimizationMethod::RANDOM) {
-            $this->line("  Iterations: $iterations");
-        } elseif ($method === OptimizationMethod::GENETIC) {
-            $this->line("  Population: $population");
-            $this->line("  Generations: $generations");
-        }
-
-        $this->newLine();
 
         $config = new OptimizationConfig;
         $config->strategyAlias = $strategyAlias;
@@ -330,7 +321,9 @@ class OptimizeStrategyCommand extends Command
             default => null,
         };
 
-        $this->line('  Loading market data...');
+        if (! $this->jsonEnabled()) {
+            $this->line('  Loading market data...');
+        }
 
         $checkpointInterval = (int) $this->option('checkpoint-interval');
         $resumeFromId = $this->option('resume');
@@ -338,16 +331,27 @@ class OptimizeStrategyCommand extends Command
         try {
             $optimizationRun = $optimizer->optimize($config, $progressCallback, $checkpointInterval, $resumeFromId);
         } catch (\Throwable $e) {
-            $this->error('Optimization failed: '.$e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Optimization failed: '.$e->getMessage());
         }
 
         $progressBar?->finish();
-        if ($progressLevel === 2 && $dotCount > 0 && $dotCount % 80 !== 0) {
+        if ($progressLevel === 2 && $dotCount > 0 && $dotCount % 80 !== 0 && ! $this->jsonEnabled()) {
             $this->newLine();
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'optimizationId' => $optimizationRun->id,
+                'strategy' => $optimizationRun->strategy_alias,
+                'symbol' => $optimizationRun->symbols[0] ?? null,
+                'method' => $optimizationRun->optimization_method,
+                'objective' => $optimizationRun->optimization_metric,
+                'iterations' => $iterations,
+                'timeframe' => $optimizationRun->timeframe,
+                'dataType' => $dataTypeConfig->dataType,
+                'bestParameters' => $optimizationRun->best_parameters,
+                'bestStatistics' => $optimizationRun->best_statistics,
+            ]);
         }
 
         $this->newLine();

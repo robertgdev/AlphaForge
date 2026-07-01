@@ -4,14 +4,13 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\MonteCarlo\MonteCarloReport;
 use App\AlphaForge\Backtesting\MonteCarlo\MonteCarloService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
-
-use function Safe\json_encode;
 
 class MonteCarloCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:monte-carlo
         {backtest_id : The backtest run ID to analyze}
         {--iterations=1000 : Number of bootstrap iterations}
@@ -31,18 +30,13 @@ class MonteCarloCommand extends Command
         try {
             $service = MonteCarloService::fromBacktestRunId($backtestId);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
-            $this->error($e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError($e->getMessage());
         }
 
         $report = $service->analyze($iterations, $seed !== null ? (int) $seed : null);
 
         if ($asJson) {
-            $this->renderJson($report);
-
+            $this->outputJson(true, $this->buildMonteCarloJson($report, $backtestId));
             $this->debugMemory();
 
             return 0;
@@ -205,9 +199,10 @@ class MonteCarloCommand extends Command
         $this->newLine();
     }
 
-    private function renderJson(MonteCarloReport $report): void
+    private function buildMonteCarloJson(MonteCarloReport $report, string $backtestId): array
     {
         $data = [
+            'backtest_id' => $backtestId,
             'total_trades' => $report->totalTrades,
             'iterations' => $report->iterations,
             'metrics' => [],
@@ -226,7 +221,7 @@ class MonteCarloCommand extends Command
             ];
         }
 
-        $this->line(json_encode($data, JSON_PRETTY_PRINT));
+        return $data;
     }
 
     private function formatFn(string $metric): \Closure

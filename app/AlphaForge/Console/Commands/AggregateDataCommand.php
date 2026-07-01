@@ -3,10 +3,10 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Services\AggregateDataService;
 use App\AlphaForge\Services\MarketDataFileService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\error;
@@ -15,8 +15,8 @@ use function Laravel\Prompts\warning;
 
 class AggregateDataCommand extends Command
 {
+    use HasJsonOutput;
     use ParsesMarketDataArgs;
-    use DebugMemory;
 
     protected $signature = 'alphaforge:data:aggregate
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -25,6 +25,7 @@ class AggregateDataCommand extends Command
         {target_timeframe : The target timeframe to aggregate to (e.g., 1h, 4h, 1d)}
         {--force : Force overwrite if target file already exists}
         {--update : Incrementally update the target file by appending new aggregated data}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Aggregate OHLCV data from a lower timeframe to a higher timeframe';
@@ -42,73 +43,55 @@ class AggregateDataCommand extends Command
 
         $sourceTimeframe = TimeframeEnum::tryFrom($sourceTimeframeValue);
         if ($sourceTimeframe === null) {
-            error("Invalid source timeframe '{$sourceTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Invalid source timeframe '{$sourceTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
         }
 
         $targetTimeframe = TimeframeEnum::tryFrom($targetTimeframeValue);
         if ($targetTimeframe === null) {
-            error("Invalid target timeframe '{$targetTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Invalid target timeframe '{$targetTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d");
         }
 
         if ($sourceTimeframe->toSeconds() >= $targetTimeframe->toSeconds()) {
-            error('Target timeframe must be higher (larger) than source timeframe.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError('Target timeframe must be higher (larger) than source timeframe.');
         }
 
         $ratio = $targetTimeframe->toSeconds() / $sourceTimeframe->toSeconds();
         if ($ratio != (int) $ratio) {
-            error("Cannot aggregate from {$sourceTimeframeValue} to {$targetTimeframeValue}. Ratio must be a whole number.");
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Cannot aggregate from {$sourceTimeframeValue} to {$targetTimeframeValue}. Ratio must be a whole number.");
         }
 
         $sourcePath = $fileService->generateFilePath($exchange, $symbol, $sourceTimeframeValue, 'ohlcv');
         $targetPath = $fileService->generateFilePath($exchange, $symbol, $targetTimeframeValue, 'ohlcv');
 
         if (! file_exists($sourcePath)) {
-            warning("Source file not found: {$sourcePath}");
-            $this->line('Use the import action to download market data:');
-            $this->line("  php artisan alphaforge:data:import {$exchange} {$symbol} {$sourceTimeframeValue} <startdate>");
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Source file not found: {$sourcePath}");
         }
 
         if ($update && $force) {
-            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
         }
 
         if (file_exists($targetPath) && ! $force && ! $update) {
-            warning("Target file already exists: {$targetPath}");
-            $this->line('Use --force to overwrite, or --update to append new data.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Target file already exists: {$targetPath}. Use --force to overwrite, or --update to append new data.");
         }
 
         if ($update && ! file_exists($targetPath)) {
-            info('Target file does not exist. Performing full aggregation instead.');
+            if (! $this->jsonEnabled()) {
+                info('Target file does not exist. Performing full aggregation instead.');
+            }
             $update = false;
         }
 
-        $this->displayConfiguration($exchange, $symbol, $sourceTimeframeValue, $targetTimeframeValue, $sourcePath, $targetPath, $update);
+        if (! $this->jsonEnabled()) {
+            $this->displayConfiguration($exchange, $symbol, $sourceTimeframeValue, $targetTimeframeValue, $sourcePath, $targetPath, $update);
+        }
 
         try {
             if ($update) {
-                $this->info('Starting incremental aggregation...');
-                $this->newLine();
+                if (! $this->jsonEnabled()) {
+                    $this->info('Starting incremental aggregation...');
+                    $this->newLine();
+                }
 
                 $aggregatedCount = $aggregateDataService->aggregateIncremental(
                     $sourcePath,
@@ -119,15 +102,30 @@ class AggregateDataCommand extends Command
                 );
 
                 if ($aggregatedCount === 0) {
+                    if ($this->jsonEnabled()) {
+                        return $this->outputJson(true, [
+                            'exchange' => $exchange,
+                            'symbol' => $symbol,
+                            'sourceTimeframe' => $sourceTimeframeValue,
+                            'targetTimeframe' => $targetTimeframeValue,
+                            'ratio' => (int) $ratio,
+                            'filePath' => $targetPath,
+                            'recordCount' => 0,
+                        ]);
+                    }
+
                     $this->newLine();
                     warning('No new data to aggregate. Target file is already up to date.');
 
                     $this->debugMemory();
+
                     return self::SUCCESS;
                 }
             } else {
-                $this->info('Starting aggregation...');
-                $this->newLine();
+                if (! $this->jsonEnabled()) {
+                    $this->info('Starting aggregation...');
+                    $this->newLine();
+                }
 
                 $aggregatedCount = $aggregateDataService->aggregateData(
                     $sourcePath,
@@ -138,18 +136,36 @@ class AggregateDataCommand extends Command
                 );
             }
 
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'exchange' => $exchange,
+                    'symbol' => $symbol,
+                    'sourceTimeframe' => $sourceTimeframeValue,
+                    'targetTimeframe' => $targetTimeframeValue,
+                    'ratio' => (int) $ratio,
+                    'filePath' => $targetPath,
+                    'recordCount' => $aggregatedCount,
+                ]);
+            }
+
             $this->newLine();
             info('Aggregation completed successfully!');
             $this->components->twoColumnDetail('Records Aggregated', number_format($aggregatedCount));
             $this->components->twoColumnDetail('Output File', $targetPath);
 
             $this->debugMemory();
+
             return self::SUCCESS;
 
         } catch (\Throwable $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Aggregation failed: '.$e->getMessage());
+            }
+
             error('Aggregation failed: '.$e->getMessage());
 
             $this->debugMemory();
+
             return self::FAILURE;
         }
     }

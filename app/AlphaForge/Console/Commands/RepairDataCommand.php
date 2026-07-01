@@ -2,22 +2,23 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
 use App\AlphaForge\Data\Service\DataRepairService;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\info;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Laravel\Prompts\warning;
 
 class RepairDataCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
 
     protected $signature = 'alphaforge:data:repair
         {--dry-run : Show what would be fixed without making changes}
         {--exchange-filter= : Filter by exchange (e.g., binance)}
         {--symbol-filter= : Filter by symbol (e.g., BTCUSDT)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Repair corrupted market data files by fixing header record counts';
@@ -30,7 +31,7 @@ class RepairDataCommand extends Command
         $exchangeFilter = $this->option('exchange-filter');
         $symbolFilter = $this->option('symbol-filter');
 
-        if ($dryRun) {
+        if ($dryRun && ! $this->jsonEnabled()) {
             info('Running in DRY-RUN mode - no changes will be made');
             $this->newLine();
         }
@@ -38,6 +39,16 @@ class RepairDataCommand extends Command
         $manifest = $availabilityService->getManifest();
 
         if (empty($manifest)) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'dryRun' => $dryRun,
+                    'totalScanned' => 0,
+                    'corruptedFound' => 0,
+                    'filesFixed' => 0,
+                    'results' => [],
+                ]);
+            }
+
             info('No market data files found to repair.');
 
             $this->debugMemory();
@@ -48,6 +59,7 @@ class RepairDataCommand extends Command
         $totalFiles = 0;
         $corruptedFiles = 0;
         $fixedFiles = 0;
+        $jsonResults = [];
 
         foreach ($manifest as $item) {
             $exchange = $item['exchange'];
@@ -67,20 +79,43 @@ class RepairDataCommand extends Command
 
                 $result = $repairService->checkAndRepairFile($exchange, $symbol, $timeframe, $dryRun);
 
-                if ($result['status'] === 'ok') {
-                    $this->line("  <fg=green>✓</> {$result['message']}");
-                } elseif ($result['status'] === 'corrupted') {
-                    $this->line("  <fg=red>✗</> {$result['message']}");
-                    $this->line("      <fg=yellow>Would fix by updating header to: {$result['actual_count']}</>");
+                if ($this->jsonEnabled()) {
+                    $jsonResults[] = [
+                        'path' => "{$exchange}/{$symbol}/{$timeframe}",
+                        'status' => $result['status'],
+                    ];
+                } else {
+                    if ($result['status'] === 'ok') {
+                        $this->line("  <fg=green>✓</> {$result['message']}");
+                    } elseif ($result['status'] === 'corrupted') {
+                        $this->line("  <fg=red>✗</> {$result['message']}");
+                        $this->line("      <fg=yellow>Would fix by updating header to: {$result['actual_count']}</>");
+                        $corruptedFiles++;
+                    } elseif ($result['status'] === 'fixed') {
+                        $this->line("  <fg=red>✗</> {$result['message']}");
+                        $this->line('      <fg=green>Fixed!</>');
+                        $fixedFiles++;
+                    } elseif ($result['status'] === 'error') {
+                        warning($result['message']);
+                    }
+                }
+
+                if ($result['status'] === 'corrupted') {
                     $corruptedFiles++;
                 } elseif ($result['status'] === 'fixed') {
-                    $this->line("  <fg=red>✗</> {$result['message']}");
-                    $this->line('      <fg=green>Fixed!</>');
                     $fixedFiles++;
-                } elseif ($result['status'] === 'error') {
-                    warning($result['message']);
                 }
             }
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'dryRun' => $dryRun,
+                'totalScanned' => $totalFiles,
+                'corruptedFound' => $corruptedFiles,
+                'filesFixed' => $fixedFiles,
+                'results' => $jsonResults,
+            ]);
         }
 
         $this->newLine();

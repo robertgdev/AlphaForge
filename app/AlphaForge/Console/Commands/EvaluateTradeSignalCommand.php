@@ -3,6 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Enum\TimeframeEnum;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Models\TradeSignal;
 use App\AlphaForge\Services\Dto\SignalEvaluationResult;
 use App\AlphaForge\Services\TradeSignalEvaluator;
@@ -11,13 +12,14 @@ use Illuminate\Support\Str;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableStyle;
 
-use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\warning;
 
 class EvaluateTradeSignalCommand extends Command
 {
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:signal:evaluate
         {direction? : Trade direction (long|short)}
         {exchange? : Exchange identifier (e.g., binance)}
@@ -30,6 +32,7 @@ class EvaluateTradeSignalCommand extends Command
         {--timeframe=1h : OHLCV timeframe for evaluation (1m, 5m, 15m, 30m, 1h, 4h, 1d)}
         {--re-evaluate : Re-evaluate an existing open signal}
         {--signal-id= : ID of existing signal to re-evaluate}
+        {--json : Output results as JSON}
         {--list-open : List all open trade signals}';
 
     protected $description = 'Evaluate a trade signal against OHLCV data';
@@ -54,16 +57,12 @@ class EvaluateTradeSignalCommand extends Command
         $required = ['direction', 'exchange', 'symbol', 'entry-price', 'stop-loss', 'take-profit'];
         foreach ($required as $arg) {
             if ($this->argument($arg) === null) {
-                error("Missing required argument: {$arg}");
-
-                return self::FAILURE;
+                return $this->outputJsonError("Missing required argument: {$arg}");
             }
         }
 
         if (! in_array($direction, ['LONG', 'SHORT'], true)) {
-            error("Invalid direction '{$direction}'. Must be 'long' or 'short'.");
-
-            return self::FAILURE;
+            return $this->outputJsonError("Invalid direction '{$direction}'. Must be 'long' or 'short'.");
         }
 
         $exchange = $this->argument('exchange');
@@ -76,37 +75,27 @@ class EvaluateTradeSignalCommand extends Command
         $timeframe = $this->option('timeframe');
 
         if (! is_numeric($entryPrice) || (float) $entryPrice <= 0) {
-            error('Entry price must be a positive number.');
-
-            return self::FAILURE;
+            return $this->outputJsonError('Entry price must be a positive number.');
         }
 
         if (! is_numeric($stopLoss) || (float) $stopLoss <= 0) {
-            error('Stop loss must be a positive number.');
-
-            return self::FAILURE;
+            return $this->outputJsonError('Stop loss must be a positive number.');
         }
 
         if (! is_numeric($takeProfit) || (float) $takeProfit <= 0) {
-            error('Take profit must be a positive number.');
-
-            return self::FAILURE;
+            return $this->outputJsonError('Take profit must be a positive number.');
         }
 
         $tf = TimeframeEnum::tryFrom($timeframe);
         if ($tf === null) {
-            error("Invalid timeframe '{$timeframe}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
-
-            return self::FAILURE;
+            return $this->outputJsonError("Invalid timeframe '{$timeframe}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
         }
 
         $trailingStopEnabled = $trailingPercent !== null;
         $trailingPercentValue = $trailingStopEnabled ? (float) $trailingPercent : null;
 
         if ($trailingStopEnabled && ($trailingPercentValue === null || $trailingPercentValue <= 0)) {
-            error('Trailing stop percentage must be a positive number.');
-
-            return self::FAILURE;
+            return $this->outputJsonError('Trailing stop percentage must be a positive number.');
         }
 
         $signal = new TradeSignal([
@@ -127,6 +116,24 @@ class EvaluateTradeSignalCommand extends Command
         $this->applyResult($signal, $result);
         $signal->save();
 
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'signalId' => $signal->id,
+                'exchange' => $exchange,
+                'symbol' => $symbol,
+                'direction' => $direction,
+                'entryPrice' => (float) $entryPrice,
+                'stopLoss' => (float) $stopLoss,
+                'takeProfit' => (float) $takeProfit,
+                'trailingStop' => $trailingPercentValue,
+                'timeframe' => $timeframe,
+                'status' => $result->status,
+                'exitReason' => $result->exitReason,
+                'exitPrice' => $result->exitPrice,
+                'pnlPct' => $result->profitLossPct,
+            ]);
+        }
+
         $this->displaySignalResult($signal, $result);
 
         return self::SUCCESS;
@@ -137,20 +144,34 @@ class EvaluateTradeSignalCommand extends Command
         $signalId = $this->option('signal-id');
 
         if (! $signalId) {
-            error('The --signal-id option is required when using --re-evaluate.');
-
-            return self::FAILURE;
+            return $this->outputJsonError('The --signal-id option is required when using --re-evaluate.');
         }
 
         $signal = TradeSignal::find($signalId);
 
         if (! $signal) {
-            error("Signal with ID '{$signalId}' not found.");
-
-            return self::FAILURE;
+            return $this->outputJsonError("Signal with ID '{$signalId}' not found.");
         }
 
         if (! $signal->isOpen()) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'signalId' => $signal->id,
+                    'exchange' => $signal->exchange,
+                    'symbol' => $signal->symbol,
+                    'direction' => $signal->direction,
+                    'entryPrice' => (float) $signal->entry_price,
+                    'stopLoss' => (float) $signal->stop_loss,
+                    'takeProfit' => (float) $signal->take_profit,
+                    'trailingStop' => $signal->trailing_stop_percent,
+                    'timeframe' => $signal->timeframe,
+                    'status' => $signal->status,
+                    'exitReason' => $signal->exit_reason,
+                    'exitPrice' => $signal->exit_price ? (float) $signal->exit_price : null,
+                    'pnlPct' => $signal->profit_loss_pct ? (float) $signal->profit_loss_pct : null,
+                ]);
+            }
+
             warning("Signal {$signalId} is already closed ({$signal->status}).");
 
             $this->displayClosedSignal($signal);
@@ -162,6 +183,24 @@ class EvaluateTradeSignalCommand extends Command
         $this->applyResult($signal, $result);
         $signal->save();
 
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'signalId' => $signal->id,
+                'exchange' => $signal->exchange,
+                'symbol' => $signal->symbol,
+                'direction' => $signal->direction,
+                'entryPrice' => (float) $signal->entry_price,
+                'stopLoss' => (float) $signal->stop_loss,
+                'takeProfit' => (float) $signal->take_profit,
+                'trailingStop' => $signal->trailing_stop_percent,
+                'timeframe' => $signal->timeframe,
+                'status' => $result->status,
+                'exitReason' => $result->exitReason,
+                'exitPrice' => $result->exitPrice,
+                'pnlPct' => $result->profitLossPct,
+            ]);
+        }
+
         $this->displaySignalResult($signal, $result);
 
         return self::SUCCESS;
@@ -172,9 +211,31 @@ class EvaluateTradeSignalCommand extends Command
         $signals = TradeSignal::where('status', 'open')->orderBy('created_at', 'desc')->get();
 
         if ($signals->isEmpty()) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, ['signals' => []]);
+            }
+
             info('No open trade signals.');
 
             return self::SUCCESS;
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'signals' => $signals->map(function ($s) {
+                    return [
+                        'id' => $s->id,
+                        'symbol' => $s->symbol,
+                        'exchange' => $s->exchange,
+                        'direction' => $s->direction,
+                        'entryPrice' => (float) $s->entry_price,
+                        'stopLoss' => (float) $s->stop_loss,
+                        'takeProfit' => (float) $s->take_profit,
+                        'trailingStop' => $s->trailing_stop_percent,
+                        'created' => $s->created_at->toIso8601String(),
+                    ];
+                })->values()->toArray(),
+            ]);
         }
 
         $this->line('<fg=yellow>Open Trade Signals ('.$signals->count().'):</>');

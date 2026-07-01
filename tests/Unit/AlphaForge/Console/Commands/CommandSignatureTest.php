@@ -1,17 +1,32 @@
 <?php
 
 use App\AlphaForge\Console\Commands\AggregateDataCommand;
+use App\AlphaForge\Console\Commands\AtrRenkoCommand;
 use App\AlphaForge\Console\Commands\DataDeleteCommand;
 use App\AlphaForge\Console\Commands\DataExportCommand;
 use App\AlphaForge\Console\Commands\DataImportCommand;
 use App\AlphaForge\Console\Commands\DataInfoCommand;
 use App\AlphaForge\Console\Commands\DataListCommand;
 use App\AlphaForge\Console\Commands\DataUpdateCommand;
+use App\AlphaForge\Console\Commands\EvaluateAllTradeSignalsCommand;
+use App\AlphaForge\Console\Commands\EvaluateTradeSignalCommand;
 use App\AlphaForge\Console\Commands\ExportOptimizeCommand;
 use App\AlphaForge\Console\Commands\ExportTradesCommand;
+use App\AlphaForge\Console\Commands\HeikenAshiCommand;
+use App\AlphaForge\Console\Commands\ListOptimizationsCommand;
+use App\AlphaForge\Console\Commands\ListStrategiesCommand;
+use App\AlphaForge\Console\Commands\ListWalkForwardRunsCommand;
+use App\AlphaForge\Console\Commands\MonteCarloCommand;
+use App\AlphaForge\Console\Commands\OptimizationResultCommand;
 use App\AlphaForge\Console\Commands\OptimizeStrategyCommand;
+use App\AlphaForge\Console\Commands\PortfolioOptimizeCommand;
+use App\AlphaForge\Console\Commands\RenkoCommand;
 use App\AlphaForge\Console\Commands\RepairDataCommand;
 use App\AlphaForge\Console\Commands\RunBacktestCommand;
+use App\AlphaForge\Console\Commands\RunBacktestDebugCommand;
+use App\AlphaForge\Console\Commands\SensitivityAnalysisCommand;
+use App\AlphaForge\Console\Commands\ShowOptimizationCommand;
+use App\AlphaForge\Console\Commands\ShowWalkForwardRunCommand;
 use App\AlphaForge\Console\Commands\WalkForwardCommand;
 use Illuminate\Console\Command;
 
@@ -345,5 +360,49 @@ describe('Console Command Signatures', function () {
         it('extends Command', function () {
             expect(is_a(ExportOptimizeCommand::class, Command::class, true))->toBeTrue();
         });
+    });
+
+    describe('All commands have --json option', function () {
+        $commands = [
+            AggregateDataCommand::class,
+            AtrRenkoCommand::class,
+            DataDeleteCommand::class,
+            DataExportCommand::class,
+            DataImportCommand::class,
+            DataInfoCommand::class,
+            DataListCommand::class,
+            DataUpdateCommand::class,
+            EvaluateAllTradeSignalsCommand::class,
+            EvaluateTradeSignalCommand::class,
+            ExportOptimizeCommand::class,
+            ExportTradesCommand::class,
+            HeikenAshiCommand::class,
+            ListOptimizationsCommand::class,
+            ListStrategiesCommand::class,
+            ListWalkForwardRunsCommand::class,
+            MonteCarloCommand::class,
+            OptimizationResultCommand::class,
+            OptimizeStrategyCommand::class,
+            PortfolioOptimizeCommand::class,
+            RenkoCommand::class,
+            RepairDataCommand::class,
+            RunBacktestCommand::class,
+            RunBacktestDebugCommand::class,
+            SensitivityAnalysisCommand::class,
+            ShowOptimizationCommand::class,
+            ShowWalkForwardRunCommand::class,
+            WalkForwardCommand::class,
+        ];
+
+        foreach ($commands as $class) {
+            $shortName = (new ReflectionClass($class))->getShortName();
+
+            it("{$shortName} has --json in its signature", function () use ($class) {
+                $ref = new ReflectionClass($class);
+                $defaultProps = $ref->getDefaultProperties();
+
+                expect($defaultProps['signature'])->toContain('--json');
+            });
+        }
     });
 });

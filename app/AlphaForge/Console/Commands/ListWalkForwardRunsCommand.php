@@ -3,16 +3,18 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class ListWalkForwardRunsCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:walk-forward:list
         {--strategy= : Filter by strategy alias}
         {--status= : Filter by status (pending, optimizing, forward_testing, completed, failed)}
         {--limit=20 : Number of results to show}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List past walk-forward runs';
@@ -32,11 +34,31 @@ class ListWalkForwardRunsCommand extends Command
         $runs = $query->limit((int) $this->option('limit'))->get();
 
         if ($runs->isEmpty()) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, ['runs' => []]);
+            }
+
             $this->info('No walk-forward runs found.');
 
             $this->debugMemory();
 
             return 0;
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'runs' => $runs->map(fn (WalkForwardRun $run) => [
+                    'id' => $run->id,
+                    'strategy' => $run->strategy_alias,
+                    'symbol' => $run->symbols[0] ?? null,
+                    'method' => $run->optimization_method,
+                    'split' => $run->split_ratio,
+                    'status' => $run->status,
+                    'oosScore' => $this->extractOosScore($run),
+                    'bestOos' => $this->extractBestOos($run),
+                    'created' => $run->created_at->toIso8601String(),
+                ])->values()->toArray(),
+            ]);
         }
 
         $this->table(
@@ -57,6 +79,35 @@ class ListWalkForwardRunsCommand extends Command
         $this->debugMemory();
 
         return 0;
+    }
+
+    private function extractOosScore(WalkForwardRun $run): ?float
+    {
+        $oosStats = $run->best_oos_statistics;
+        if (! $oosStats) {
+            return null;
+        }
+        $metric = $run->optimization_objective ?? 'sharpe_ratio';
+
+        return (float) ($oosStats[$metric] ?? 0);
+    }
+
+    private function extractBestOos(WalkForwardRun $run): ?float
+    {
+        $oosStats = $run->best_oos_statistics;
+        if (! $oosStats) {
+            return null;
+        }
+        $return = $oosStats['total_return_percent'] ?? null;
+        if ($return !== null) {
+            return (float) $return;
+        }
+        $metric = $run->optimization_objective ?? 'sharpe_ratio';
+        if (isset($oosStats[$metric])) {
+            return (float) $oosStats[$metric];
+        }
+
+        return null;
     }
 
     private function formatWfe(WalkForwardRun $run): string

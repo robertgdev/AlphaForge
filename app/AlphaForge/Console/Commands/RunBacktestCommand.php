@@ -3,12 +3,13 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
-use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\BacktestRunService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Common\Service\DateParsingService;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
+use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use App\AlphaForge\Strategy\Service\StrategyRegistryInterface;
 use Illuminate\Console\Command;
@@ -19,12 +20,11 @@ use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\warning;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\json_encode;
 
 class RunBacktestCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
     use HasProgressBar;
 
     /**
@@ -55,6 +55,7 @@ class RunBacktestCommand extends Command
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
         {--force : Overwrite existing completed backtest with same parameters}
         {--trades=5 : Number of trades to display in terminal (0=none, all=all, default=5)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -93,6 +94,12 @@ class RunBacktestCommand extends Command
 
         // Validate strategy exists
         if (! $strategyRegistry->has($strategyAlias)) {
+            if ($this->jsonEnabled()) {
+                $availableStrategies = array_keys($strategyRegistry->all());
+
+                return $this->outputJsonError("Strategy '{$strategyAlias}' not found. Available: ".implode(', ', $availableStrategies));
+            }
+
             $availableStrategies = array_keys($strategyRegistry->all());
             error("Strategy '{$strategyAlias}' not found.");
 
@@ -109,6 +116,10 @@ class RunBacktestCommand extends Command
         try {
             $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
         } catch (\InvalidArgumentException $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError($e->getMessage());
+            }
+
             error($e->getMessage());
 
             $this->debugMemory();
@@ -116,15 +127,18 @@ class RunBacktestCommand extends Command
             return self::FAILURE;
         }
 
-        foreach ($dataTypeConfig->warnings as $warning) {
-            warning($warning);
+        if (! $this->jsonEnabled()) {
+            foreach ($dataTypeConfig->warnings as $warning) {
+                warning($warning);
+            }
         }
-
 
         // Auto-generate derived data when --auto-generate is set
         if ($this->option('auto-generate')) {
             $symbolForGen = $symbols[0];
-            $this->line("Auto-generate enabled — checking derived data for {$symbolForGen} / {$timeframeValue}...");
+            if (! $this->jsonEnabled()) {
+                $this->line("Auto-generate enabled — checking derived data for {$symbolForGen} / {$timeframeValue}...");
+            }
 
             $genResult = $dataAutoGenerator->autoGenerate(
                 $dataTypeConfig,
@@ -133,24 +147,32 @@ class RunBacktestCommand extends Command
                 $timeframeValue,
                 $executionTimeframeValue,
                 additionalTimeframes: [],
-                output: fn (string $msg) => $this->line("  {$msg}"),
+                output: fn (string $msg) => $this->jsonEnabled() ? null : $this->line("  {$msg}"),
             );
 
-            foreach ($genResult['generated'] as $path) {
-                $this->line("  Generated: {$path}");
-            }
+            if (! $this->jsonEnabled()) {
+                foreach ($genResult['generated'] as $path) {
+                    $this->line("  Generated: {$path}");
+                }
 
-            foreach ($genResult['errors'] as $err) {
-                error($err);
+                foreach ($genResult['errors'] as $err) {
+                    error($err);
+                }
             }
 
             if (! empty($genResult['errors'])) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError(implode('; ', $genResult['errors']));
+                }
+
                 $this->debugMemory();
 
                 return self::FAILURE;
             }
 
-            $this->newLine();
+            if (! $this->jsonEnabled()) {
+                $this->newLine();
+            }
         }
 
         $dataTypeValue = $dataTypeConfig->dataType;
@@ -173,6 +195,10 @@ class RunBacktestCommand extends Command
         // Parse timeframe
         $timeframe = $this->parseTimeframe($timeframeValue);
         if ($timeframe === null) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Invalid timeframe '{$timeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
+            }
+
             error("Invalid timeframe '{$timeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
             $this->debugMemory();
@@ -185,6 +211,10 @@ class RunBacktestCommand extends Command
         if ($executionTimeframeValue) {
             $executionTimeframe = $this->parseTimeframe($executionTimeframeValue);
             if ($executionTimeframe === null) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError("Invalid execution timeframe '{$executionTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
+                }
+
                 error("Invalid execution timeframe '{$executionTimeframeValue}'. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
 
                 $this->debugMemory();
@@ -194,6 +224,10 @@ class RunBacktestCommand extends Command
 
             // Validate execution timeframe is lower than signal timeframe
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
+                }
+
                 error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
 
                 $this->debugMemory();
@@ -205,6 +239,10 @@ class RunBacktestCommand extends Command
         // Parse strategy inputs
         $inputs = $inputParser->parseInputs($inputsJson);
         if ($inputs === false) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Invalid JSON format for --inputs. Example: \'{"fastPeriod":10,"slowPeriod":50}\'');
+            }
+
             error('Invalid JSON format for --inputs. Example: \'{"fastPeriod":10,"slowPeriod":50}\'');
 
             $this->debugMemory();
@@ -220,6 +258,10 @@ class RunBacktestCommand extends Command
             try {
                 $parsedStartDate = $dateParsingService->parseDate($startDate);
             } catch (\InvalidArgumentException $e) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError("Invalid start-date format: {$startDate}. Use Y-m-d or Y-m-d H:i:s format.");
+                }
+
                 error("Invalid start-date format: {$startDate}. Use Y-m-d or Y-m-d H:i:s format.");
 
                 $this->debugMemory();
@@ -232,6 +274,10 @@ class RunBacktestCommand extends Command
             try {
                 $parsedEndDate = $dateParsingService->parseDate($endDate);
             } catch (\InvalidArgumentException $e) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError("Invalid end-date format: {$endDate}. Use Y-m-d or Y-m-d H:i:s format.");
+                }
+
                 error("Invalid end-date format: {$endDate}. Use Y-m-d or Y-m-d H:i:s format.");
 
                 $this->debugMemory();
@@ -242,6 +288,10 @@ class RunBacktestCommand extends Command
 
         // Validate date range
         if ($parsedStartDate && $parsedEndDate && $parsedStartDate->greaterThanOrEqualTo($parsedEndDate)) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Start date must be before end date.');
+            }
+
             error('Start date must be before end date.');
 
             $this->debugMemory();
@@ -273,6 +323,10 @@ class RunBacktestCommand extends Command
         $existing = $backtestRunService->findCompletedDuplicate($data);
         if ($existing !== null) {
             if (! $force) {
+                if ($this->jsonEnabled()) {
+                    return $this->outputJsonError("A completed backtest with the same parameters already exists (ID: {$existing->id}). Use --force to overwrite.");
+                }
+
                 warning("A completed backtest with the same parameters already exists (ID: {$existing->id}).");
                 note('Use --force to overwrite it and run a new backtest.');
 
@@ -281,14 +335,37 @@ class RunBacktestCommand extends Command
                 return self::FAILURE;
             }
 
-            info("Overwriting existing completed backtest (ID: {$existing->id})...");
+            if (! $this->jsonEnabled()) {
+                info("Overwriting existing completed backtest (ID: {$existing->id})...");
+            }
             $existing->delete();
         }
 
         // Display backtest configuration
-        $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeConfig->dataType, $dataTypeConfig->brickSize, $dataTypeConfig->atrPeriod, $sizingModel, $sizingConfig);
+        if (! $this->jsonEnabled()) {
+            $this->displayConfiguration($strategyAlias, $symbols, $exchange, $timeframe, $executionTimeframe, $capital, $stakeCurrency, $inputs, $dataTypeConfig->dataType, $dataTypeConfig->brickSize, $dataTypeConfig->atrPeriod, $sizingModel, $sizingConfig);
+        }
 
         if ($async) {
+            if ($this->jsonEnabled()) {
+                try {
+                    $backtestRun = $backtestRunService->queue($data);
+
+                    return $this->outputJson(true, [
+                        'backtestId' => $backtestRun->id,
+                        'strategy' => $strategyAlias,
+                        'symbols' => $symbols,
+                        'timeframe' => $timeframe->value,
+                        'executionTimeframe' => $executionTimeframe?->value,
+                        'initialCapital' => $capital,
+                        'finalCapital' => null,
+                        'statistics' => null,
+                    ]);
+                } catch (\Throwable $e) {
+                    return $this->outputJsonError('Failed to queue backtest: '.$e->getMessage());
+                }
+            }
+
             $this->debugMemory();
 
             return $this->queueBacktest($backtestRunService, $data);
@@ -304,23 +381,51 @@ class RunBacktestCommand extends Command
      */
     private function runBacktestSync(BacktestRunService $service, BacktestResultFormatter $formatter, array $data, bool $noColor = false, string $tradesOption = '5'): int
     {
-        info('Running backtest synchronously...');
-        $this->newLine();
+        if (! $this->jsonEnabled()) {
+            info('Running backtest synchronously...');
+            $this->newLine();
+        }
 
         try {
-            $this->startProgressBar('Running backtest...');
+            if (! $this->jsonEnabled()) {
+                $this->startProgressBar('Running backtest...');
+            }
 
             $result = $service->runSync($data, function (int $current, int $total, string $message) {
-                $this->updateProgress($current, $total, $message);
+                if (! $this->jsonEnabled()) {
+                    $this->updateProgress($current, $total, $message);
+                }
             });
 
-            $this->finishProgressBar();
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBar();
+            }
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'backtestId' => $result['backtest_run_id'] ?? null,
+                    'strategy' => $data['strategy'],
+                    'symbols' => $data['symbols'],
+                    'timeframe' => $data['timeframe'],
+                    'executionTimeframe' => $data['execution_timeframe'] ?? null,
+                    'initialCapital' => $data['initial_capital'],
+                    'finalCapital' => $result['final_capital'] ?? null,
+                    'statistics' => $result['statistics'] ?? null,
+                ]);
+            }
 
             $this->displayResults($result, $formatter, $noColor, $tradesOption);
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
-            $this->finishProgressBarOnError();
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Backtest failed: '.$e->getMessage());
+            }
+
             error('Backtest failed: '.$e->getMessage());
             if (! str_contains($e->getMessage(), 'Market data file not found')) {
                 dump($e->getTraceAsString());

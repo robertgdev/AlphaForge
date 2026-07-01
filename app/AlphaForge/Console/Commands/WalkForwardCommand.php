@@ -4,26 +4,29 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Dto\DataTypeConfig;
 use App\AlphaForge\Backtesting\Dto\WalkForwardConfiguration;
+use App\AlphaForge\Backtesting\Model\WalkForwardResult;
+use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 use App\AlphaForge\Backtesting\Optimization\OptimizationMethod;
 use App\AlphaForge\Backtesting\Optimization\ParallelRunnerMode;
+use App\AlphaForge\Backtesting\WalkForward\StrategyGrader;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardService;
 use App\AlphaForge\Common\Enum\TimeframeEnum;
 use App\AlphaForge\Console\Commands\Concerns\ResolvesParallelRunner;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Services\DataAutoGenerator;
 use App\AlphaForge\Strategy\Service\StrategyInputParser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Safe\DateTimeImmutable;
 
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\file_put_contents;
 
 class WalkForwardCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
     use ResolvesParallelRunner;
 
     protected $signature = 'alphaforge:walk-forward
@@ -61,6 +64,7 @@ class WalkForwardCommand extends Command
         {--max-leverage=1.0 : Maximum notional exposure as multiple of equity}
         {--fixed-stake= : Fixed dollar amount per trade (for fixed_dollar model)}
         {--auto-generate : Auto-generate derived data files (renko, heikenashi, atr_renko, aggregated OHLCV)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Run walk-forward analysis: optimize on in-sample data, validate on out-of-sample data';
@@ -96,68 +100,46 @@ class WalkForwardCommand extends Command
         $format = $this->option('format');
         $outputPath = $this->option('output');
 
+        $useJson = $this->jsonEnabled();
+
         $timeframe = TimeframeEnum::tryFrom($timeframeValue);
         if (! $timeframe) {
-            $this->error("Invalid timeframe: $timeframeValue");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Invalid timeframe: $timeframeValue");
         }
 
         $executionTimeframe = null;
         if ($executionTimeframeValue) {
             $executionTimeframe = TimeframeEnum::tryFrom($executionTimeframeValue);
             if (! $executionTimeframe) {
-                $this->error("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Invalid execution timeframe: $executionTimeframeValue. Valid values: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M");
             }
 
             if ($executionTimeframe->toSeconds() >= $timeframe->toSeconds()) {
-                $this->error("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError("Execution timeframe ({$executionTimeframe->value}) must be lower (finer granularity) than the signal timeframe ({$timeframe->value}).");
             }
         }
 
         $method = OptimizationMethod::tryFrom($methodValue);
         if (! $method) {
-            $this->error("Invalid method: $methodValue. Use: grid, random, genetic");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Invalid method: $methodValue. Use: grid, random, genetic");
         }
 
         if ($splitRatio <= 0 || $splitRatio >= 1) {
-            $this->error('--split must be between 0 and 1 (exclusive)');
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('--split must be between 0 and 1 (exclusive)');
         }
 
         if (! in_array($format, ['table', 'csv', 'json'])) {
-            $this->error("Invalid format: $format. Use: table, csv, json");
+            return $this->outputJsonError("Invalid format: $format. Use: table, csv, json");
+        }
 
-            $this->debugMemory();
-
-            return 1;
+        if ($this->jsonEnabled() && $this->input->hasParameterOption('--format')) {
+            return $this->outputJsonError('Cannot use --json and --format together. Use one or the other.');
         }
 
         try {
             $dataTypeConfig = DataTypeConfig::fromOptions($dataTypeValue, $brickSize, $atrPeriod);
         } catch (\InvalidArgumentException $e) {
-            $this->error($e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError($e->getMessage());
         }
 
         foreach ($dataTypeConfig->warnings as $warning) {
@@ -218,54 +200,51 @@ class WalkForwardCommand extends Command
             }
             $parameterOverrides = $parsed;
         } else {
-            $this->error('Either --params or --use-strategy-ranges must be specified');
-            $this->line("  --params='{\"fastPeriod\":{\"min\":5,\"max\":20,\"step\":5}}'");
-            $this->line('  --use-strategy-ranges');
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Either --params or --use-strategy-ranges must be specified');
         }
 
         $this->info('Starting Walk-Forward Analysis...');
         $this->newLine();
-        $this->line("  Strategy: $strategyAlias");
-        $this->line("  Symbol: $symbol");
-        $this->line("  Timeframe: {$timeframe->value}");
-
-        if ($executionTimeframe !== null) {
-            $this->line("  Execution Timeframe: {$executionTimeframe->value}");
-            $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
-        }
-
-        $this->line("  Method: {$method->value}");
-        $this->line("  Objective: $objective");
-        $this->line("  Top-N: $topN");
-        $this->line("  Data Type: $dataTypeValue");
-        if ($brickSize !== null) {
-            $this->line("  Brick Size: $brickSize");
-        }
-        if ($atrPeriod !== null) {
-            $this->line("  ATR Period: $atrPeriod");
-        }
-        $this->line('  Split: '.($splitRatio * 100).'% in-sample / '.((1 - $splitRatio) * 100).'% out-of-sample');
-
-        if ($minTrades > 0) {
-            $this->line("  Min Trades: $minTrades");
-        }
-
-        if ($method === OptimizationMethod::RANDOM) {
-            $this->line("  Iterations: $iterations");
-        } elseif ($method === OptimizationMethod::GENETIC) {
-            $this->line("  Population: $population");
-            $this->line("  Generations: $generations");
-        }
 
         $runnerMode = $this->resolveRunnerMode($this->option('runner'));
         $workerCount = $this->resolveWorkerCount($this->option('workers'));
 
-        $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
-        $this->newLine();
+        if (! $this->jsonEnabled()) {
+            $this->line("  Strategy: $strategyAlias");
+            $this->line("  Symbol: $symbol");
+            $this->line("  Timeframe: {$timeframe->value}");
+
+            if ($executionTimeframe !== null) {
+                $this->line("  Execution Timeframe: {$executionTimeframe->value}");
+                $this->line('  Execution Model: Signals on completed '.$timeframe->value.' bars; orders executed using '.$executionTimeframe->value.' market data; SL/TP evaluated on '.$executionTimeframe->value.' candles. No intraminute tick simulation.');
+            }
+
+            $this->line("  Method: {$method->value}");
+            $this->line("  Objective: $objective");
+            $this->line("  Top-N: $topN");
+            $this->line("  Data Type: $dataTypeValue");
+            if ($brickSize !== null) {
+                $this->line("  Brick Size: $brickSize");
+            }
+            if ($atrPeriod !== null) {
+                $this->line("  ATR Period: $atrPeriod");
+            }
+            $this->line('  Split: '.($splitRatio * 100).'% in-sample / '.((1 - $splitRatio) * 100).'% out-of-sample');
+
+            if ($minTrades > 0) {
+                $this->line("  Min Trades: $minTrades");
+            }
+
+            if ($method === OptimizationMethod::RANDOM) {
+                $this->line("  Iterations: $iterations");
+            } elseif ($method === OptimizationMethod::GENETIC) {
+                $this->line("  Population: $population");
+                $this->line("  Generations: $generations");
+            }
+
+            $this->line("  Runner: {$runnerMode->value}".($runnerMode === ParallelRunnerMode::FORK ? " ({$workerCount} workers)" : ''));
+            $this->newLine();
+        }
 
         $config = new WalkForwardConfiguration;
         $config->strategyAlias = $strategyAlias;
@@ -306,11 +285,7 @@ class WalkForwardCommand extends Command
         try {
             [$isStart, $isEnd, $oosStart, $oosEnd] = $service->computeDateSplit($config);
         } catch (\InvalidArgumentException $e) {
-            $this->error($e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError($e->getMessage());
         }
 
         if (! $force && $minOosDays > 0) {
@@ -321,9 +296,11 @@ class WalkForwardCommand extends Command
             }
         }
 
-        $this->info('Phase 1: Optimization (In-Sample)');
-        $this->line('  Period: '.$isStart->toDateString().' → '.$isEnd->toDateString());
-        $this->newLine();
+        if (! $useJson) {
+            $this->info('Phase 1: Optimization (In-Sample)');
+            $this->line('  Period: '.$isStart->toDateString().' → '.$isEnd->toDateString());
+            $this->newLine();
+        }
 
         $progressCallback = null;
         $bar = null;
@@ -344,11 +321,7 @@ class WalkForwardCommand extends Command
         try {
             $wfRun = $service->run($config, $progressCallback);
         } catch (\Throwable $e) {
-            $this->error('Walk-forward analysis failed: '.$e->getMessage());
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Walk-forward analysis failed: '.$e->getMessage());
         } finally {
             $bar?->finish();
             if ($bar !== null) {
@@ -357,20 +330,22 @@ class WalkForwardCommand extends Command
         }
 
         if ($wfRun->hasFailed()) {
-            $this->error('Walk-forward analysis failed: '.($wfRun->error_message ?? 'Unknown error'));
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Walk-forward analysis failed: '.($wfRun->error_message ?? 'Unknown error'));
         }
 
-        $this->newLine();
-        $this->info('Phase 2: Forward Validation (Out-of-Sample)');
-        $this->line('  Period: '.$oosStart->toDateString().' → '.$oosEnd->toDateString());
-        $this->line('  Tested top '.$topN.' parameter sets');
-        $this->newLine();
+        if (! $useJson) {
+            $this->newLine();
+            $this->info('Phase 2: Forward Validation (Out-of-Sample)');
+            $this->line('  Period: '.$oosStart->toDateString().' → '.$oosEnd->toDateString());
+            $this->line('  Tested top '.$topN.' parameter sets');
+            $this->newLine();
+        }
 
         $analysis = $analyzer->analyze($wfRun, $minTrades);
+
+        if ($useJson) {
+            return $this->outputJson(true, $this->buildWalkForwardJson($wfRun, $analysis), outputPath: $outputPath);
+        }
 
         if ($format === 'csv') {
             $csv = $exporter->toCsv($analysis);
@@ -390,6 +365,10 @@ class WalkForwardCommand extends Command
             return 0;
         }
 
+        if ($useJson) {
+            return 0;
+        }
+
         $this->displayResultsTable($analysis);
 
         $this->displaySummary($analysis);
@@ -405,6 +384,96 @@ class WalkForwardCommand extends Command
         $this->debugMemory();
 
         return 0;
+    }
+
+    private function buildWalkForwardJson(WalkForwardRun $wfRun, WalkForwardAnalysis $analysis): array
+    {
+        $grade = StrategyGrader::grade($analysis);
+
+        return [
+            'walk_forward_run_id' => $wfRun->id,
+            'optimization_run_id' => $wfRun->optimization_run_id,
+            'strategy' => $wfRun->strategy_alias,
+            'symbols' => $wfRun->symbols,
+            'timeframe' => $wfRun->timeframe,
+            'execution_timeframe' => $wfRun->execution_timeframe,
+            'data_type' => $wfRun->data_type,
+            'is_period' => $wfRun->is_start_date?->format('Y-m-d').' to '.$wfRun->is_end_date?->format('Y-m-d'),
+            'oos_period' => $wfRun->oos_start_date?->format('Y-m-d').' to '.$wfRun->oos_end_date?->format('Y-m-d'),
+            'split_ratio' => $wfRun->split_ratio,
+            'optimization_method' => $wfRun->optimization_method,
+            'optimization_objective' => $wfRun->optimization_objective,
+            'top_n' => $wfRun->top_n,
+            'status' => $wfRun->status,
+            'stability_classification' => $analysis->stabilityClassification,
+            'stability_interpretation' => $analysis->stabilityInterpretation,
+            'economic_performance' => $analysis->economicPerformance,
+            'economic_interpretation' => $analysis->economicInterpretation,
+            'robust_count' => $analysis->robustCount,
+            'robust_ratio' => $analysis->robustRatio,
+            'beat_buy_hold_count' => $analysis->beatBuyHoldCount,
+            'beat_buy_hold_ratio' => $analysis->beatBuyHoldRatio,
+            'return_gt_10_count' => $analysis->returnGt10Count,
+            'return_gt_10_ratio' => $analysis->returnGt10Ratio,
+            'sharpe_beat_benchmark_count' => $analysis->sharpeBeatBenchmarkCount,
+            'sharpe_beat_benchmark_ratio' => $analysis->sharpeBeatBenchmarkRatio,
+            'median_is_score' => $analysis->medianIsScore,
+            'median_oos_score' => $analysis->medianOosScore,
+            'median_oos_return' => $analysis->medianOosReturn,
+            'median_oos_sharpe' => $analysis->medianOosSharpe,
+            'median_oos_max_dd' => $analysis->medianOosMaxDd,
+            'avg_degradation' => $analysis->avgDegradation,
+            'median_degradation' => $analysis->medianDegradation,
+            'rank_correlation' => $analysis->rankCorrelation,
+            'rank_stability_label' => $analysis->rankStabilityLabel,
+            'reliable_count' => $analysis->reliableCount,
+            'reliable_ratio' => $analysis->reliableRatio,
+            'min_trades' => $analysis->minTrades,
+            'suspicious_sharpe' => $analysis->suspiciousSharpe,
+            'low_trade_warning' => $analysis->lowTradeWarning,
+            'boundary_warnings' => array_map(fn (array $w) => [
+                'param' => $w['param'],
+                'direction' => $w['direction'],
+                'boundary' => $w['boundary'],
+                'pct' => $w['pct'],
+            ], $analysis->boundaryWarnings),
+            'benchmark' => $analysis->benchmarkHasData ? [
+                'return_pct' => $analysis->benchmarkReturn,
+                'max_drawdown_pct' => $analysis->benchmarkMaxDrawdown,
+                'sharpe' => $analysis->benchmarkSharpe,
+            ] : null,
+            'time_in_market' => $analysis->timeInMarket,
+            'exposure_adjusted_target' => $analysis->exposureAdjustedTarget,
+            'capture_ratio' => $analysis->captureRatio,
+            'market_capture' => $analysis->marketCapture,
+            'capital_efficiency' => $analysis->capitalEfficiency,
+            'grade' => [
+                'score' => $grade['score'],
+                'stars' => $grade['stars'],
+                'label' => $grade['label'],
+                'breakdown' => $grade['breakdown'],
+                'stars_by_category' => $grade['stars_by_category'],
+            ],
+            'best_parameters' => $wfRun->best_parameters,
+            'best_oos_result' => $analysis->bestOosResult ? [
+                'rank' => $analysis->bestOosRank,
+                'parameters' => $analysis->bestOosResult->parameters,
+                'is_score' => $analysis->bestOosResult->is_score,
+                'oos_score' => $analysis->bestOosResult->oos_score,
+                'score_degradation' => $analysis->bestOosResult->score_degradation,
+                'is_statistics' => $analysis->bestOosResult->is_statistics,
+                'oos_statistics' => $analysis->bestOosResult->oos_statistics,
+            ] : null,
+            'results' => array_map(fn (WalkForwardResult $r) => [
+                'rank' => $r->rank,
+                'parameters' => $r->parameters,
+                'is_score' => $r->is_score,
+                'oos_score' => $r->oos_score,
+                'score_degradation' => $r->score_degradation,
+                'is_statistics' => $r->is_statistics,
+                'oos_statistics' => $r->oos_statistics,
+            ], $analysis->results),
+        ];
     }
 
     private function outputResult(string $content, ?string $outputPath): void
@@ -732,7 +801,7 @@ class WalkForwardCommand extends Command
 
         $this->line(str_repeat('=', 60));
 
-        $grade = \App\AlphaForge\Backtesting\WalkForward\StrategyGrader::grade($analysis);
+        $grade = StrategyGrader::grade($analysis);
         $this->newLine();
         $this->line('<fg=yellow>Final Score:</>');
         $this->line('  Overall:      '.self::colorizeStars($grade['stars']).' '.$grade['label']);

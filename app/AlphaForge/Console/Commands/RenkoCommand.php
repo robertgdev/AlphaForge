@@ -2,7 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\RenkoConverter;
@@ -10,13 +10,12 @@ use App\AlphaForge\Data\Exception\StorageException;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\confirm;
-use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\warning;
 
 class RenkoCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
     use HasProgressBar;
     use ParsesMarketDataArgs;
 
@@ -32,6 +31,7 @@ class RenkoCommand extends Command
         {brick_size : The brick size for Renko conversion (e.g., 0.001, 10, 100)}
         {--force : Force overwrite existing Renko file}
         {--update : Incrementally update the Renko file by appending new converted data}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -51,41 +51,29 @@ class RenkoCommand extends Command
         $update = $this->option('update');
 
         if ($update && $force) {
-            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
-
-            $this->debugMemory();
-
-            return self::FAILURE;
+            return $this->outputJsonError('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
         }
 
         // Validate brick size
         if ($brickSize <= 0) {
-            error('Brick size must be a positive number.');
-
-            $this->debugMemory();
-
-            return self::FAILURE;
+            return $this->outputJsonError('Brick size must be a positive number.');
         }
 
         try {
             // Get OHLC file info
             $ohlcvHeader = $converter->getOhlcvFileInfo($exchange, $market, $timeframe);
         } catch (StorageException $e) {
-            error("OHLC file not found: {$e->getMessage()}");
-            $this->components->twoColumnDetail(
-                'Expected Path',
-                "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
-            );
-
-            $this->debugMemory();
-
-            return self::FAILURE;
+            return $this->outputJsonError("OHLC file not found: {$e->getMessage()}");
         }
 
         // Check if Renko file already exists
         $renkoExists = $converter->renkoFileExists($exchange, $market, $timeframe, $brickSize);
 
         if ($renkoExists && ! $force && ! $update) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Renko file already exists. Use --force to overwrite or --update to append.');
+            }
+
             $renkoPath = $converter->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
             warning('Renko file already exists for this configuration.');
             $this->components->twoColumnDetail('Existing File', $renkoPath);
@@ -106,20 +94,26 @@ class RenkoCommand extends Command
 
         // Display conversion summary
         if ($update && ! $renkoExists) {
-            info('Renko file does not exist. Performing full conversion instead.');
+            if (! $this->jsonEnabled()) {
+                info('Renko file does not exist. Performing full conversion instead.');
+            }
             $update = false;
         }
 
-        info($update ? 'Starting Renko incremental conversion...' : 'Starting Renko conversion...');
-        $this->newLine();
-        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
-            'Brick Size' => (string) $brickSize,
-            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
-            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
-        ]);
+        if (! $this->jsonEnabled()) {
+            info($update ? 'Starting Renko incremental conversion...' : 'Starting Renko conversion...');
+            $this->newLine();
+            $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+                'Brick Size' => (string) $brickSize,
+                'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+                'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+            ]);
+        }
 
         try {
-            $this->startProgressBar($update ? 'Incrementally converting OHLC to Renko...' : 'Converting OHLC to Renko...');
+            if (! $this->jsonEnabled()) {
+                $this->startProgressBar($update ? 'Incrementally converting OHLC to Renko...' : 'Converting OHLC to Renko...');
+            }
 
             if ($update) {
                 $newRecordsCount = $converter->convertIncremental(
@@ -128,11 +122,43 @@ class RenkoCommand extends Command
                     $timeframe,
                     $brickSize,
                     function (int $current, int $total) {
-                        $this->updateProgress($current, $total);
+                        if (! $this->jsonEnabled()) {
+                            $this->updateProgress($current, $total);
+                        }
                     }
                 );
 
-                $this->finishProgressBar();
+                if (! $this->jsonEnabled()) {
+                    $this->finishProgressBar();
+                }
+
+                $renkoPath = $converter->generateRenkoFilePath($exchange, $market, $timeframe, $brickSize);
+
+                if ($this->jsonEnabled()) {
+                    if ($newRecordsCount === -1) {
+                        $renkoHeader = $converter->readRenkoHeader($renkoPath);
+
+                        return $this->outputJson(true, [
+                            'exchange' => $exchange,
+                            'symbol' => $market,
+                            'timeframe' => $timeframe,
+                            'brickSize' => $brickSize,
+                            'mode' => 'full',
+                            'filePath' => $renkoPath,
+                            'brickCount' => $renkoHeader['numRecords'],
+                        ]);
+                    }
+
+                    return $this->outputJson(true, [
+                        'exchange' => $exchange,
+                        'symbol' => $market,
+                        'timeframe' => $timeframe,
+                        'brickSize' => $brickSize,
+                        'mode' => 'incremental',
+                        'filePath' => $renkoPath,
+                        'brickCount' => $newRecordsCount,
+                    ]);
+                }
 
                 if ($newRecordsCount === -1) {
                     info('Renko conversion completed successfully (full conversion was performed).');
@@ -157,14 +183,30 @@ class RenkoCommand extends Command
                 $timeframe,
                 $brickSize,
                 function (int $current, int $total) {
-                    $this->updateProgress($current, $total);
+                    if (! $this->jsonEnabled()) {
+                        $this->updateProgress($current, $total);
+                    }
                 }
             );
 
-            $this->finishProgressBar();
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBar();
+            }
 
             // Read the generated file info
             $renkoHeader = $converter->readRenkoHeader($filePath);
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'exchange' => $exchange,
+                    'symbol' => $market,
+                    'timeframe' => $timeframe,
+                    'brickSize' => $brickSize,
+                    'mode' => $force ? 'overwrite' : 'normal',
+                    'filePath' => $filePath,
+                    'brickCount' => $renkoHeader['numRecords'],
+                ]);
+            }
 
             info('Renko conversion completed successfully!');
             $this->components->twoColumnDetail('File Path', $filePath);
@@ -175,19 +217,17 @@ class RenkoCommand extends Command
 
             return self::SUCCESS;
         } catch (StorageException $e) {
-            $this->finishProgressBarOnError();
-            error("Conversion failed: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-
-            return self::FAILURE;
+            return $this->outputJsonError("Conversion failed: {$e->getMessage()}");
         } catch (\Throwable $e) {
-            $this->finishProgressBarOnError();
-            error("Unexpected error: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-
-            return self::FAILURE;
+            return $this->outputJsonError("Unexpected error: {$e->getMessage()}");
         }
     }
 }

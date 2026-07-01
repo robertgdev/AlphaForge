@@ -4,15 +4,17 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class OptimizationResultCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:optimizations:result
         {backtest_id : The backtest run ID within an optimization}
         {--show-positions : Include positions in output}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show a specific backtest result from an optimization';
@@ -24,11 +26,21 @@ class OptimizationResultCommand extends Command
         $backtestRun = BacktestRun::with('optimization')->find($backtestId);
 
         if (! $backtestRun) {
-            $this->error("Backtest run not found: $backtestId");
+            return $this->outputJsonError("Backtest run not found: $backtestId");
+        }
 
-            $this->debugMemory();
-
-            return 1;
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'backtestId' => $backtestRun->id,
+                'strategy' => $backtestRun->strategy_alias,
+                'symbol' => $backtestRun->symbols[0] ?? null,
+                'timeframe' => $backtestRun->timeframe,
+                'status' => $backtestRun->status,
+                'parameters' => $backtestRun->strategy_inputs,
+                'initialCapital' => (float) $backtestRun->initial_capital,
+                'finalCapital' => (float) $backtestRun->final_capital,
+                'statistics' => $backtestRun->statistics,
+            ]);
         }
 
         $this->line('<fg=yellow>Backtest Result Details</>');

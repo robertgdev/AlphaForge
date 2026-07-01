@@ -15,8 +15,12 @@
     "require": {
         "php": "^8.3",
         "ext-bcmath": "*",
+        "ext-curl": "*",
         "ext-ds": "*",
         "ext-gmp": "*",
+        "ext-mbstring": "*",
+        "ext-sqlite3": "*",
+        "ext-xml": "*",
         "ccxt/ccxt": "^4.0",
         "illuminate/broadcasting": "^13.0",
         "inertiajs/inertia-laravel": "^2.0",

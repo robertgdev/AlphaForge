@@ -4,7 +4,7 @@ namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\DateParsingService;
 use App\AlphaForge\Console\Concerns\HandlesDownloadProgress;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DownloaderException;
 use App\AlphaForge\Data\Service\OhlcvDownloader;
@@ -18,8 +18,8 @@ use function Laravel\Prompts\info;
 class DataImportCommand extends Command
 {
     use HandlesDownloadProgress;
+    use HasJsonOutput;
     use ParsesMarketDataArgs;
-    use DebugMemory;
 
     protected $signature = 'alphaforge:data:import
         {exchange : The exchange identifier (e.g., binance, kraken)}
@@ -28,6 +28,7 @@ class DataImportCommand extends Command
         {startdate : The start date for data import (Y-m-d or Y-m-d H:i:s)}
         {enddate? : The end date for data import (Y-m-d or Y-m-d H:i:s, defaults to now)}
         {--force : Force overwrite existing data}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Import market data from an exchange';
@@ -47,6 +48,10 @@ class DataImportCommand extends Command
         try {
             $startCarbon = $dateParsingService->parseDate($startdate);
         } catch (\InvalidArgumentException $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Invalid start date format: {$startdate}. Use Y-m-d or Y-m-d H:i:s format.");
+            }
+
             error("Invalid start date format: {$startdate}. Use Y-m-d or Y-m-d H:i:s format.");
 
             return self::FAILURE;
@@ -55,6 +60,10 @@ class DataImportCommand extends Command
         try {
             $endCarbon = $this->parseEndDate($enddate, $dateParsingService);
         } catch (\InvalidArgumentException $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
+            }
+
             error("Invalid end date format: {$enddate}. Use Y-m-d or Y-m-d H:i:s format.");
 
             return self::FAILURE;
@@ -66,17 +75,22 @@ class DataImportCommand extends Command
 
         $this->totalDuration = (int) $endCarbon->timestamp - (int) $startCarbon->timestamp;
 
-        info('Starting market data import...');
-        $this->newLine();
-        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
-            'Start Date' => $startCarbon->format('Y-m-d H:i:s'),
-            'End Date' => $endCarbon->format('Y-m-d H:i:s'),
-            'Force Overwrite' => $force ? 'Yes' : 'No',
-        ]);
+        if (! $this->jsonEnabled()) {
+            info('Starting market data import...');
+            $this->newLine();
+            $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+                'Start Date' => $startCarbon->format('Y-m-d H:i:s'),
+                'End Date' => $endCarbon->format('Y-m-d H:i:s'),
+                'Force Overwrite' => $force ? 'Yes' : 'No',
+            ]);
+        }
 
         $downloading = false;
 
         $eventDispatcher->listen(DownloadProgress::class, function (DownloadProgress $event) use (&$downloading) {
+            if ($this->jsonEnabled()) {
+                return;
+            }
             if (! $downloading) {
                 $this->startProgressBar('Downloading...');
                 $downloading = true;
@@ -98,6 +112,17 @@ class DataImportCommand extends Command
                 $this->finishProgressBar();
             }
 
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'exchange' => $exchange,
+                    'market' => $market,
+                    'timeframe' => $timeframe,
+                    'startDate' => $startCarbon->format('Y-m-d H:i:s'),
+                    'endDate' => $endCarbon->format('Y-m-d H:i:s'),
+                    'filePath' => $filePath,
+                ]);
+            }
+
             info('Market data imported successfully!');
             $this->components->twoColumnDetail('File Path', $filePath);
 
@@ -106,6 +131,11 @@ class DataImportCommand extends Command
             if ($downloading) {
                 $this->finishProgressBarOnError();
             }
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Download failed: {$e->getMessage()}");
+            }
+
             error("Download failed: {$e->getMessage()}");
 
             return self::FAILURE;
@@ -113,6 +143,11 @@ class DataImportCommand extends Command
             if ($downloading) {
                 $this->finishProgressBarOnError();
             }
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Unexpected error: {$e->getMessage()}");
+            }
+
             error("Unexpected error: {$e->getMessage()}");
 
             return self::FAILURE;

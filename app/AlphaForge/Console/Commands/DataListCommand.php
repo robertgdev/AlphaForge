@@ -3,9 +3,9 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\FormattingService;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\DataAvailabilityService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\info;
@@ -14,10 +14,12 @@ use function Laravel\Prompts\warning;
 
 class DataListCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:data:list
         {--exchange-filter= : Filter by exchange}
         {--symbol-filter= : Filter by symbol}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List all available market data files';
@@ -32,6 +34,10 @@ class DataListCommand extends Command
         $manifest = $availabilityService->getManifest();
 
         if (empty($manifest)) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, ['files' => [], 'totals' => ['files' => 0, 'markets' => 0]]);
+            }
+
             info('No market data files found.');
             $this->line('Use the import command to download market data:');
             $this->line('  php artisan alphaforge:data:import <exchange> <market> <timeframe> <startdate> [enddate]');
@@ -48,6 +54,10 @@ class DataListCommand extends Command
         }
 
         if (empty($manifest)) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, ['files' => [], 'totals' => ['files' => 0, 'markets' => 0]]);
+            }
+
             warning('No market data files match the specified filters.');
 
             return self::SUCCESS;
@@ -55,23 +65,9 @@ class DataListCommand extends Command
 
         $manifest = array_values($manifest);
 
-        info('Available Market Data Files');
-        $this->newLine();
-
-        if ($exchangeFilter || $symbolFilter) {
-            $filters = [];
-            if ($exchangeFilter) {
-                $filters[] = "exchange: {$exchangeFilter}";
-            }
-            if ($symbolFilter) {
-                $filters[] = "symbol: {$symbolFilter}";
-            }
-            $this->components->twoColumnDetail('Filters', implode(', ', $filters));
-            $this->newLine();
-        }
-
         $totalFiles = 0;
         $rows = [];
+        $files = [];
 
         foreach ($manifest as $item) {
             $symbol = $item['symbol'];
@@ -93,7 +89,38 @@ class DataListCommand extends Command
                     $tf['startDate'],
                     $tf['endDate'],
                 ];
+                $files[] = [
+                    'exchange' => $exchange,
+                    'symbol' => $symbol,
+                    'timeframe' => $tf['timeframe'],
+                    'type' => $typeFormatted,
+                    'records' => $tf['recordCount'],
+                    'startDate' => $tf['startDate'],
+                    'endDate' => $tf['endDate'],
+                ];
             }
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'files' => $files,
+                'totals' => ['files' => $totalFiles, 'markets' => count($manifest)],
+            ]);
+        }
+
+        info('Available Market Data Files');
+        $this->newLine();
+
+        if ($exchangeFilter || $symbolFilter) {
+            $filters = [];
+            if ($exchangeFilter) {
+                $filters[] = "exchange: {$exchangeFilter}";
+            }
+            if ($symbolFilter) {
+                $filters[] = "symbol: {$symbolFilter}";
+            }
+            $this->components->twoColumnDetail('Filters', implode(', ', $filters));
+            $this->newLine();
         }
 
         table(

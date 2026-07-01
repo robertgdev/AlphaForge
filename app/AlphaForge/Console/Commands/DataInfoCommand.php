@@ -3,11 +3,11 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Common\Service\FormattingService;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Data\Exception\DataFileNotFoundException;
 use App\AlphaForge\Data\Service\BinaryStorage;
 use App\AlphaForge\Data\Service\DataInspectionService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\error;
@@ -16,13 +16,14 @@ use function Laravel\Prompts\warning;
 
 class DataInfoCommand extends Command
 {
+    use HasJsonOutput;
     use ParsesMarketDataArgs;
-    use DebugMemory;
 
     protected $signature = 'alphaforge:data:info
         {exchange : The exchange identifier (e.g., binance, kraken)}
         {market : The trading pair symbol (e.g., BTC/USDT)}
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Display information about a market data file';
@@ -38,6 +39,10 @@ class DataInfoCommand extends Command
         try {
             $data = $inspectionService->inspect($exchange, $market, $timeframe);
         } catch (DataFileNotFoundException $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("No market data found for {$exchange}/{$market}/{$timeframe}");
+            }
+
             warning("No market data found for {$exchange}/{$market}/{$timeframe}");
             $this->newLine();
             $this->displayMarketDataHeader($exchange, $market, $timeframe);
@@ -46,6 +51,10 @@ class DataInfoCommand extends Command
 
             return self::FAILURE;
         } catch (\Throwable $e) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError("Failed to inspect market data: {$e->getMessage()}");
+            }
+
             error("Failed to inspect market data: {$e->getMessage()}");
 
             return self::FAILURE;
@@ -58,6 +67,38 @@ class DataInfoCommand extends Command
 
         $firstRecord = $data['sample']['head'][0] ?? null;
         $lastRecord = end($data['sample']['tail']) ?: ($data['sample']['head'][$recordCount - 1] ?? null);
+
+        if ($this->jsonEnabled()) {
+            $dateRange = ['first' => null, 'last' => null, 'timeSpan' => null];
+            if ($firstRecord && $lastRecord) {
+                $dateRange = [
+                    'first' => $firstRecord['utc'],
+                    'last' => $lastRecord['utc'],
+                    'timeSpan' => $lastRecord['timestamp'] - $firstRecord['timestamp'],
+                ];
+            }
+
+            return $this->outputJson(true, [
+                'exchange' => $exchange,
+                'market' => $market,
+                'timeframe' => $timeframe,
+                'filePath' => $data['filePath'],
+                'fileSize' => $fileSize,
+                'recordCount' => $recordCount,
+                'formatVersion' => $header['version'],
+                'headerSize' => $header['headerLength'],
+                'recordSize' => $header['recordLength'],
+                'dataType' => $header['dataType'],
+                'dateRange' => $dateRange,
+                'validation' => [
+                    'status' => $validation['status'],
+                    'message' => $validation['message'],
+                    'gaps' => count($validation['gaps'] ?? []),
+                    'duplicates' => count($validation['duplicates'] ?? []),
+                    'outOfOrder' => count($validation['outOfOrder'] ?? []),
+                ],
+            ]);
+        }
 
         info('Market Data Information');
         $this->newLine();

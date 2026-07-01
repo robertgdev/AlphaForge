@@ -3,7 +3,7 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\BacktestRun;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 use function Safe\file_put_contents;
@@ -11,11 +11,13 @@ use function Safe\json_encode;
 
 class ExportTradesCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:export:backtest
         {backtest_id : The backtest run ID}
         {--format=csv : Output format (csv, json)}
         {--output= : Output file path (stdout if omitted)}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Export per-trade details from a completed backtest';
@@ -23,33 +25,32 @@ class ExportTradesCommand extends Command
     public function handle(): int
     {
         $backtestId = $this->argument('backtest_id');
+
+        if ($this->jsonEnabled() && $this->input->hasParameterOption('--format')) {
+            return $this->outputJsonError('Cannot use --json and --format together. Use one or the other.');
+        }
+
         $run = BacktestRun::find($backtestId);
 
         if (! $run) {
-            $this->error("Backtest run not found: {$backtestId}");
-
-            $this->debugMemory();
-            return 1;
+            return $this->outputJsonError("Backtest run not found: {$backtestId}");
         }
 
         if (! $run->isCompleted()) {
-            $this->error("Backtest run is not completed. Status: {$run->status}");
-
-            $this->debugMemory();
-            return 1;
+            return $this->outputJsonError("Backtest run is not completed. Status: {$run->status}");
         }
 
         $trades = $run->statistics['position_trades'] ?? [];
 
         if (empty($trades)) {
-            $this->warn('No trade data found for this backtest run.');
-            $this->line('  Trade data is captured for backtests run after the position_trades feature was added.');
-
-            $this->debugMemory();
-            return 1;
+            return $this->outputJsonError('No trade data found for this backtest run.');
         }
 
         $format = $this->option('format');
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, $this->buildTradesJson($run, $trades), outputPath: $this->option('output'));
+        }
+
         $outputPath = $this->option('output');
 
         $output = $format === 'json'
@@ -68,7 +69,19 @@ class ExportTradesCommand extends Command
         }
 
         $this->debugMemory();
+
         return 0;
+    }
+
+    private function buildTradesJson(BacktestRun $run, array $trades): array
+    {
+        return [
+            'backtest_id' => $run->id,
+            'strategy_alias' => $run->strategy_alias,
+            'symbols' => $run->symbols,
+            'total_trades' => count($trades),
+            'trades' => $trades,
+        ];
     }
 
     private function renderCsv(BacktestRun $run, array $trades): string

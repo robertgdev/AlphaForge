@@ -2,23 +2,22 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\AtrRenkoConverter;
 use App\AlphaForge\Data\Exception\StorageException;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\confirm;
-use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\warning;
 
 class AtrRenkoCommand extends Command
 {
+    use HasJsonOutput;
     use HasProgressBar;
     use ParsesMarketDataArgs;
-    use DebugMemory;
 
     /**
      * The name and signature of the console command.
@@ -32,6 +31,7 @@ class AtrRenkoCommand extends Command
         {atr_period : The ATR period for dynamic brick sizing (e.g., 14)}
         {--force : Force overwrite existing ATR-Renko file}
         {--update : Incrementally update the ATR-Renko file by appending new converted data}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -51,38 +51,29 @@ class AtrRenkoCommand extends Command
         $update = $this->option('update');
 
         if ($update && $force) {
-            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
         }
 
         // Validate ATR period
         if ($atrPeriod < 2) {
-            error('ATR period must be an integer of at least 2.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError('ATR period must be an integer of at least 2.');
         }
 
         try {
             // Get OHLC file info
             $ohlcvHeader = $converter->getOhlcvFileInfo($exchange, $market, $timeframe);
         } catch (StorageException $e) {
-            error("OHLC file not found: {$e->getMessage()}");
-            $this->components->twoColumnDetail(
-                'Expected Path',
-                "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
-            );
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("OHLC file not found: {$e->getMessage()}");
         }
 
         // Check if ATR-Renko file already exists
         $atrRenkoExists = $converter->atrRenkoFileExists($exchange, $market, $timeframe, $atrPeriod);
 
         if ($atrRenkoExists && ! $force && ! $update) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('ATR-Renko file already exists. Use --force to overwrite or --update to append.');
+            }
+
             $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
             warning('ATR-Renko file already exists for this configuration.');
             $this->components->twoColumnDetail('Existing File', $atrRenkoPath);
@@ -96,26 +87,33 @@ class AtrRenkoCommand extends Command
                 warning('Operation cancelled.');
 
                 $this->debugMemory();
+
                 return self::SUCCESS;
             }
         }
 
         // Display conversion summary
         if ($update && ! $atrRenkoExists) {
-            info('ATR-Renko file does not exist. Performing full conversion instead.');
+            if (! $this->jsonEnabled()) {
+                info('ATR-Renko file does not exist. Performing full conversion instead.');
+            }
             $update = false;
         }
 
-        info($update ? 'Starting ATR-Renko incremental conversion...' : 'Starting ATR-Renko conversion...');
-        $this->newLine();
-        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
-            'ATR Period' => (string) $atrPeriod,
-            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
-            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
-        ]);
+        if (! $this->jsonEnabled()) {
+            info($update ? 'Starting ATR-Renko incremental conversion...' : 'Starting ATR-Renko conversion...');
+            $this->newLine();
+            $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+                'ATR Period' => (string) $atrPeriod,
+                'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+                'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+            ]);
+        }
 
         try {
-            $this->startProgressBar($update ? 'Incrementally converting OHLC to ATR-Renko...' : 'Converting OHLC to ATR-Renko...');
+            if (! $this->jsonEnabled()) {
+                $this->startProgressBar($update ? 'Incrementally converting OHLC to ATR-Renko...' : 'Converting OHLC to ATR-Renko...');
+            }
 
             if ($update) {
                 $newRecordsCount = $converter->convertIncremental(
@@ -124,11 +122,43 @@ class AtrRenkoCommand extends Command
                     $timeframe,
                     $atrPeriod,
                     function (int $current, int $total) {
-                        $this->updateProgress($current, $total);
+                        if (! $this->jsonEnabled()) {
+                            $this->updateProgress($current, $total);
+                        }
                     }
                 );
 
-                $this->finishProgressBar();
+                if (! $this->jsonEnabled()) {
+                    $this->finishProgressBar();
+                }
+
+                $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
+
+                if ($this->jsonEnabled()) {
+                    if ($newRecordsCount === -1) {
+                        $atrRenkoHeader = $converter->readAtrRenkoHeader($atrRenkoPath);
+
+                        return $this->outputJson(true, [
+                            'exchange' => $exchange,
+                            'symbol' => $market,
+                            'timeframe' => $timeframe,
+                            'atrPeriod' => $atrPeriod,
+                            'mode' => 'full',
+                            'filePath' => $atrRenkoPath,
+                            'brickCount' => $atrRenkoHeader['numRecords'],
+                        ]);
+                    }
+
+                    return $this->outputJson(true, [
+                        'exchange' => $exchange,
+                        'symbol' => $market,
+                        'timeframe' => $timeframe,
+                        'atrPeriod' => $atrPeriod,
+                        'mode' => 'incremental',
+                        'filePath' => $atrRenkoPath,
+                        'brickCount' => $newRecordsCount,
+                    ]);
+                }
 
                 if ($newRecordsCount === -1) {
                     info('ATR-Renko conversion completed successfully (full conversion was performed).');
@@ -139,10 +169,10 @@ class AtrRenkoCommand extends Command
                     $this->components->twoColumnDetail('New Bricks Appended', number_format($newRecordsCount));
                 }
 
-                $atrRenkoPath = $converter->generateAtrRenkoFilePath($exchange, $market, $timeframe, $atrPeriod);
                 $this->components->twoColumnDetail('File Path', $atrRenkoPath);
 
                 $this->debugMemory();
+
                 return self::SUCCESS;
             }
 
@@ -152,14 +182,30 @@ class AtrRenkoCommand extends Command
                 $timeframe,
                 $atrPeriod,
                 function (int $current, int $total) {
-                    $this->updateProgress($current, $total);
+                    if (! $this->jsonEnabled()) {
+                        $this->updateProgress($current, $total);
+                    }
                 }
             );
 
-            $this->finishProgressBar();
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBar();
+            }
 
             // Read the generated file info
             $atrRenkoHeader = $converter->readAtrRenkoHeader($filePath);
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'exchange' => $exchange,
+                    'symbol' => $market,
+                    'timeframe' => $timeframe,
+                    'atrPeriod' => $atrPeriod,
+                    'mode' => $force ? 'overwrite' : 'normal',
+                    'filePath' => $filePath,
+                    'brickCount' => $atrRenkoHeader['numRecords'],
+                ]);
+            }
 
             info('ATR-Renko conversion completed successfully!');
             $this->components->twoColumnDetail('File Path', $filePath);
@@ -167,19 +213,20 @@ class AtrRenkoCommand extends Command
             $this->components->twoColumnDetail('ATR Period', (string) (int) $atrRenkoHeader['brickSize']);
 
             $this->debugMemory();
+
             return self::SUCCESS;
         } catch (StorageException $e) {
-            $this->finishProgressBarOnError();
-            error("Conversion failed: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Conversion failed: {$e->getMessage()}");
         } catch (\Throwable $e) {
-            $this->finishProgressBarOnError();
-            error("Unexpected error: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Unexpected error: {$e->getMessage()}");
         }
     }
 }

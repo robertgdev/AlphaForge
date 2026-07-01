@@ -2,25 +2,28 @@
 
 namespace App\AlphaForge\Console\Commands;
 
+use App\AlphaForge\Backtesting\Model\WalkForwardResult;
 use App\AlphaForge\Backtesting\Model\WalkForwardRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
+use App\AlphaForge\Backtesting\WalkForward\StrategyGrader;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalysis;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardAnalyzer;
 use App\AlphaForge\Backtesting\WalkForward\WalkForwardExporter;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
 use function Safe\file_put_contents;
 
 class ShowWalkForwardRunCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
 
     protected $signature = 'alphaforge:walk-forward:show
         {run_id : The walk-forward run ID}
         {--top=20 : Number of top results to display}
         {--format=table : Output format (table, csv, json)}
         {--output= : Write output to file instead of stdout}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed walk-forward run results';
@@ -33,24 +36,25 @@ class ShowWalkForwardRunCommand extends Command
         $outputPath = $this->option('output');
 
         if (! in_array($format, ['table', 'csv', 'json'])) {
-            $this->error("Invalid format: $format. Use: table, csv, json");
+            return $this->outputJsonError("Invalid format: $format. Use: table, csv, json");
+        }
 
-            $this->debugMemory();
-
-            return 1;
+        if ($this->jsonEnabled() && $this->input->hasParameterOption('--format')) {
+            return $this->outputJsonError('Cannot use --json and --format together. Use one or the other.');
         }
 
         $wfRun = WalkForwardRun::find($runId);
 
         if (! $wfRun) {
-            $this->error("Walk-forward run not found: $runId");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Walk-forward run not found: $runId");
         }
 
         $analysis = $analyzer->analyze($wfRun);
+
+        $useJson = $this->jsonEnabled();
+        if ($useJson) {
+            return $this->outputJson(true, $this->buildWalkForwardJson($wfRun, $topCount), outputPath: $outputPath);
+        }
 
         if ($format === 'csv') {
             $csv = $exporter->toCsv($analysis);
@@ -81,6 +85,96 @@ class ShowWalkForwardRunCommand extends Command
         $this->debugMemory();
 
         return 0;
+    }
+
+    private function buildWalkForwardJson(WalkForwardRun $wfRun, int $topCount): array
+    {
+        $grade = StrategyGrader::grade($wfRun);
+        $analyzer = app(WalkForwardAnalyzer::class);
+        $analysis = $analyzer->analyze($wfRun);
+
+        return [
+            'walk_forward_run_id' => $wfRun->id,
+            'optimization_run_id' => $wfRun->optimization_run_id,
+            'strategy' => $wfRun->strategy_alias,
+            'symbols' => $wfRun->symbols,
+            'timeframe' => $wfRun->timeframe,
+            'execution_timeframe' => $wfRun->execution_timeframe,
+            'data_type' => $wfRun->data_type,
+            'is_period' => $wfRun->is_start_date?->format('Y-m-d').' to '.$wfRun->is_end_date?->format('Y-m-d'),
+            'oos_period' => $wfRun->oos_start_date?->format('Y-m-d').' to '.$wfRun->oos_end_date?->format('Y-m-d'),
+            'split_ratio' => $wfRun->split_ratio,
+            'optimization_method' => $wfRun->optimization_method,
+            'optimization_objective' => $wfRun->optimization_objective,
+            'top_n' => $wfRun->top_n,
+            'status' => $wfRun->status,
+            'stability_classification' => $analysis->stabilityClassification,
+            'stability_interpretation' => $analysis->stabilityInterpretation,
+            'economic_performance' => $analysis->economicPerformance,
+            'economic_interpretation' => $analysis->economicInterpretation,
+            'robust_count' => $analysis->robustCount,
+            'robust_ratio' => $analysis->robustRatio,
+            'beat_buy_hold_count' => $analysis->beatBuyHoldCount,
+            'beat_buy_hold_ratio' => $analysis->beatBuyHoldRatio,
+            'sharpe_beat_benchmark_count' => $analysis->sharpeBeatBenchmarkCount,
+            'sharpe_beat_benchmark_ratio' => $analysis->sharpeBeatBenchmarkRatio,
+            'median_is_score' => $analysis->medianIsScore,
+            'median_oos_score' => $analysis->medianOosScore,
+            'median_oos_return' => $analysis->medianOosReturn,
+            'median_oos_sharpe' => $analysis->medianOosSharpe,
+            'median_oos_max_dd' => $analysis->medianOosMaxDd,
+            'avg_degradation' => $analysis->avgDegradation,
+            'median_degradation' => $analysis->medianDegradation,
+            'rank_correlation' => $analysis->rankCorrelation,
+            'rank_stability_label' => $analysis->rankStabilityLabel,
+            'reliable_count' => $analysis->reliableCount,
+            'reliable_ratio' => $analysis->reliableRatio,
+            'min_trades' => $analysis->minTrades,
+            'suspicious_sharpe' => $analysis->suspiciousSharpe,
+            'low_trade_warning' => $analysis->lowTradeWarning,
+            'boundary_warnings' => array_map(fn (array $w) => [
+                'param' => $w['param'],
+                'direction' => $w['direction'],
+                'boundary' => $w['boundary'],
+                'pct' => $w['pct'],
+            ], $analysis->boundaryWarnings),
+            'benchmark' => $analysis->benchmarkHasData ? [
+                'return_pct' => $analysis->benchmarkReturn,
+                'max_drawdown_pct' => $analysis->benchmarkMaxDrawdown,
+                'sharpe' => $analysis->benchmarkSharpe,
+            ] : null,
+            'time_in_market' => $analysis->timeInMarket,
+            'exposure_adjusted_target' => $analysis->exposureAdjustedTarget,
+            'capture_ratio' => $analysis->captureRatio,
+            'market_capture' => $analysis->marketCapture,
+            'capital_efficiency' => $analysis->capitalEfficiency,
+            'grade' => [
+                'score' => $grade['score'],
+                'stars' => $grade['stars'],
+                'label' => $grade['label'],
+                'breakdown' => $grade['breakdown'],
+                'stars_by_category' => $grade['stars_by_category'],
+            ],
+            'best_parameters' => $wfRun->best_parameters,
+            'best_oos_result' => $analysis->bestOosResult ? [
+                'rank' => $analysis->bestOosRank,
+                'parameters' => $analysis->bestOosResult->parameters,
+                'is_score' => $analysis->bestOosResult->is_score,
+                'oos_score' => $analysis->bestOosResult->oos_score,
+                'score_degradation' => $analysis->bestOosResult->score_degradation,
+                'is_statistics' => $analysis->bestOosResult->is_statistics,
+                'oos_statistics' => $analysis->bestOosResult->oos_statistics,
+            ] : null,
+            'results' => array_map(fn (WalkForwardResult $r) => [
+                'rank' => $r->rank,
+                'parameters' => $r->parameters,
+                'is_score' => $r->is_score,
+                'oos_score' => $r->oos_score,
+                'score_degradation' => $r->score_degradation,
+                'is_statistics' => $r->is_statistics,
+                'oos_statistics' => $r->oos_statistics,
+            ], array_slice($analysis->results, 0, $topCount)),
+        ];
     }
 
     private function outputResult(string $content, ?string $outputPath): void
@@ -279,7 +373,7 @@ class ShowWalkForwardRunCommand extends Command
 
         $this->newLine();
 
-        $grade = \App\AlphaForge\Backtesting\WalkForward\StrategyGrader::grade($analysis);
+        $grade = StrategyGrader::grade($analysis);
         $this->line('<fg=yellow>Final Score:</>');
         $this->line('  Overall:      '.self::colorizeStars($grade['stars']).' '.$grade['label']);
         $this->line('  ('.number_format($grade['score'], 1).'/100)');

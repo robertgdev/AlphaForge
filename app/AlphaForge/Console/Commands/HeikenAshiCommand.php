@@ -2,7 +2,7 @@
 
 namespace App\AlphaForge\Console\Commands;
 
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use App\AlphaForge\Console\Concerns\HasProgressBar;
 use App\AlphaForge\Console\Concerns\ParsesMarketDataArgs;
 use App\AlphaForge\Conversion\HeikenAshiConverter;
@@ -10,13 +10,12 @@ use App\AlphaForge\Data\Exception\StorageException;
 use Illuminate\Console\Command;
 
 use function Laravel\Prompts\confirm;
-use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\warning;
 
 class HeikenAshiCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
     use HasProgressBar;
     use ParsesMarketDataArgs;
 
@@ -31,6 +30,7 @@ class HeikenAshiCommand extends Command
         {timeframe : The timeframe (e.g., 1m, 5m, 1h, 1d)}
         {--force : Force overwrite existing Heiken-Ashi file}
         {--update : Incrementally update the Heiken-Ashi file by appending new converted data}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     /**
@@ -49,30 +49,24 @@ class HeikenAshiCommand extends Command
         $update = $this->option('update');
 
         if ($update && $force) {
-            error('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError('Cannot use --update and --force together. --update appends to existing data; --force overwrites it.');
         }
 
         try {
             // Get OHLC file info
             $ohlcvHeader = $converter->getOhlcvFileInfo($exchange, $market, $timeframe);
         } catch (StorageException $e) {
-            error("OHLC file not found: {$e->getMessage()}");
-            $this->components->twoColumnDetail(
-                'Expected Path',
-                "marketdata/{$exchange}/".str_replace('/', '_', $market)."/{$timeframe}/ohlcv.stchx"
-            );
-
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("OHLC file not found: {$e->getMessage()}");
         }
 
         // Check if Heiken-Ashi file already exists
         $heikenAshiExists = $converter->heikenAshiFileExists($exchange, $market, $timeframe);
 
         if ($heikenAshiExists && ! $force && ! $update) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJsonError('Heiken-Ashi file already exists. Use --force to overwrite or --update to append.');
+            }
+
             $heikenAshiPath = $converter->generateHeikenAshiFilePath($exchange, $market, $timeframe);
             warning('Heiken-Ashi file already exists for this configuration.');
             $this->components->twoColumnDetail('Existing File', $heikenAshiPath);
@@ -86,25 +80,32 @@ class HeikenAshiCommand extends Command
                 warning('Operation cancelled.');
 
                 $this->debugMemory();
+
                 return self::SUCCESS;
             }
         }
 
         // Display conversion summary
         if ($update && ! $heikenAshiExists) {
-            info('Heiken-Ashi file does not exist. Performing full conversion instead.');
+            if (! $this->jsonEnabled()) {
+                info('Heiken-Ashi file does not exist. Performing full conversion instead.');
+            }
             $update = false;
         }
 
-        info($update ? 'Starting Heiken-Ashi incremental conversion...' : 'Starting Heiken-Ashi conversion...');
-        $this->newLine();
-        $this->displayMarketDataHeader($exchange, $market, $timeframe, [
-            'OHLC Records' => number_format($ohlcvHeader['numRecords']),
-            'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
-        ]);
+        if (! $this->jsonEnabled()) {
+            info($update ? 'Starting Heiken-Ashi incremental conversion...' : 'Starting Heiken-Ashi conversion...');
+            $this->newLine();
+            $this->displayMarketDataHeader($exchange, $market, $timeframe, [
+                'OHLC Records' => number_format($ohlcvHeader['numRecords']),
+                'Mode' => $update ? 'Incremental Update' : ($force ? 'Force Overwrite' : 'Normal'),
+            ]);
+        }
 
         try {
-            $this->startProgressBar($update ? 'Incrementally converting OHLC to Heiken-Ashi...' : 'Converting OHLC to Heiken-Ashi...');
+            if (! $this->jsonEnabled()) {
+                $this->startProgressBar($update ? 'Incrementally converting OHLC to Heiken-Ashi...' : 'Converting OHLC to Heiken-Ashi...');
+            }
 
             if ($update) {
                 $newRecordsCount = $converter->convertIncremental(
@@ -112,11 +113,41 @@ class HeikenAshiCommand extends Command
                     $market,
                     $timeframe,
                     function (int $current, int $total) {
-                        $this->updateProgress($current, $total);
+                        if (! $this->jsonEnabled()) {
+                            $this->updateProgress($current, $total);
+                        }
                     }
                 );
 
-                $this->finishProgressBar();
+                if (! $this->jsonEnabled()) {
+                    $this->finishProgressBar();
+                }
+
+                $heikenAshiPath = $converter->generateHeikenAshiFilePath($exchange, $market, $timeframe);
+
+                if ($this->jsonEnabled()) {
+                    if ($newRecordsCount === -1) {
+                        $heikenAshiHeader = $converter->readHeikenAshiHeader($heikenAshiPath);
+
+                        return $this->outputJson(true, [
+                            'exchange' => $exchange,
+                            'symbol' => $market,
+                            'timeframe' => $timeframe,
+                            'mode' => 'full',
+                            'filePath' => $heikenAshiPath,
+                            'candleCount' => $heikenAshiHeader['numRecords'],
+                        ]);
+                    }
+
+                    return $this->outputJson(true, [
+                        'exchange' => $exchange,
+                        'symbol' => $market,
+                        'timeframe' => $timeframe,
+                        'mode' => 'incremental',
+                        'filePath' => $heikenAshiPath,
+                        'candleCount' => $newRecordsCount,
+                    ]);
+                }
 
                 if ($newRecordsCount === -1) {
                     info('Heiken-Ashi conversion completed successfully (full conversion was performed).');
@@ -127,10 +158,10 @@ class HeikenAshiCommand extends Command
                     $this->components->twoColumnDetail('New Candles Appended', number_format($newRecordsCount));
                 }
 
-                $heikenAshiPath = $converter->generateHeikenAshiFilePath($exchange, $market, $timeframe);
                 $this->components->twoColumnDetail('File Path', $heikenAshiPath);
 
                 $this->debugMemory();
+
                 return self::SUCCESS;
             }
 
@@ -139,33 +170,49 @@ class HeikenAshiCommand extends Command
                 $market,
                 $timeframe,
                 function (int $current, int $total) {
-                    $this->updateProgress($current, $total);
+                    if (! $this->jsonEnabled()) {
+                        $this->updateProgress($current, $total);
+                    }
                 }
             );
 
-            $this->finishProgressBar();
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBar();
+            }
 
             // Read the generated file info
             $heikenAshiHeader = $converter->readHeikenAshiHeader($filePath);
+
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, [
+                    'exchange' => $exchange,
+                    'symbol' => $market,
+                    'timeframe' => $timeframe,
+                    'mode' => $force ? 'overwrite' : 'normal',
+                    'filePath' => $filePath,
+                    'candleCount' => $heikenAshiHeader['numRecords'],
+                ]);
+            }
 
             info('Heiken-Ashi conversion completed successfully!');
             $this->components->twoColumnDetail('File Path', $filePath);
             $this->components->twoColumnDetail('Heiken-Ashi Candles Generated', number_format($heikenAshiHeader['numRecords']));
 
             $this->debugMemory();
+
             return self::SUCCESS;
         } catch (StorageException $e) {
-            $this->finishProgressBarOnError();
-            error("Conversion failed: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Conversion failed: {$e->getMessage()}");
         } catch (\Throwable $e) {
-            $this->finishProgressBarOnError();
-            error("Unexpected error: {$e->getMessage()}");
+            if (! $this->jsonEnabled()) {
+                $this->finishProgressBarOnError();
+            }
 
-            $this->debugMemory();
-            return self::FAILURE;
+            return $this->outputJsonError("Unexpected error: {$e->getMessage()}");
         }
     }
 }

@@ -5,18 +5,19 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\BacktestRun;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Optimization\Sensitivity\ParameterSensitivityService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class SensitivityAnalysisCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
 
     protected $signature = 'alphaforge:optimizations:sensitivity
         {optimization_id : The optimization run ID}
         {--metric=optimization_score : Metric to analyze}
         {--surface= : Comma-separated pair of parameters for 2D heatmap (e.g. fastPeriod,slowPeriod)}
         {--interactions : Show inter-parameter interaction effects}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Analyze parameter sensitivity from an optimization run';
@@ -28,44 +29,65 @@ class SensitivityAnalysisCommand extends Command
         $optimizationRun = OptimizationRun::find($optimizationId);
 
         if (! $optimizationRun) {
-            $this->error("Optimization run not found: $optimizationId");
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError("Optimization run not found: $optimizationId");
         }
 
         if (! $optimizationRun->isCompleted()) {
-            $this->error('Optimization run is not completed. Status: '.$optimizationRun->status);
-
-            $this->debugMemory();
-
-            return 1;
+            return $this->outputJsonError('Optimization run is not completed. Status: '.$optimizationRun->status);
         }
 
         $metric = $this->option('metric');
 
-        $this->line('<fg=yellow>=== Parameter Sensitivity Analysis ===</>');
-        $this->line("  Optimization ID: {$optimizationRun->id}");
-        $this->line("  Strategy: {$optimizationRun->strategy_alias}");
-        $this->line('  Symbol: '.($optimizationRun->symbols[0] ?? '-'));
-        $this->line("  Method: {$optimizationRun->optimization_method}");
-        $this->line("  Metric: {$metric}");
-        $this->newLine();
+        if (! $this->jsonEnabled()) {
+            $this->line('<fg=yellow>=== Parameter Sensitivity Analysis ===</>');
+            $this->line("  Optimization ID: {$optimizationRun->id}");
+            $this->line("  Strategy: {$optimizationRun->strategy_alias}");
+            $this->line('  Symbol: '.($optimizationRun->symbols[0] ?? '-'));
+            $this->line("  Method: {$optimizationRun->optimization_method}");
+            $this->line("  Metric: {$metric}");
+            $this->newLine();
+        }
 
         $service = ParameterSensitivityService::fromOptimizationRunId($optimizationId);
 
         $totalRuns = BacktestRun::where('optimization_id', $optimizationId)->where('status', 'completed')->count();
-        $this->line("  Results analyzed: {$totalRuns}");
-        $this->newLine();
+
+        if (! $this->jsonEnabled()) {
+            $this->line("  Results analyzed: {$totalRuns}");
+            $this->newLine();
+        }
 
         if ($totalRuns === 0) {
-            $this->error('No completed backtest results found for this optimization.');
-            $this->line('  The optimization must have at least one completed result to analyze.');
+            return $this->outputJsonError('No completed backtest results found for this optimization.');
+        }
 
-            $this->debugMemory();
+        if ($this->jsonEnabled()) {
+            $data = [
+                'optimizationId' => $optimizationRun->id,
+                'strategy' => $optimizationRun->strategy_alias,
+                'symbol' => $optimizationRun->symbols[0] ?? null,
+                'metric' => $metric,
+                'totalRuns' => $totalRuns,
+                'importance' => $service->importance($metric),
+            ];
 
-            return 1;
+            if ($surfaceParam = $this->option('surface')) {
+                $parts = array_map('trim', explode(',', $surfaceParam));
+                if (count($parts) !== 2) {
+                    return $this->outputJsonError('--surface requires exactly 2 parameter names separated by comma.');
+                }
+                try {
+                    $data['surface'] = $service->surface($parts[0], $parts[1], $metric);
+                } catch (\InvalidArgumentException $e) {
+                    return $this->outputJsonError($e->getMessage());
+                }
+            }
+
+            if ($this->option('interactions')) {
+                $data['interactions'] = $service->interactions($metric);
+            }
+
+            return $this->outputJson(true, $data);
         }
 
         // Always show parameter importance
@@ -75,11 +97,7 @@ class SensitivityAnalysisCommand extends Command
         if ($surfaceParam = $this->option('surface')) {
             $parts = array_map('trim', explode(',', $surfaceParam));
             if (count($parts) !== 2) {
-                $this->error('--surface requires exactly 2 parameter names separated by comma.');
-
-                $this->debugMemory();
-
-                return 1;
+                return $this->outputJsonError('--surface requires exactly 2 parameter names separated by comma.');
             }
 
             $this->renderSurface($service, $parts[0], $parts[1], $metric);

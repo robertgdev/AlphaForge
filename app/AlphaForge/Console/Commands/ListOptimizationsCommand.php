@@ -3,16 +3,18 @@
 namespace App\AlphaForge\Console\Commands;
 
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class ListOptimizationsCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
+
     protected $signature = 'alphaforge:optimizations:list
         {--strategy= : Filter by strategy alias}
         {--status= : Filter by status (pending, running, completed, failed)}
         {--limit=20 : Number of results to show}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'List past optimization runs';
@@ -32,10 +34,29 @@ class ListOptimizationsCommand extends Command
         $optimizations = $query->limit((int) $this->option('limit'))->get();
 
         if ($optimizations->isEmpty()) {
+            if ($this->jsonEnabled()) {
+                return $this->outputJson(true, ['optimizations' => []]);
+            }
+
             $this->info('No optimization runs found.');
 
             $this->debugMemory();
+
             return 0;
+        }
+
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'optimizations' => $optimizations->map(fn (OptimizationRun $opt) => [
+                    'id' => $opt->id,
+                    'strategy' => $opt->strategy_alias,
+                    'symbol' => $opt->symbols[0] ?? null,
+                    'status' => $opt->status,
+                    'combinations' => (int) $opt->total_combinations,
+                    'bestMetric' => $this->formatMetric($opt),
+                    'created' => $opt->created_at->toIso8601String(),
+                ])->values()->toArray(),
+            ]);
         }
 
         $this->table(
@@ -52,6 +73,7 @@ class ListOptimizationsCommand extends Command
         );
 
         $this->debugMemory();
+
         return 0;
     }
 
@@ -66,7 +88,6 @@ class ListOptimizationsCommand extends Command
 
         $value = $stats[$metric];
 
-        // Handle percentage metrics
         if (str_contains($metric, 'percent') || str_contains($metric, 'drawdown')) {
             return number_format((float) $value * 100, 2).'%';
         }

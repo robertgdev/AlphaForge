@@ -5,16 +5,17 @@ namespace App\AlphaForge\Console\Commands;
 use App\AlphaForge\Backtesting\Model\OptimizationRun;
 use App\AlphaForge\Backtesting\Service\BacktestResultFormatter;
 use App\AlphaForge\Backtesting\Service\ParameterOptimizerService;
-use App\AlphaForge\Console\Commands\Concerns\DebugMemory;
+use App\AlphaForge\Console\Concerns\HasJsonOutput;
 use Illuminate\Console\Command;
 
 class ShowOptimizationCommand extends Command
 {
-    use DebugMemory;
+    use HasJsonOutput;
 
     protected $signature = 'alphaforge:optimizations:show
         {optimization_id : The optimization run ID}
         {--top=10 : Number of top results to display}
+        {--json : Output results as JSON}
         {--debug : Show peak memory usage on exit}';
 
     protected $description = 'Show detailed optimization results';
@@ -27,11 +28,31 @@ class ShowOptimizationCommand extends Command
         $optimizationRun = OptimizationRun::find($optimizationId);
 
         if (! $optimizationRun) {
-            $this->error("Optimization run not found: $optimizationId");
+            return $this->outputJsonError("Optimization run not found: $optimizationId");
+        }
 
-            $this->debugMemory();
+        $results = $optimizer->getRankedResults($optimizationRun)->take($topCount);
 
-            return 1;
+        if ($this->jsonEnabled()) {
+            return $this->outputJson(true, [
+                'id' => $optimizationRun->id,
+                'strategy' => $optimizationRun->strategy_alias,
+                'symbol' => $optimizationRun->symbols[0] ?? null,
+                'timeframe' => $optimizationRun->timeframe,
+                'status' => $optimizationRun->status,
+                'metric' => $optimizationRun->optimization_metric,
+                'progress' => "{$optimizationRun->completed_combinations}/{$optimizationRun->total_combinations}",
+                'parameterRanges' => $optimizationRun->parameter_ranges,
+                'bestParameters' => $optimizationRun->best_parameters,
+                'bestStatistics' => $optimizationRun->best_statistics,
+                'topResults' => $results->map(function ($result) {
+                    return [
+                        'rank' => $result->rank,
+                        'parameters' => $result->parameters,
+                        'statistics' => $result->statistics,
+                    ];
+                })->values()->toArray(),
+            ]);
         }
 
         $this->line('<fg=yellow>Optimization Details</>');
@@ -67,8 +88,6 @@ class ShowOptimizationCommand extends Command
 
         // Display top results table
         $this->line("<fg=yellow>Top {$topCount} Results:</>");
-
-        $results = $optimizer->getRankedResults($optimizationRun)->take($topCount);
 
         if ($results->isEmpty()) {
             $this->line('  No completed results yet.');
